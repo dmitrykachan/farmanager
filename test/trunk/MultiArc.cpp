@@ -4,9 +4,9 @@
 #include "multiarc.hpp"
 #include "marclng.hpp"
 
-int WINAPI _export GetMinFarVersion(void)
+int __stdcall _export GetMinFarVersion ()
 {
-  return MAKEFARVERSION(1,70,1812);
+	return MAKEFARVERSION (1,70,1812);
 }
 
 void WINAPI _export SetStartupInfo(const struct PluginStartupInfo *Info)
