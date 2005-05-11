@@ -1,3 +1,4 @@
+//всем привет
 //редактирую для теста
 #include "plugin.hpp"
 #include "fmt.hpp"
@@ -6,7 +7,7 @@
 
 int __stdcall _export GetMinFarVersion ()
 {
-	return MAKEFARVERSION (1,70,1812);
+  return MAKEFARVERSION (1,70,1812);
 }
 
 void WINAPI _export SetStartupInfo(const struct PluginStartupInfo *Info)
