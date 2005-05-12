@@ -7,7 +7,7 @@
 
 int __stdcall _export GetMinFarVersion ()
 {
-	//€•… ‚‘…! ’…’ˆ‰ €‡
+	//€•… ‚‘…! Ÿ’œ
   return MAKEFARVERSION (1,70,1812);
 }
 
