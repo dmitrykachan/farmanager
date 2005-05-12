@@ -1,3 +1,4 @@
+//раз, два
 //всем привет
 //редактирую для теста
 #include "plugin.hpp"
@@ -7,7 +8,7 @@
 
 int __stdcall _export GetMinFarVersion ()
 {
-	//НАХРЕН ВСЕ! 1
+  //НАХРЕН ВСЕ! 1
   return MAKEFARVERSION (1,70,1812);
 }
 
