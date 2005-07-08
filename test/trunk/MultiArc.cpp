@@ -1,3 +1,4 @@
+//test2
 //test
 //раз, два
 //всем привет
@@ -15,6 +16,7 @@ int __stdcall _export GetMinFarVersion ()
 
 void WINAPI _export SetStartupInfo(const struct PluginStartupInfo *Info)
 {
+  //test
   #ifdef __USE_OWN_RTL__
   heapNew=GetProcessHeap();
   #endif
