@@ -1,3 +1,10 @@
+/*
+    FILE ID: $Id$
+
+    CHANGE LOG:
+
+    $Log$
+*/
 //test new mailer.py
 //test 1.3 combined repository
 //test 1.3
