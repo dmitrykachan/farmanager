@@ -18,7 +18,7 @@ I. FAR Manager: advanced settings.
   1.9. XLat.
 II. Windows: settings that apply to FAR Manager.
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 
@@ -37,11 +37,12 @@ the main help file, that is actual for the current FAR Manager version.
 1.1.0.(TechInfo #0)
 ~~~~~~~~~~~~~~~~~~~
    Key "/u <username>"
-   The data from [HKCU\Software\Far] is copied into [HKCU\Software\Far\Users]
-   only if the following registry branch doesn't exist:
+   The     data     from     [HKCU\Software\Far]     is     copied     into
+   [HKCU\Software\Far\Users] only if the following registry branch  doesn't
+   exist:
    [HKCU\Software\Far\Users\<username>].
-   That means that changing  parameters  described  below  will  not  affect
-   existing user  profiles.  Setting  for  "<username>"  should  be  changed
+   That means that changing parameters  described  below  will  not  affect
+   existing user profiles.  Setting  for  "<username>"  should  be  changed
    relative to the branch [HKCU\Software\Far\Users\<username>].
 
 1.1.1.(TechInfo #3)
@@ -147,7 +148,7 @@ the main help file, that is actual for the current FAR Manager version.
    Environment variables can be used here.
    Example:
     "%SystemRoot%\Profiles\%USERNAME%\FAR\Plugins"
-   This path will be used for newly created users (/u command  line  switch)
+   This path will be used for newly created users (/u command line  switch)
    as the default value for:
     "Options|System settings|Path for personal plugins"
 
@@ -383,7 +384,7 @@ the main help file, that is actual for the current FAR Manager version.
    "QuotedName":REG_DWORD
    File or folder names, containing characters specified in rule  34,  will
    be quoted when inserted into the editor/command line or the clipboard.
-   The key "System/QuotedName" of REG_DWORD type controls this behaviour.
+   The key "System/QuotedName" of DWORD type controls this behaviour.
    Bits:
      0 - if set then file or folder names will be quoted inserted into
          the editor/command line.
@@ -477,29 +478,29 @@ the main help file, that is actual for the current FAR Manager version.
      3 - "Copy" dialog: remember option state for the current FAR session
    The effect of bit 0 depends on the state of bit 1:
    1. If bit 1 is set to 1 then the "Copy access rights" option will be set
-      according to bit 0 only in the first time the "Move" dialog is called.
-      If you change this option manually in the dialog then the next time the
-      dialog is called this option will have the value previously set by you.
-      The state of this option is saved only untill the end of the current
-      FAR session. Next time you start FAR this option will once again be set
-      according to bit 0.
-   2. If bit 1 is set to 0, then the "Copy access rights" option will be set
-      according to bit 0 every time the "Move" dialog is displayed. You can
-      change the option but it will apply only to the current "Move"
+      according to bit 0 only in  the  first  time  the  "Move"  dialog  is
+      called. If you change this option manually in  the  dialog  then  the
+      next time the dialog is  called  this  option  will  have  the  value
+      previously set by you. The state of this option is saved only  untill
+      the end of the current FAR session. Next  time  you  start  FAR  this
+      option will once again be set according to bit 0.
+   2. If bit 1 is set to 0, then the "Copy access rights"  option  will  be
+      set according to bit 0 every time the "Move" dialog is displayed. You
+      can change the option but it will apply only to  the  current  "Move"
       operation.
-   The same rules apply to the effect of bit 2 depending on the state of bit 3
-   for the "Copy" dialog.
+   The same rules apply to the effect of bit 2 depending on  the  state  of
+   bit 3 for the "Copy" dialog.
    Examples:
-     0x09 - always set the option "Copy access rights" on in the "Move" dialog
-            and let it be off by default for the "Copy" dialog where user
-            setting will be remembered until FAR is closed.
-     0x06 - always set the option "Copy access rights" on in the "Copy" dialog
-            and let it be off by default for the "Move" dialog where user
-            setting will be remembered until FAR is closed.
-   The default value is 0 (turn off the option each time the dialog is opened;
-   access rights are inherited from the destionation folder).
+     0x09 - always set the option "Copy access rights"  on  in  the  "Move"
+            dialog and let it be off by default for the "Copy" dialog where
+            user setting will be remembered until FAR is closed.
+     0x06 - always set the option "Copy access rights"  on  in  the  "Copy"
+            dialog and let it be off by default for the "Move" dialog where
+            user setting will be remembered until FAR is closed.
+   The default value is 0 (turn off the option  each  time  the  dialog  is
+   opened; access rights are inherited from the destionation folder).
    Remarks:
-   1. The "System/CopySecurityOptions" key does not affect the creation of
+   1. The "System/CopySecurityOptions" key does not affect the creation  of
       links (Alt-F6). In this case the access right are always copied.
    2. If the "Copy access rights" option is off then the copied/moved files
       inherit access rights from the folder to which they are copied/moved.
@@ -784,11 +785,10 @@ the main help file, that is actual for the current FAR Manager version.
 ~~~~~~~~~~~~~~~~~~~~
    [HKEY_CURRENT_USER\Software\Far\Panel]
    "CtrlFRule":REG_DWORD
-   The  "Panel/CtrlFRule"  parameter  (DWORD  type)  specifies  the  Ctrl-F
-   behavior. When it is 0, the pathname of the file is put into the command
-   line as is, otherwise - as it is  shown  on  the  panel  (that  is,  the
-   filename may be converted to lowercase or the short  file  name  may  be
-   used).
+   The key "Panel/CtrlFRule" of DWORD type specifies the  Ctrl-F  behavior.
+   When it is 0, the pathname of the file is put into the command  line  as
+   is, otherwise - as it is shown on the panel (that is, the  filename  may
+   be converted to lowercase or the short file name may be used).
    The default is 1 (as it is shown on the panel).
 
 1.6.3.(TechInfo #43)
@@ -830,8 +830,8 @@ the main help file, that is actual for the current FAR Manager version.
 ~~~~~~~~~~~~~~~~~~~~
    [HKEY_CURRENT_USER\Software\Far\Dialog]
    "CBoxMaxHeight":REG_DWORD
-   The key "Dialog/CBoxMaxHeight" of DWORD type specifies the maximal height
-   for dialog history lists.
+   The key "Dialog/CBoxMaxHeight"  of  DWORD  type  specifies  the  maximum
+   height for dialog history lists.
    The default value is 8.
 
 
