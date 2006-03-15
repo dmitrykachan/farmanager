@@ -1,31 +1,3 @@
-//testing post commit site update5
-//testing post commit site update4
-//testing post commit site update3
-//testing post commit site update2
-//testing post commit site update
-//test2
-//test
-/*
-    FILE ID: $Id$
-
-    CHANGE LOG:
-
-    $Log$
-*/
-//test new mailer.py
-//test 1.3 combined repository
-//test 1.3
-// SVS
-//test DAV SVN
-//test mail again
-//test mail
-//test2
-//dsfds
-//dsfds
-//f//test
-//раз, два
-//всем привет
-//редактирую для теста
 #include "plugin.hpp"
 #include "fmt.hpp"
 #include "multiarc.hpp"
