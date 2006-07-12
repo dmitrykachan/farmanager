@@ -2,7 +2,7 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="7.10"
-	Name="zip"
+	Name="wcx"
 	ProjectGUID="{25E705A3-FA09-403D-94B0-8D142453307B}"
 	Keyword="Win32Proj">
 	<Platforms>
@@ -32,12 +32,12 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)/zip.dll"
+				OutputFile="$(OutDir)/wcx.dll"
 				LinkIncremental="2"
 				GenerateDebugInformation="TRUE"
-				ProgramDatabaseFile="$(OutDir)/zip.pdb"
+				ProgramDatabaseFile="$(OutDir)/wcx.pdb"
 				SubSystem="2"
-				ImportLibrary="$(OutDir)/zip.lib"
+				ImportLibrary="$(OutDir)/wcx.lib"
 				TargetMachine="1"/>
 			<Tool
 				Name="VCMIDLTool"/>
@@ -88,16 +88,16 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="G:\System Independent Files\Manager\Far\Plugins\newarc\plugins\zip\zip.module"
+				OutputFile="G:\System Independent Files\Manager\Far\Plugins\newarc\plugins\wcx\wcx.module"
 				LinkIncremental="1"
 				IgnoreAllDefaultLibraries="FALSE"
-				ModuleDefinitionFile="zip.def"
+				ModuleDefinitionFile="wcx.def"
 				GenerateDebugInformation="FALSE"
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				OptimizeForWindows98="1"
-				ImportLibrary="$(OutDir)/zip.lib"
+				ImportLibrary="$(OutDir)/wcx.lib"
 				TargetMachine="1"/>
 			<Tool
 				Name="VCMIDLTool"/>
@@ -129,19 +129,16 @@
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
 			<File
-				RelativePath="..\..\lib.part\Src\Rtl.Memory.cpp">
-			</File>
-			<File
 				RelativePath="..\..\lib.part\Src\Rtl.Misc.cpp">
 			</File>
 			<File
 				RelativePath="..\..\lib.part\Src\Rtl.Strings.cpp">
 			</File>
 			<File
-				RelativePath=".\zip.Class.cpp">
+				RelativePath=".\wcx.Class.cpp">
 			</File>
 			<File
-				RelativePath=".\zip.cpp">
+				RelativePath=".\wcx.cpp">
 			</File>
 		</Filter>
 		<Filter
@@ -149,7 +146,7 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}">
 			<File
-				RelativePath=".\Include\zip.Class.h">
+				RelativePath=".\Include\wcx.Class.h">
 			</File>
 		</Filter>
 		<Filter
