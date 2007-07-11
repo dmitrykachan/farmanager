@@ -119,7 +119,13 @@ protected:
   };
   enum
   {
+#ifndef UNICODE
+    MIN_FAR_VERMINOR=70,
     MIN_FAR_BUILD=1238
+#else
+    MIN_FAR_VERMINOR=80,
+    MIN_FAR_BUILD=210
+#endif
   };
   HWND NULL_HWND;
   FarStandardFunctions m_fsf;

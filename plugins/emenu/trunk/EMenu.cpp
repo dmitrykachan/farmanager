@@ -2,7 +2,17 @@
 #include "OleThread.h"
 #include <cassert>
 
+#ifndef UNICODE
+#define EXP_NAME(p) _export p
+#else
+#define EXP_NAME(p) _export p ## W
+#endif
+
 CPlugin *thePlug=NULL;
+
+#ifdef DEBUG
+extern "C" void __cdecl main(void) {}
+#endif
 
 extern "C" BOOL WINAPI _DllMainCRTStartup(
         HANDLE  hDllHandle,
@@ -34,32 +44,32 @@ extern "C" BOOL WINAPI _DllMainCRTStartup(
   return TRUE;
 }
 
-int WINAPI _export GetMinFarVersion()
+int WINAPI EXP_NAME(GetMinFarVersion)()
 {
   return thePlug->GetMinFarVersion();
 }
 
-void WINAPI _export SetStartupInfo(const struct PluginStartupInfo *Info)
+void WINAPI EXP_NAME(SetStartupInfo)(const struct PluginStartupInfo *Info)
 {
   thePlug->SetStartupInfo(Info);
 }
 
-void WINAPI _export GetPluginInfo(struct PluginInfo *Info)
+void WINAPI EXP_NAME(GetPluginInfo)(struct PluginInfo *Info)
 {
   thePlug->GetPluginInfo(Info);
 }
 
-HANDLE WINAPI _export OpenPlugin(int OpenFrom, INT_PTR Item)
+HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom, INT_PTR Item)
 {
   return thePlug->OpenPlugin(OpenFrom, Item);
 }
 
-int WINAPI _export Configure(int)
+int WINAPI EXP_NAME(Configure)(int)
 {
   return thePlug->Configure();
 }
 
-void WINAPI _export ExitFAR()
+void WINAPI EXP_NAME(ExitFAR)()
 {
   thePlug->ExitFAR();
 }
