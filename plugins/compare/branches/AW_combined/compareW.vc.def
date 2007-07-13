@@ -1,5 +1,0 @@
-EXPORTS
-   ExitFARW
-   GetPluginInfoW
-   OpenPluginW
-   SetStartupInfoW
