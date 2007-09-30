@@ -1,0 +1,797 @@
+#include "stdafx.h"
+#include "panelview.h"
+
+#include "dialogs.h"
+#include "farwrapper/dialog.h"
+
+static bool checkRewrite(const std::wstring &filename, const std::wstring &title, bool &skipAll, bool &overwriteAll)
+{
+	if(overwriteAll)
+		return true;
+	DWORD attr = GetFileAttributesW(filename.c_str());
+
+	if(attr == INVALID_FILE_ATTRIBUTES)
+		return true;
+	if(skipAll)
+		return false;
+
+	const std::wstring message = getMsg(
+				is_flag(attr,FILE_ATTRIBUTE_READONLY) ? MAlreadyExistRO : MAlreadyExist);
+	switch(Dialogs::overwrite(title, message, filename))
+	{
+	case Dialogs::Cancel:
+	case Dialogs::Skip:
+		return false;
+	case Dialogs::Overwrite:
+		break;
+	case Dialogs::SkipAll:
+		skipAll = true;
+		return false;
+	case Dialogs::OverwriteAll:
+		overwriteAll = true;
+		break;
+	}
+	if(!DeleteFileW(filename.c_str()))
+		if(!SetFileAttributesW(filename.c_str(), FILE_ATTRIBUTE_NORMAL) && !DeleteFileW(filename.c_str()))
+		{
+			const wchar_t* MsgItems[] =
+			{
+				getMsg(MError),
+				getMsg(MCannotCopyHost),
+				filename.c_str(),
+				getMsg(MOk)
+			};
+			FARWrappers::message(MsgItems,  1, FMSG_WARNING|FMSG_DOWN|FMSG_ERRORTYPE);
+
+			return false;
+		}
+
+	return true;
+}
+
+static bool askFolder(const std::wstring& title, const std::wstring& message, std::wstring &path)
+{
+	FARWrappers::Dialog dlg(L"FTPCmd");
+
+	dlg.addDoublebox( 3, 1,72, 6,	title)->
+		addLabel	( 5, 2,			message)->
+		addEditor	( 5, 3,70,	&path)->
+		addHLine	( 3, 4)->
+		addDefaultButton(0,5,	0,	getMsg(MCopy), DIF_CENTERGROUP)->
+		addButton	(0,5,	-1,		getMsg(MCopy), DIF_CENTERGROUP);
+	
+	return (dlg.show(76, 8) == -1)? false : true;
+}
+
+int HostView::GetFiles(FARWrappers::ItemList &panelItems, int Move, 
+			 const std::wstring &destPath, int OpMode)
+{
+	PROC;
+	BOOST_ASSERT(plugin_);
+	std::wstring path = destPath;
+	if(!IS_SILENT(OpMode))
+	{
+		bool ask = Move? 
+			askFolder(getMsg(MMoveHostTitle), getMsg(MMoveHostTo), path) :
+			askFolder(getMsg(MCopyHostTitle), getMsg(MCopyHostTo), path);
+		if(!ask || path.empty())
+			return -1;
+	}
+
+	BOOST_ASSERT(!path.empty());
+
+	bool inside = false;
+	if(path == L"..")
+	{
+		if(getCurrentDirectory().empty())
+			return 0;
+		path = getPathBranch(getCurrentDirectory());
+		inside = true;
+	} else
+	{
+		// TODO copying moving inside FTP plugins. i.e. it is necessary
+		// to determinate that the path is not from file system
+	}
+
+	if(inside)
+	{
+		bool troubles = false;
+		BOOST_ASSERT(0 && "TODO");
+		for(size_t n = 0; n < panelItems.size(); n++)
+		{
+			const FTPHost* p = findhost(panelItems[n].UserData);
+			if(!p)
+				continue;
+
+			//Check for folders
+			if(p->Folder)
+			{
+				FARWrappers::message(MCanNotMoveFolder);
+				troubles = true;
+				continue;
+			}
+
+			FTPHost h;
+			h.Assign(p);
+			// TODO			p->regPath_ = L"";
+
+			BOOST_ASSERT(0 && "TODO and check");
+			if(!h.Write(path))
+			{
+				troubles = true;
+				continue;
+			}
+
+			if(Move && !p->Folder)
+			{
+				g_manager.getRegKey().deleteSubKey((std::wstring(HostRegName) + getCurrentDirectory() + L'\\' + p->getRegName()).c_str(), true);
+				panelItems[n].Flags &= ~PPIF_SELECTED;
+			}
+		}
+		return troubles;
+	}
+
+	bool skipAll = false, overwriteAll = false;
+	for(size_t n = 0; n < panelItems.size(); n++)
+	{
+		const FTPHost* p = findhost(panelItems[n].UserData);
+		if(!p)
+			continue;
+
+		if(p->Folder)
+			continue;
+
+		std::wstring filename = path + L'\\' + p->getIniFilename();
+
+		if(!checkRewrite(filename, 
+					getMsg(Move ? MMoveHostTitle : MCopyHostTitle), 
+					skipAll, overwriteAll))
+			continue;
+
+		if(!p->WriteINI(filename))
+		{
+			DeleteFileW(filename.c_str());
+		} else
+			if (Move)
+			{
+				BOOST_ASSERT(0 && "TODO delete key");
+				//	TODO			  FP_DeleteRegKey(p->regKey_);
+			}
+	}
+
+	return true;
+}
+
+
+void HostView::readFolder(const std::wstring& dir, HostList &hostList)
+{
+	try
+	{
+		std::wstring path = HostRegName + dir;
+		WinAPI::RegKey regkey(g_manager.getRegKey(), path.c_str());
+		std::vector<std::wstring> hosts = regkey.getKeys();
+		hostList.reserve(hosts.size());
+
+		std::vector<std::wstring>::const_iterator itr = hosts.begin();
+		path += L'\\';
+		while(itr != hosts.end())
+		{
+			boost::shared_ptr<FTPHost> h(new FTPHost);
+			h->Init();
+
+			h->LastWrite.dwHighDateTime = 0;
+			h->LastWrite.dwLowDateTime = 0;
+
+			if(!h->Read(*itr++, path))
+				continue;
+			hostList.push_back(h);
+		}
+	}
+	catch(WinAPI::RegKey::exception&)
+	{
+	}
+}
+
+int HostView::GetFindData(PluginPanelItem **pPanelItem,int *pItemsNumber, int OpMode)
+{
+	PROC;
+	BOOST_ASSERT(plugin_);
+	BOOST_ASSERT(itemList_.size() == 0);
+
+	hosts_.clear();
+	readFolder(getCurrentDirectory(), hosts_);
+
+	itemList_.clear();
+	columndata_.reset(new wchar_t*[FTP_HOST_COL_COUNT*(hosts_.size()+1)]);
+
+	if(!IS_SILENT(OpMode)) 
+	{
+		PluginPanelItem& i = itemList_.add(PluginPanelItem());
+
+		FARWrappers::clear(i);
+		i.FindData.lpwszFileName    = L"..";
+		i.FindData.dwFileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+		i.Description               = L"..";
+		i.CustomColumnNumber        = FTP_HOST_COL_COUNT;
+		i.CustomColumnData          = columndata_.get();
+		i.CustomColumnData[0]       = L"..";
+		i.CustomColumnData[1]       = L"..";
+		i.CustomColumnData[2]       = L"..";
+	}
+
+	itemList_.reserve(itemList_.size()+hosts_.size());
+	std::vector<boost::shared_ptr<FTPHost> >::const_iterator itr = hosts_.begin();
+	size_t index = 1;
+	while(itr != hosts_.end())
+	{
+		PluginPanelItem& i = itemList_.add(PluginPanelItem());
+		FARWrappers::clear(i);
+
+		i.FindData.lpwszFileName	= const_cast<wchar_t*>((*itr)->getIniFilename().c_str());
+		i.FindData.ftLastWriteTime  = (*itr)->LastWrite;
+		i.FindData.dwFileAttributes = (*itr)->Folder ? FILE_ATTRIBUTE_DIRECTORY : 0;
+		i.Flags                     = 0;
+		i.UserData                  = index;
+
+		if(!IS_SILENT(OpMode))
+		{
+			i.Description               = const_cast<wchar_t*>((*itr)->hostDescription_.c_str());
+			i.CustomColumnNumber        = FTP_HOST_COL_COUNT;
+			i.CustomColumnData          = columndata_.get()+index*FTP_HOST_COL_COUNT;
+			i.CustomColumnData[0]       = const_cast<wchar_t*>((*itr)->url_.Host_.c_str());  //C0
+			i.CustomColumnData[1]       = const_cast<wchar_t*>((*itr)->url_.directory_.c_str());  //C1
+			i.CustomColumnData[2]       = const_cast<wchar_t*>((*itr)->url_.username_.c_str());  //C2
+		}
+
+		++itr;
+		++index;
+	}
+	*pPanelItem		= itemList_.items();
+	*pItemsNumber	= static_cast<int>(itemList_.size());
+
+	return true;
+}
+
+
+int HostView::SetDirectory(const std::wstring &Dir,int OpMode)
+{
+	PROC;
+	BOOST_ASSERT(plugin_);
+
+	FARWrappers::Screen scr;
+	std::wstring oldDir = getCurrentDirectory();
+
+	if(Dir == L"..")
+	{
+		if(oldDir.empty() || oldDir == L"\\")
+		{
+			BOOST_LOG(INF, L"Close plugin");
+			plugin_->CurrentState = fcsClose;
+			FARWrappers::getInfo().Control( (HANDLE)this, FCTL_CLOSEPLUGIN, NULL);
+			return true;
+		}
+
+		setCurrentDirectory(getPathBranch(getCurrentDirectory()));
+		BOOST_LOG(INF, L"DirBack");
+		return true;
+	}
+	
+	if(Dir.empty() || (Dir == L"\\"))
+	{
+		setCurrentDirectory(L"");
+		BOOST_LOG(INF, L"Set to root");
+		return true;
+	}
+	
+	//Directory
+	setCurrentDirectory(getCurrentDirectory() + L'\\' + Dir);
+	BOOST_LOG(INF, L"InDir");
+
+	return true;
+}
+
+
+bool InsertHostsCmd(FTP* ftp, bool full)
+{
+	const FTPHost*  p = ftp->getCurrentHost();
+	if(p == 0)
+		return false;
+
+	std::wstring m = full? p->url_.toString() : p->url_.Host_;
+	return FARWrappers::getInfo().Control(ftp, FCTL_INSERTCMDLINE, (void*)m.c_str());
+}
+
+int HostView::ProcessKey(int Key, unsigned int ControlState)
+{
+	PROC;
+	BOOST_ASSERT(plugin_);
+
+	//Ctrl+BkSlash
+	if(Key == VK_BACK && ControlState == PKF_CONTROL)
+	{
+		SetDirectory(L"\\", 0);
+		plugin_->Invalidate(true);
+		return true;
+	}
+
+	if(ControlState == PKF_CONTROL)
+	{
+		if(Key == 'F')
+			return InsertHostsCmd(plugin_, true);
+		else
+			if(Key == VK_RETURN)
+				return InsertHostsCmd(plugin_, false);
+	}
+
+	if(ControlState == 0 && Key == VK_RETURN)
+	{
+		const FTPHost* p = plugin_->getCurrentHost();
+		if (!p)
+			return false;
+
+		//Switch to FTP
+		if(!p->Folder)
+		{
+			plugin_->chost_.Assign(p);
+			plugin_->FullConnect();
+
+			return true;
+		}
+	}
+
+	//New entry
+	if((ControlState==PKF_SHIFT && Key==VK_F4) ||
+	   (ControlState==PKF_ALT   && Key==VK_F6))
+	{
+		FTPHost		h;
+
+		h.Init();
+		if(plugin_->GetHost(MEnterFtpTitle, &h, false))
+		{
+			h.Write(getCurrentDirectory());
+			// TODO	  selectFile_ = h.regPath_;
+			plugin_->Invalidate();
+		}
+		return true;
+	}
+
+	//Edit
+	if( (ControlState==0           && Key==VK_F4) ||
+		(ControlState==PKF_SHIFT   && Key==VK_F6) ||
+		(ControlState==PKF_CONTROL && Key=='Z') )
+	{
+		FTPHost* p = plugin_->getCurrentHost();
+		if (!p)
+			return true;
+		if(p->Folder)
+		{
+			if(!plugin_->EditDirectory(p->url_.Host_, p->hostDescription_, false, false))
+				return true;
+		} else 
+		{
+			if(!plugin_->GetHost(MEditFtpTitle,p,Key=='Z'))
+				return true;
+		}
+
+		if (p->Write(getCurrentDirectory() + plugin_->selectFile_))
+		{
+			// TODO      selectFile_ = h.regPath_;
+
+			FARWrappers::getInfo().Control(this,FCTL_UPDATEPANEL,NULL);
+			FARWrappers::getInfo().Control(this,FCTL_REDRAWPANEL,NULL);
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+class is_icompare
+{
+public:
+	is_icompare( const std::locale& Loc=std::locale() ) 
+		: loc_(Loc) {}
+
+	template< typename T1, typename T2 >
+	int operator()(const T1& Arg1, const T2& Arg2) const
+	{
+		T1 c1 = std::toupper<T1>(Arg1,loc_);
+		T2 c2 = std::toupper<T2>(Arg2,loc_);
+		if (c1 < c2)
+			return -1;
+		else
+			if (c1 == c2)
+				return 0;
+		else
+			return 1;
+	}
+
+private:
+	std::locale loc_;
+};
+
+int icompare(const std::wstring& str1, const std::wstring& str2)
+{
+	is_icompare comp;
+	std::wstring::const_iterator itr1 = str1.begin();
+	std::wstring::const_iterator itr2 = str2.begin();
+	while(itr1 != str1.end() && itr2 != str2.end())
+	{
+		int res = comp(*itr1, *itr2);
+		if(res != 0)
+			return res;
+		++itr1; ++itr2;
+	}
+	return (itr1 == str1.end())? 1 : -1;
+}
+
+int HostView::Compare(const PluginPanelItem *i1, const PluginPanelItem *i2, unsigned int Mode)
+{
+	PROC;
+	BOOST_ASSERT(plugin_);
+	if(Mode == SM_UNSORTED)
+		return -2;
+
+	if(!i1 || !i2)
+		return -2;
+
+	const FTPHost* p1 = findhost(i1->UserData);
+	const FTPHost* p2 = findhost(i2->UserData);
+	int      n;
+
+	if(!p1 || !p2)
+		return -2;
+
+	switch(Mode)
+	{
+	case   SM_EXT: n = icompare(p1->url_.directory_,  p2->url_.directory_);	break;
+	case SM_DESCR: n = icompare(p1->hostDescription_, p2->hostDescription_);	break;
+	case SM_OWNER: n = icompare(p1->url_.username_,   p2->url_.username_);		break;
+
+	case SM_MTIME:
+	case SM_CTIME:
+	case SM_ATIME: n = (int)CompareFileTime(&p2->LastWrite, &p1->LastWrite);
+		break;
+ 
+	default: n = icompare(p1->url_.Host_, p2->url_.Host_);
+		break;
+	}
+
+	do
+	{
+		if(n) break;
+
+		n = icompare(p1->url_.Host_,		p2->url_.Host_);
+		if(n) break;
+
+		n = icompare(p1->url_.username_,	p2->url_.username_);
+		if(n) break;
+
+		n = icompare(p1->hostDescription_,	p2->hostDescription_);
+	}while(0);
+
+	return n;
+}
+
+void HostView::FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber)
+{
+	PROC;
+	BOOST_ASSERT(PanelItem == itemList_.items() && ItemsNumber == itemList_.size());
+	itemList_.clear();
+	columndata_.reset();
+}
+
+
+struct DeleteData 
+{
+	FTP*	plugin;
+	bool	deleteAllFolders;
+	bool	skipAll;
+	int		opMode;
+	bool	result;
+};
+
+HostView::CallbackStatus 
+HostView::deleteCallback(bool enter, FTPHost &host, const std::wstring& path, void* param)
+{
+	PROCP(enter << L"  " << host.url_.fullhostname_);
+
+	BOOST_ASSERT(enter == true);
+
+	DeleteData* data = reinterpret_cast<DeleteData*>(param);
+
+	if(host.Folder && !data->deleteAllFolders && !IS_SILENT(data->opMode))
+	{
+		const wchar_t* MsgItems[]=
+		{
+			getMsg(MDeleteHostsTitle),
+			getMsg(MDeleteHostFolder),
+			host.url_.fullhostname_.c_str(),
+			getMsg(MDeleteGroupDelete),
+			getMsg(MDeleteGroupAll),
+			getMsg(MSkip),
+			getMsg(MDeleteGroupCancel)
+		};
+
+		int res = FARWrappers::message(MsgItems, 4, FMSG_WARNING|FMSG_DOWN);
+
+		switch(res) 
+		{
+			/*ESC*/
+			case -1: 
+			/*Cancel*/
+			case  3:
+				return Cancel;
+			/*Del*/
+			case  0:
+				break;
+			/*DelAll*/
+			case  1: 
+				data->deleteAllFolders = true;
+				break;
+			case 2:
+				return Skip;
+		}
+	}
+	BOOST_LOG(ERR, "deleted: " << path + L'\\' + host.getRegName());
+	g_manager.getRegKey().deleteSubKey(
+		(std::wstring(HostRegName) + path + L'\\' + host.getRegName()).c_str(), true);
+	return host.Folder? Skip : OK;
+}
+
+bool HostView::DeleteFiles(const PluginPanelItem *PanelItem, int ItemsNumber, int OpMode)
+{
+	PROC;
+	if(ItemsNumber == 0)
+		return false;
+
+	//Ask
+	if (!IS_SILENT(OpMode))
+	{
+		const wchar_t* MsgItems[]=
+		{
+			getMsg(MDeleteHostsTitle),
+			getMsg(MDeleteHosts),
+			getMsg(MDeleteDelete),
+			getMsg(MDeleteCancel)
+		};
+
+		if(FARWrappers::message(MsgItems, 2) != 0)
+			return true;
+
+		if(ItemsNumber > 1)
+		{
+			wchar_t buff[128];
+			_snwprintf(buff, sizeof(buff)/sizeof(*buff), getMsg(MDeleteNumberOfHosts), ItemsNumber);
+			MsgItems[1] = buff;
+			if(FARWrappers::message(MsgItems, 2, FMSG_WARNING|FMSG_DOWN) != 0)
+				return true;
+		}
+	}
+
+	DeleteData data;
+	data.plugin				= plugin_;
+	data.deleteAllFolders	= false;
+	data.opMode				= OpMode;
+	data.skipAll			= false;
+
+	return walk(PanelItem, ItemsNumber, getCurrentDirectory(), deleteCallback, &data);
+}
+
+
+bool HostView::walk(const PluginPanelItem* panelItems, int itemsNumber, const std::wstring &path, WalkListCallBack callback, void* param)
+{
+	bool res = true;
+	for(int i = 0; res && i < itemsNumber; ++i)
+	{
+		res = walk(*findhost(panelItems[i].UserData), path, callback, param);
+	}
+	return res;
+}
+
+bool HostView::walk(FTPHost& host, const std::wstring &path, WalkListCallBack callback, void* param)
+{
+	bool res = true;
+	if(host.Folder)
+	{
+		CallbackStatus cbstatus = callback(true, host, path, param);
+		if(cbstatus == Cancel)
+			return false;
+		if(cbstatus == OK)
+		{
+			HostList list;
+			std::wstring subpath = path + host.getIniFilename();
+			readFolder(subpath, list);
+			HostList::iterator itr = list.begin();
+			while(res && itr != list.end())
+			{
+				res = walk(**itr, subpath, callback, param);
+				++itr;
+			}
+			cbstatus = callback(false, host, path, param);
+			if(cbstatus == Cancel)
+				return false;
+		}
+	} else
+	{
+		if(callback(true, host, path, param) == Cancel)
+			return false;
+	}
+	return true;
+}
+
+
+int HostView::MakeDirectory(std::wstring &name, int OpMode)
+{
+	PROCP(name << OpMode);
+	FTPHost h;
+
+	h.Init();
+
+	if(!IS_SILENT(OpMode) && !plugin_->EditDirectory(name, h.hostDescription_, true, false))
+		return -1;
+
+	if(name.empty())
+		return -1;
+
+	if(name == L"." ||	name == L"..")
+	{
+		SetLastError(ERROR_ALREADY_EXISTS);
+		return false;
+	}
+
+	h.Folder = true;
+	h.url_.Host_ = h.url_.fullhostname_ = name;
+	h.Write(getCurrentDirectory());
+
+	return true;
+}
+
+int HostView::PutFiles(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode)
+{
+	bool            SkipAll = false;
+	std::wstring	destPath, srcFile, destName, curName;
+	DWORD           srcAttr;
+	int 			n;
+	FTPHost         h;
+	FARWrappers::ItemList il;
+
+	destPath = getCurrentDirectory() + L'\\';
+
+	BOOST_ASSERT(0 && "TODO");
+	// 	if (!ExpandList(PanelItem,ItemsNumber,&il,FALSE))
+	// 		return 0;
+
+	for(n = 0; n < itemsNumber; n++ )
+	{
+		if (CheckForEsc(false))
+			return -1;
+
+		h.Init();
+		curName = panelItems[n].FindData.lpwszFileName;
+
+		srcAttr = GetFileAttributesW(curName.c_str());
+		if(srcAttr == INVALID_FILE_ATTRIBUTES)
+			continue;
+
+		if(is_flag(srcAttr,FILE_ATTRIBUTE_DIRECTORY))
+		{
+			h.Folder = true;
+			h.url_.Host_ = curName.c_str();
+			h.Write(getCurrentDirectory());
+			continue;
+		}
+
+		if(curName.find(L'\\') == std::wstring::npos)
+		{
+			srcFile		= L".\\" + curName;
+			destName	= destPath;
+		} else
+		{
+			srcFile		= curName;
+			destName	= destPath + curName;
+			size_t n	= destName.find('\\');
+			BOOST_ASSERT(n != std::wstring::npos);
+			destName.resize(n);
+		}
+
+		if(!h.ReadINI(srcFile))
+		{
+			if(!IS_SILENT(OpMode))
+				if(SayNotReadedTerminates(srcFile, SkipAll))
+					return -1;
+			continue;
+		}
+
+		BOOST_LOG(INF, L"Write new host [" << srcFile << L"] -> [" << destName << L"]");
+		BOOST_ASSERT(0 && "todo and check (write)");
+		h.Write(destName);
+
+		if (Move)
+		{
+			SetFileAttributesW(curName.c_str(),0);
+			DeleteFileW(curName.c_str());
+		}
+
+		if (n < itemsNumber)
+			panelItems[n].Flags &= ~PPIF_SELECTED;
+	}
+
+	if (Move)
+	{
+		for(n = itemsNumber-1; n >= 0; n-- )
+		{
+			if(CheckForEsc(FALSE))
+				return -1;
+
+			if(is_flag(il[n].FindData.dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY))
+				if(RemoveDirectoryW( FTP_FILENAME(&il[n]).c_str()))
+					if ( n < itemsNumber )
+						panelItems[n].Flags &= ~PPIF_SELECTED;
+		}
+	}
+
+	return 1;
+}
+
+
+int HostView::ProcessEvent(int Event, void *Param)
+{
+	PROCP(Event);
+	BOOST_LOG(IMPTDATA, L"Event: " << Event);
+
+	if(plugin_->CurrentState == fcsClose || plugin_->CurrentState == fcsConnecting)
+		return false;
+
+	PanelInfo pi;
+
+	switch(Event)
+	{
+	case FE_CHANGEVIEWMODE:
+		plugin_->getPanelInfo(pi);
+		BOOST_LOG(INF, L"New ColumnMode " << pi.ViewMode);
+		g_manager.getRegKey().set(L"LastHostsMode", pi.ViewMode);
+		break;
+	case FE_REDRAW:
+		if(!plugin_->PluginColumnModeSet)
+		{
+			if(g_manager.opt.PluginColumnMode != -1)
+				FARWrappers::getInfo().Control(this,FCTL_SETVIEWMODE,&g_manager.opt.PluginColumnMode);
+			else
+			{
+				int num = g_manager.getRegKey().get(L"LastHostsMode", 2);
+				FARWrappers::getInfo().Control( this,FCTL_SETVIEWMODE,&num );
+			}
+			plugin_->PluginColumnModeSet = true;
+		}
+		break;
+
+	case FE_CLOSE:
+		BOOST_LOG(INF, L"Close notify");
+		plugin_->CurrentState = fcsClose;
+		plugin_->getPanelInfo(pi);
+		g_manager.getRegKey().set(L"LastHostsMode", pi.ViewMode);
+		break;
+
+	case FE_IDLE:
+	case FE_BREAK:
+		break;
+	case FE_COMMAND:
+		return plugin_->ExecCmdLine(reinterpret_cast<wchar_t*>(Param), false);
+		break;
+	}
+
+	return false;
+}
+
+const std::wstring HostView::getCurrentDirectory() const
+{
+	return hostsPath_;
+}
+
+void HostView::setCurrentDirectory(const std::wstring& dir)
+{
+	hostsPath_ = dir;
+	g_manager.getRegKey().set(L"LastHostsPath", dir);
+}
