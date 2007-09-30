@@ -1,19 +1,18 @@
 #include "stdafx.h"
-#include <all_far.h>
+
 #pragma hdrstop
 
 #include "ftp_Int.h"
+#include "farwrapper/dialog.h"
 
-//------------------------------------------------------------------------
 void ShowHostError( FTPUrl* p )
-  {
-    SayMsg( p->Error.c_str() );
+{
+    FARWrappers::message(p->Error);
 }
 
-//------------------------------------------------------------------------
 void FTP::UrlInit(FTPUrl* p)
 {
-      p->Host     = Host;
+      p->Host     = chost_;
       p->Download = FALSE;
       p->Next     = NULL;
 }
@@ -59,12 +58,12 @@ BOOL PreFill(FTPUrl* p)
 	if (p->Download && p->SrcPath[0] != L'/' )
 	{
 		p->Host.SetHostName(p->SrcPath.c_str(), NULL, NULL);
-		p->SrcPath = p->Host.directory_;
+		p->SrcPath = p->Host.url_.directory_;
 
-		p->Host.directory_ = L"";
+		p->Host.url_.directory_ = L"";
 	}
 
-	if (p->Host.Host_.empty())
+	if (p->Host.url_.Host_.empty())
 		return FALSE;
 
 	if (p->Download)
@@ -98,73 +97,57 @@ BOOL PreFill(FTPUrl* p)
 	return true;
 }
 
-BOOL FTP::EditUrlItem( FTPUrl* p )
-  {
-static FP_DECL_DIALOG( InitItems )
-   /*00*/    FDI_CONTROL( DI_DOUBLEBOX, 3, 1,72,12, 0, FMSG(MUrlItem) )
+bool FTP::EditUrlItem( FTPUrl* p )
+{
+	FARWrappers::Dialog dlg(L"FTPQueueItemEdit");
 
-   /*01*/      FDI_LABEL( 5, 2,    FMSG(MCopyFrom) )
-   /*02*/   FDI_HISTEDIT( 5, 3,70, "FTPUrl" )
-   /*03*/      FDI_LABEL( 5, 4,    FMSG(MCopyTo) )
-   /*04*/   FDI_HISTEDIT( 5, 5,70, "FTPUrl" )
-   /*05*/      FDI_LABEL( 5, 6,    FMSG(MFileName) )
-   /*06*/   FDI_HISTEDIT( 5, 7,70, "FTPFileName" )
+	enum
+	{
+		idHost, idOk, idError
+	};
 
-   /*07*/      FDI_HLINE( 3, 8 )
+	dlg.addDoublebox( 3, 1,72,12,				getMsg(MUrlItem))->
+		addLabel	( 5, 2,						getMsg(MCopyFrom))->
+		addEditor	( 5, 3,70,	&p->SrcPath,  0, L"FTPUrl")->
+		addLabel	( 5, 4,						getMsg(MCopyTo))->
+		addEditor	( 5, 5,70,	&p->DestPath, 0, L"FTPUrl")->
+		addLabel	( 5, 6,						getMsg(MFileName))->
+		addEditor	( 5, 7,70,	&p->fileName_, 0, L"FTPFileName")->
+		addHLine	( 3, 8)->
+		addCheckbox	( 5, 9,		&p->Download,	getMsg(MUDownlioad))->
+		addHLine	( 3,10)->
+		addButton	( 0,11,		idHost,			getMsg(MUHost))->
+		addDefaultButton( 0,11,	idOk,			getMsg(MOk))->
+		addButton	( 0,11,		-1,				getMsg(MCancel))->
+		addButton	( 0,11,		idError,		getMsg(MUError));
 
-   /*08*/      FDI_CHECK( 5, 9,    FMSG(MUDownlioad) )
+	PreFill(p);
+	do
+	{
+		if(p->Error.empty())
+			dlg.find(idError).disable();
+		int rc;
+		do
+		{
+			rc = dlg.show(76, 14);
 
-   /*09*/      FDI_HLINE( 3,10 )
-   /*10*/    FDI_GBUTTON( 0,11,    FMSG(MUHost) )
-   /*11*/ FDI_GDEFBUTTON( 0,11,    FMSG(MOk) )
-   /*12*/    FDI_GBUTTON( 0,11,    FMSG(MCancel) )
-   /*13*/    FDI_GBUTTON( 0,11,    FMSG(MUError) )
-FP_END_DIALOG
+			switch(rc)
+			{
+			case -1:
+				return false;
+			case idHost:
+				GetHost(MEditFtpTitle, &p->Host, false);
+				break;
+			case idError:
+				ShowHostError(p);
+			    break;
+			}
+		} while(rc != idOk);
 
-     FarDialogItem  DialogItems[ FP_DIALOG_SIZE(InitItems) ];
+		//Form
+		if(!PreFill(p))
+			continue;
 
-//Create items
-     FP_InitDialogItems( InitItems,DialogItems );
-
-     PreFill( p );
-   do{
-//Set flags
-		//From
-		Utils::safe_strcpy(DialogItems[2].Data, WinAPI::toOEM(p->SrcPath));
-		//To
-		Utils::safe_strcpy(DialogItems[4].Data, WinAPI::toOEM(p->DestPath));
-	    //Name
-		Utils::safe_strcpy(DialogItems[6].Data, WinAPI::toOEM(p->fileName_));
-
-     //Flags
-     DialogItems[ 8].Selected = p->Download;
-     if ( !p->Error.Length() )
-       SET_FLAG( DialogItems[13].Flags,DIF_DISABLE );
-
-//Dialog
-     do{
-       int rc = FDialog( 76,14,"FTPQueueItemEdit",DialogItems,FP_DIALOG_SIZE(InitItems) );
-       if ( rc == -1 || rc == 12 ) return FALSE;                               else
-       if ( rc == 11 )             break;                                      else
-       if ( rc == 10 )             GetHost( MEditFtpTitle, &p->Host, FALSE );  else
-       if ( rc == 13 )             ShowHostError( p );
-     }while(1);
-
-//Get paras
-		//From
-		p->SrcPath = WinAPI::fromOEM(DialogItems[2].Data);
-		//To
-		p->DestPath = WinAPI::fromOEM(DialogItems[4].Data);
-		//Name
-		p->fileName_ = WinAPI::fromOEM(DialogItems[6].Data);
-
-     //Flags
-     p->Download = DialogItems[ 8].Selected;
-
-//Form
-     if ( !PreFill(p) )
-       continue;
-
-     return TRUE;
-   }while(1);
+		return true;
+	} while(1);
 }

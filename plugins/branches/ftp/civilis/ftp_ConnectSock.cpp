@@ -1,59 +1,44 @@
 #include "stdafx.h"
-#include <all_far.h>
+
 #pragma hdrstop
 
 #include "ftp_Int.h"
 
-int Connection::fgetcSocket(SOCKET s,DWORD tm)
-  {  int c;
-     char buffer;
+int Connection::fgetcSocket(TCPSocket &s,DWORD tm)
+{
+	char buffer;
+	int len = 1;
 
-   c = nb_recv(&s, &buffer, 1, 0,tm);
+	nb_recv(s, &buffer, len, tm);
 
-   if (c == SOCKET_ERROR || c < 0) {
-     Log(( "Error receiving: char: %02X (se: %02X) %s",c,SOCKET_ERROR,GetSocketErrorSTR() ));
-     return 0;
-   } else
-   if ( c == RPL_TIMEOUT )
-     return RPL_TIMEOUT;
-    else
-   if (c == 0) {
-     Log(( "End of recv c=0" ));
-     return ffEOF;
-   } else
-     return (int)buffer;
+	return buffer;
 }
 
-BOOL Connection::fprintfSocket( SOCKET s, CONSTSTR format, ...)
-  {  va_list  argptr;
-     String   buffer;
+void Connection::fputsSocket(TCPSocket &s, const std::string &str)
+{
+	std::string buf;
 
-   va_start(argptr, format);
-     buffer.vprintf( format, argptr );
-   va_end(argptr);
+	BOOST_LOG(INF, L">>>>>>>>>>>>>>>>>>>>>>>>>>>>>[" << FromOEM(str) << L"]");
 
- return fputsSocket( buffer.c_str(), s );
-}
+	if(str.empty())
+		return;
 
-BOOL Connection::fputsSocket( CONSTSTR str, SOCKET s)
-  {  String buf;
+	AddCmdLine(str, ldOut);
 
-     if ( !str[0] )
-       return TRUE;
+	if(!getHost().FFDup)
+	{
+		nb_send(s, str.c_str(), str.size(), 0);
+		return;
+	}
 
-     AddCmdLine(str);
+	std::string::const_iterator itr = str.begin();
+	while(itr != str.end())
+	{
+		buf.push_back(*itr);
+		if(*itr == '\xFF')
+			buf.push_back('\xFF');
+		++itr;
+	}
 
-     if ( !Host.FFDup ) {
-       int len = strLen(str);
-       return nb_send(&s, str, len, 0) == len;
-     }
-
-     for( int n = 0; str[n]; n++ )
-       if ( str[n] == '\xFF' ) {
-         buf.Add( '\xFF' );
-         buf.Add( '\xFF' );
-       } else
-         buf.Add( str[n] );
-
- return nb_send( &s, buf.c_str(), buf.Length(), 0) == buf.Length();
+	nb_send(s, buf.c_str(), buf.size(), 0);
 }

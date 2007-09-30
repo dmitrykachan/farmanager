@@ -1,329 +1,216 @@
 #include "stdafx.h"
-#include <all_far.h>
 #pragma hdrstop
 
 #include "ftp_Int.h"
+#include <fcntl.h>
 
-BOOL Connection::Init( CONSTSTR Host, CONSTSTR Port, CONSTSTR User, CONSTSTR Password )
+
+bool Connection::Init(const std::wstring& Host, size_t Port, const std::wstring& User, const std::wstring& Password, FTP* ftp)
 {  
-	FP_Screen _scr;
-	PROC(( "Connection::Init","[%s] [%s] [%s]",Host,User,Password ))
+	FARWrappers::Screen scr;
+	PROCP(L"host: " << Host << L"user: " << User << L"password: " << Password);
 
-	_fmode        = O_BINARY; // This causes an error somewhere.
-	SocketError   = (int)INVALID_SOCKET;
+	_set_fmode(_O_BINARY); // This causes an error somewhere.
 	SetLastError( ERROR_SUCCESS );
+
+	setPlugin(ftp);
 
 	/* Set up defaults for FTP. */
 	type = TYPE_A;
-	StrCpy(bytename, "8"), bytesize = 8;
 	cpend = 0;  /* no pending replies */
-	proxy = 0;      /* proxy not active */
+	setConnected(false);
+	portnum		= -1;
+	brk_flag	= false;
 
-	ResetCmdBuff();
+	keepAliveStopWatch_.setTimeout(g_manager.opt.KeepAlive*1000);
 
-	char *argv[5];
-
-	argv[0] = "open";
-	argv[1] = (char*)Host;
-	argv[2] = (char*)Port;
-	argv[3] = (char*)User;
-	argv[4] = (char*)Password;
-
-	if ( !setpeer( 5, argv ) )
+	if(setpeer_(Host, Port, User, Password) == false)
 	{
-		Log(( "!setpeer" ));
-		return FALSE;
+		BOOST_LOG(INF, L"!setpeer");
+		return false;
 	}
-	Log(( "OK" ));
+	BOOST_LOG(INF, L"OK");
 
-	return TRUE;
+	return true;
 }
 
-//--------------------------------------------------------------------------------
-BOOL Connection::hookup(char *host, int port)
-  {  FP_Screen _scr;
-     hostent *he;
-     SOCKET   sock = INVALID_SOCKET;
-     int      len = sizeof(myctladdr);
-
-Log(("Connecting: [%s]:%d",host,port ));
-
-     hostname[0] = 0;
-     MemSet( &hisctladdr, 0, sizeof(hisctladdr) );
-     MemSet( &myctladdr,  0, sizeof(myctladdr) );
-     hisctladdr.sin_port = port;
-
-     ConnectMessage(MResolving,host);
-     hisctladdr.sin_addr.s_addr = inet_addr(host);
-
-   do{
-//Server addr
-     if ( hisctladdr.sin_addr.s_addr != INADDR_NONE ) {
-       hisctladdr.sin_family = AF_INET;
-     } else
-     if ( (he=gethostbyname(host)) != NULL ) {
-       MemMove( &hisctladdr.sin_addr,he->h_addr,he->h_length );
-       hisctladdr.sin_family = he->h_addrtype;
-     } else
-       break;
-
-//Sock
-     if ( !scValid(sock=scCreate(hisctladdr.sin_family)) ) break;
-
-//Connect
-     ConnectMessage(MWaitingForConnect,NULL);
-     if( !nb_connect( &sock,(sockaddr*)&hisctladdr,sizeof(hisctladdr) ) )
-       break;
-
-//Local addr
-     if ( getsockname( sock,(sockaddr*)&myctladdr,&len ) != 0 )
-       break;
-
-//Read startup message from server
-     cin = cout = sock;
-     TStrCpy( hostname, host );
-     portnum = port;
-
-     ConnectMessage(MWaitingForResponse,NULL);
-     int repl = getreply(0);
-     if ( repl > RPL_COMPLETE || repl == RPL_ERROR ) break;
-//OK
-Log(("Connected: %d",sock ));
-     cmd_peer = sock;
-     return TRUE;
-   }while(0);
-
-//ERROR
-Log(("!connect" ));
-     scClose(sock);
-     cin      = 0;
-     cout     = 0;
-     code     = -1;
-     cmd_peer = INVALID_SOCKET;
-     portnum  = 0;
-
- return FALSE;
-}
-
-//--------------------------------------------------------------------------------
-int Connection::login( void )
+bool Connection::hookup(const std::wstring& host, int port)
 {
-  //char *acct=NULL;
-  //int   aflag = 0;
+	FARWrappers::Screen scr;
+	SOCKET   sock = INVALID_SOCKET;
+
+	memset( &hisctladdr, 0, sizeof(hisctladdr) );
+	hisctladdr.sin_port = port;
+
+	ConnectMessage(MResolving, host);
+	in_addr addr = TCPSocket::resolveName(toOEM(host).c_str());
+
+	cmd_socket_.create();
+	ConnectMessage(MWaitingForConnect, host);
+	if(nb_connect(cmd_socket_, addr, port) == false)
+		return false;
+
+	myctladdr = cmd_socket_.getlocalname();
+
+	//Read startup message from server
+	ConnectMessage(MWaitingForResponse);
+	if(isComplete(getreply()))
+	{
+		portnum = port;
+		return true;
+	}
+	cmd_socket_.close();
+	return false;
+}
+
+bool Connection::login(const std::wstring& user, const std::wstring& password, const std::wstring& account)
+{
 	int   n;
 
 	ConnectMessage(MSendingName);
+	userName_		= user.empty()? L"anonymous" : user;
+	userPassword_	= password.empty()? g_manager.opt.defaultPassword_ : password;
 
-	n = command(g_manager.opt.cmdUser_ + " " + (userName_.empty() ? "anonymous" : userName_));
+	n = command(g_manager.opt.cmdUser_ + L' ' + userName_);
+	if(!isContinue(n))
+		return false;
 
-	if(n == RPL_CONTINUE) 
-	{
-		ConnectMessage(MPasswordName);
-		n = command(g_manager.opt.cmdPass_ + " " + (UserPassword.empty() ? Unicode::toOem(g_manager.opt.defaultPassword_) : UserPassword));
-	}
-	if (n == RPL_CONTINUE) {
-		//aflag++;
-		//acct = "";
-		n = command(g_manager.opt.cmdAcct_ + " ");
-	}
-	if ( n != RPL_COMPLETE ) {
-		SetLastError(ERROR_INTERNET_LOGIN_FAILURE);
-		return 0;
-	}
-	LoginComplete = TRUE;
+	ConnectMessage(MPasswordName);
+	n = command(g_manager.opt.cmdPass_ + L' ' + userPassword_);
 
-	/*
-	if (!aflag && acct != NULL)
-	command( "%s %s",g_manager.opt.cmdAcct,acct );
-	*/
+	if(isContinue(n))
+		n = command(g_manager.opt.cmdAcct_ + L' ' + account);
+	if(!isComplete(n))
+		return false;
+	LoginComplete = true;
 
-	return 1;
+	return true;
 }
 
 void Connection::CheckResume()
 {  
-	int oldcode = code;
-
-	bool res = Host.AsciiMode? setascii() : setbinary(); 
-	if(res && command(g_manager.opt.cmdRest_ + " 0") != RPL_ERROR) 
+	bool res = getHost().AsciiMode? setascii() : setbinary();
+	if(!res)
+		return;
+	if(command(g_manager.opt.cmdRest_ + L" 0") == RequestedFileActionPendingFurtherInformation)
 	{
-		if(code == RPL_350)
-			ResumeSupport = TRUE;
+		resumeSupport_ = true;
 	}
-
-	code = oldcode;
 }
 
-//--------------------------------------------------------------------------------
-SOCKET Connection::dataconn( void )
-  {  PROC(( "dataconn", NULL ))
-     struct sockaddr_in from;
-     int                fromlen = sizeof(from);
-     SOCKET             s;
+bool Connection::dataconn(in_addr data_addr, int port)
+{
+	PROC;
 
-     if (brk_flag)
-       return INVALID_SOCKET;
+	if (brk_flag)
+		return false;
 
-     if( !Host.PassiveMode ) {
+	if(!getHost().PassiveMode)
+	{
+		TCPSocket s;
+		sockaddr_in from;
+		int			fromlen = sizeof(from);
 
-       if ( !nb_waitstate(&data_peer, ws_accept) ||
-            (s=scAccept(&data_peer, (struct sockaddr *) &from, &fromlen)) == INVALID_SOCKET) {
-         scClose( data_peer,-1 );
-         return INVALID_SOCKET;
-       }
-       Log(( "SOCK: accepted data %d -> %d",data_peer,s ));
-       closesocket(data_peer);
-       data_peer = s;
-     } else {
+		nb_accept(data_peer_, s, from);
+		BOOST_LOG(INF, L"SOCK: accepted data");
+		s.swap(data_peer_);
+		return true;
+	} else
+	{
+		if(!data_peer_.isCreated())
+		{
+			InternalError();
+			return false;
+		}
 
-       if(data_peer == INVALID_SOCKET) {
-         InternalError();
-         return INVALID_SOCKET;
-       }
-
-       if( brk_flag ||
-           !nb_connect( &data_peer,(sockaddr*)&data_addr,sizeof(data_addr) ) ) {
-         scClose( data_peer,-1 );
-         return INVALID_SOCKET;
-       }
-     }
-
-  return data_peer;
+		if(brk_flag || !nb_connect(data_peer_, data_addr, port))
+		{
+			data_peer_.close();
+			return false;
+		}
+		return true;
+	}
 }
 
-//--------------------------------------------------------------------------------
 /*
  * Need to start a listen on the data channel
  * before we send the command, otherwise the
  * server's connect may fail.
  */
-BOOL Connection::initconn()
+bool Connection::initDataConnection(in_addr &data_addr, int &port)
 {
-  int result, len, tmpno = 0;
-  int on = 1;
+	if(brk_flag)
+		return false;
 
-noport:
-  data_addr = myctladdr;
+	data_addr = myctladdr.sin_addr;
+	if(sendport_)
+		port = 0; /* let system pick one */
+	else
+		port = ntohs(myctladdr.sin_port);
 
-  if (sendport)
-    data_addr.sin_port = 0; /* let system pick one */
+	data_peer_.create();
 
-  scClose( data_peer,-1 );
-
-  if ( brk_flag ||
-       !scValid(data_peer=socket(AF_INET,SOCK_STREAM,0)) ) {
-    Log(( "!socket" ));
-    if (tmpno)
-      sendport = 1;
-    ErrorCode = WSAGetLastError();
-    return FALSE;
-  }
-  Log(( "SOCK: created data %d",data_peer ));
-
-  /* $ VVM  Switch socket to nonblocking mode */
-  u_long mode = 1;
-  ioctlsocket(data_peer, FIONBIO, &mode);
-  /* VVM $ */
-  if (!sendport)
-    if (setsockopt(data_peer, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof (on)) < 0) {
-      Log(("!setsockopt (reuse address)" ));
-      ErrorCode = WSAGetLastError();
-      goto bad;
-    }
-
-  if ( !Host.PassiveMode || !sendport ) {
-    if (bind(data_peer, (struct sockaddr *)&data_addr, sizeof (data_addr)) < 0) {
-      Log(("!bind" ));
-      ErrorCode = WSAGetLastError();
-      goto bad;
-    }
-    if ( setsockopt(data_peer, SOL_SOCKET, SO_DEBUG, (char*)&on, sizeof(on) ) < 0 ) {
-      Log(("!setsockopt SO_DEBUG (ignored)"));
-    }
-    len = sizeof (data_addr);
-    if ( getsockname(data_peer, (struct sockaddr *)&data_addr, &len) < 0) {
-      Log(("!getsockname" ));
-      ErrorCode = WSAGetLastError();
-      goto bad;
-    }
-    if ( listen(data_peer, 1) < 0 ) {
-      Log(("!listen"));
-      ErrorCode = WSAGetLastError();
-      goto bad;
-    }
-  }
-
-	if(sendport)
+	if(sendport_ == false)
 	{
-		if(Host.PassiveMode)
-			result = command(g_manager.opt.cmdPasv_);
-		else
-			result = command(
-                         g_manager.opt.cmdPort +
-						 boost::lexical_cast<std::string>(data_addr.sin_addr.S_un.S_un_b.s_b1) +
-                         boost::lexical_cast<std::string>(data_addr.sin_addr.S_un.S_un_b.s_b2) +
-                         boost::lexical_cast<std::string>(data_addr.sin_addr.S_un.S_un_b.s_b3) +
-                         boost::lexical_cast<std::string>(data_addr.sin_addr.S_un.S_un_b.s_b4) +
-                         boost::lexical_cast<std::string>((unsigned char)data_addr.sin_port) +
-                         boost::lexical_cast<std::string>((unsigned char)(data_addr.sin_port>>8)));
-		if (/*2*/result == ERROR && sendport == -1)
-		{
-			sendport = 0;
-			tmpno = 1;
-			goto noport;
-		}
-
-		if(result != RPL_COMPLETE)
-		{
-			Log(( "!Complete" ));
-			goto bad;
-		}
-
-    if ( Host.PassiveMode )
-	{
-		std::string LastReply2;  //Not need to use String - PORT string is small.
-//		char *p;
-		size_t p;
-		LastReply2 = GetReply();
-
-		if(code != 227 || (p = LastReply2.find('('))== std::wstring::npos)
-		{
-			Log(( "!Pasv port reply" ));
-			return false;
-		}
-
-		unsigned a1, a2, a3, a4, p1, p2;
-
-#define TOP(a) (a&~0xFF)
-		if(sscanf(LastReply2.c_str()+p, "(%u,%u,%u,%u,%u,%u)", &a1, &a2, &a3, &a4, &p1, &p2) !=6 ||
-			TOP(a1) || TOP(a2) || TOP(a3) || TOP(a4) || TOP(p1) || TOP(p2) ) {
-				Log(( "Bad psv port reply" ));
-				return FALSE;
-		}
-
-		data_addr.sin_addr.s_addr = (a4<<24) | (a3<<16) | (a2<<8) | a1;
-		data_addr.sin_port        = (p2<<8) | p1;
-		if( !data_addr.sin_addr.s_addr || data_addr.sin_addr.s_addr == INADDR_ANY ) return 1;
-		if( data_addr.sin_addr.s_addr != hisctladdr.sin_addr.s_addr ) {
-			char Msg[30];
-			SNprintf( Msg, sizeof(Msg),
-				"[%s -> %s]",
-				inet_ntoa(hisctladdr.sin_addr), inet_ntoa(data_addr.sin_addr));
-			ConnectMessage( 0,Msg,0 );
-		}
+		int on = 1;
+		data_peer_.setSockOpt(SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on));
+		// close socket if not ok;
 	}
-    return TRUE;
-  }
 
-  if (tmpno)
-    sendport = 1;
+	if(!getHost().PassiveMode || sendport_ == false)
+	{
+		sockaddr_in addr;
+		addr.sin_family = AF_INET;
+		addr.sin_addr = data_addr;
+		addr.sin_port = htons(port);
+		
+		data_peer_.bind(&addr);
+		addr = data_peer_.getlocalname();
+		
+		data_addr	= addr.sin_addr;
+		port		= ntohs(addr.sin_port);
+		data_peer_.listen(1);
+	}
 
-  return TRUE;
+	if(sendport_)
+	{
+		if(!getHost().PassiveMode)
+		{
+			return doport(data_addr, port);
+		} else
+		{
+			int pasvResult = command(g_manager.opt.cmdPasv_);
+			std::string pasvReply = GetReply();
+			size_t ofs;
+			if(pasvResult != EnteringPassiveMode || (ofs = pasvReply.find('(')) == std::string::npos)
+			{
+				AddCmdLine(L"Incorrect port reply", ldRaw);
+				return false;
+			}
 
-bad:
-  scClose( data_peer,-1 );
-  if (tmpno)
-    sendport = 1;
+			unsigned a1, a2, a3, a4, p1, p2;
 
-  return FALSE;
+#define TOP(a) ((a) & ~0xFF)
+			if(sscanf(pasvReply.c_str()+ofs, "(%u,%u,%u,%u,%u,%u)", &a1, &a2, &a3, &a4, &p1, &p2) !=6 ||
+				TOP(a1) || TOP(a2) || TOP(a3) || TOP(a4) || TOP(p1) || TOP(p2) )
+			{
+				AddCmdLine(L"Incorrect port reply", ldRaw);
+				return false;
+			}
+
+			data_addr.s_addr = (a4<<24) | (a3<<16) | (a2<<8) | a1;
+			port			 = (p1<<8) | p2;
+			if(!data_addr.s_addr || data_addr.s_addr == INADDR_ANY)
+				return true;
+			if(data_addr.s_addr != hisctladdr.sin_addr.s_addr)
+			{
+				std::wstring msg = L'[' + WinAPI::fromOEM(inet_ntoa(hisctladdr.sin_addr)) +
+					L" -> " + WinAPI::fromOEM(inet_ntoa(data_addr)) + L']';
+				ConnectMessage(msg);
+			}
+		}
+		return true;
+	}
+
+	return true;
 }

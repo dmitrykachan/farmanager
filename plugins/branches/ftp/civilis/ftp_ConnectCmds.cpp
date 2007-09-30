@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <all_far.h>
 #pragma hdrstop
 
 #include "ftp_Int.h"
@@ -7,192 +6,217 @@
 /*
  * Set transfer type.
  */
-BOOL Connection::settype( ftTypes Mode,CONSTSTR Arg )
+bool Connection::settype(ftTypes Mode)
 {  
-	PROC(( "settype","[%c,%s]",Mode,Arg ));
+	PROCP(L"Mode: " << Mode);
 
-	std::string cmd = std::string("TYPE ") + static_cast<char>(Mode);
+	std::wstring cmd = std::wstring(L"TYPE ") + static_cast<wchar_t>(Mode);
 
-	if(Arg)
-	{
-		cmd += " ";
-		cmd += Arg;
-	}
-
-	if (command(cmd) == RPL_COMPLETE) 
+	if (isComplete(command(cmd))) 
 	{
 		type = Mode;
-		Log(( "TYPE = %c",Mode ));
-		return TRUE;
+		BOOST_LOG(INF, L"TYPE = " << Mode);
+		return true;
 	} else
-		return FALSE;
+		return false;
 }
 
-BOOL Connection::setascii()  { return settype( TYPE_A,NULL ); }
-BOOL Connection::setbinary() { return settype( TYPE_I,NULL ); }
-BOOL Connection::setebcdic() { return settype( TYPE_E,NULL ); }
+bool Connection::setascii()  { return settype(TYPE_A); }
+bool Connection::setbinary() { return settype(TYPE_I); }
+bool Connection::setebcdic() { return settype(TYPE_E); }
+
+bool Connection::appended(const std::wstring &local, const std::wstring &remote)
+{
+	std::wstring cmd;
+
+	if(local.empty())
+		return false;
+
+	sendrequest(g_manager.opt.cmdAppe, local, remote.empty()? local : remote);
+	restart_point = 0;
+	return true;
+}
+
+bool Connection::chmod(const std::wstring& file, const std::wstring &mode)
+{
+	if(file.empty() | mode.empty())
+		return false;
+
+	return command(g_manager.opt.cmdSite + L" " + g_manager.opt.cmdChmod + L" " + file + L" " + mode);
+}
+
+bool Connection::socketStartup_;
+
+bool Connection::startupWSA()
+{
+	if(!socketStartup_)
+	{
+		WSADATA WSAData;
+		if(WSAStartup(MAKEWORD(2,2), &WSAData) == 0)
+			socketStartup_ = true;
+		else
+			return false;
+	}
+	return true;
+}
+
+void Connection::cleanupWSA()
+{
+	if(socketStartup_)
+		WSACleanup();
+}
 
 /*
  * Connect to peer server and auto-login, if possible.
  * 1      2       3       4
  * <site> [<port> [<user> [<pwd>]]]
  */
-int Connection::setpeer(int argc, char *argv[])
-  {  PROC(( "setpeer","%d [%s,%s,%s,%s]",argc,(argc>1)?argv[1]:"nil",(argc>2)?argv[2]:"nil",(argc>3)?argv[3]:"nil",(argc>4)?argv[4]:"nil" ));
-     FP_Screen _scr;
-     WORD      port;
+bool Connection::setpeer_(const std::wstring& site, size_t port, const std::wstring &user, const std::wstring &pwd)
+{
+	FARWrappers::Screen scr;
 
-     if ( argc < 2 ) {
-       code = -1;
-       return FALSE;
-     }
+	if(site.empty())
+		return false;
 
-     if ( !SocketStartup ) {
-       WORD    wVerReq = MAKEWORD(1,1);
-       WSADATA WSAData;
-       if ( WSAStartup(wVerReq, &WSAData) == 0 ) {
-         SocketStartup = TRUE;
-       } else {
-         SocketInitializeError = WSAGetLastError();
-         SocketError   = SocketInitializeError;
-         SetLastError( SocketInitializeError );
-         return FALSE;
-       }
-     }
+	if(startupWSA() == false)
+	{
+		// TODO error message
+		return false;
+	}
 
-   //port
-     if ( argc > 2 )
-       port = htons( atoi( argv[2] ) );
-      else
-       port = 0;
+	//port
+	if(port == 0)
+	{
+		servent *sp = getservbyname("ftp", "tcp");
+		if(!sp)
+		{
+			BOOST_LOG(INF, L"ftp: ftp/tcp: unknown service. Assume port number " << IPPORT_FTP << L"(default)");
+			port = IPPORT_FTP;
+		} else
+		{
+			port = ntohs(sp->s_port);
+			BOOST_LOG(INF, L"ftp: port " << std::hex << port);
+		}
+	}
 
-     if ( !port ) {
-       servent *sp = getservbyname("ftp", "tcp");
-       if ( !sp ) {
-         Log(( "ftp: ftp/tcp: unknown service. Assume port number %d (default)",IPPORT_FTP ));
-         port = htons(IPPORT_FTP);
-       } else {
-         port = sp->s_port;
-         Log(( "ftp: port %08X",port ));
-       }
-     }
+	//Check if need to close connection
+	if(isConnected())
+	{
+		if(!boost::iequals(site, getHost().url_.Host_) || port != portnum)
+			disconnect();
+	}
 
-   //Check if need to close connection
-     if ( connected ) {
-       if ( StrCmpI( argv[1], hostname ) != 0 ||
-            port != portnum )
-         disconnect();
-     }
+	//Make connection
+	if (!isConnected())
+	{
+		if (!hookup(site, static_cast<int>(port)))
+		{
+			//Open connection
+			return false;
+		}
+		setConnected();
+	}
 
-     do{
-     //Make connection
-       if ( !connected ) {
-         if ( !hookup( argv[1], port ) ) { //Open connection
-           code = -1;
-           break;
-         }
-         connected = 1;
-       }
+	if(!login(user, pwd))
+	{
+		disconnect();
+		return false;
+	}
 
-       userName_	= "";
-       UserPassword = "";
-
-       if ( argc > 3 ) userName_ = argv[3];
-       if ( argc > 4 ) UserPassword = argv[4];
-
-       if ( !login() ) {
-         disconnect();
-         break;
-       }
-
-       return TRUE;
-     }while(0);
-
- return FALSE;
+	return true;
 }
+
+
+bool Connection::setpeer(const std::wstring& site, const std::wstring& port, const std::wstring &user, const std::wstring &pwd)
+{
+	int nport;
+	if(!port.empty())
+	{
+		try
+		{
+			nport = htons(boost::lexical_cast<int>(port));
+		}
+		catch(boost::bad_lexical_cast &)
+		{
+			return false;
+		}		
+	}
+	else
+		nport = 0;
+	return setpeer_(site, nport, user, pwd);
+}
+
 
 /*
  * Send a single file.
  */
-void Connection::put(int argc, char *argv[])
+bool Connection::put(const std::wstring &local, const std::wstring& remote)
 {
-	PROC(( "put","%d [\"%s\",\"%s\",\"%s\"]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-	std::string cmd;
+	PROC;
+	std::wstring cmd;
+	std::wstring rem = remote;
 
-	if (argc == 2)
-	{
-		argc++;
-		argv[2] = argv[1];
-	}
-	if (argc < 3)
-	{
-		code = -1;
-		return;
-	}
-	cmd = (argv[0][0] == 'a')
-		? g_manager.opt.cmdAppe                                   //APPEND
-		: ( (sunique) ? g_manager.opt.cmdPutUniq : g_manager.opt.cmdStor ); //STORE or PUT
-	sendrequest(cmd.c_str(), argv[1], argv[2]);
+	if(local.empty())
+		return false;
+	if(rem.empty())
+		rem = local;
+
+	cmd = ((sunique) ? g_manager.opt.cmdPutUniq : g_manager.opt.cmdStor); //STORE or PUT
+	sendrequest(cmd, local, remote);
 	restart_point = 0;
+	return true;
 }
 
-
-void Connection::reget(int argc, char *argv[])
-  { PROC(( "reget","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-    getit( argc, argv, 1, "a+" );
+bool Connection::reget(const std::wstring &remote, const std::wstring& local)
+{
+	return getit(remote, local, 1, "a+" );
 }
 
-void Connection::get(int argc, char *argv[])
-{PROC(( "get","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-  getit(argc, argv, 0, restart_point ? "r+" : "w" );
+bool Connection::get(const std::wstring &remote, const std::wstring& local)
+{
+	return getit(remote, local, 0, restart_point ? "r+" : "w" );
 }
 
 /*
  * get file if modtime is more recent than current file
  */
-void Connection::newer(int argc, char *argv[])
-{PROC(( "newer","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-  getit(argc, argv, -1, "w");
+bool Connection::newer(const std::wstring &remote, const std::wstring& local)
+{
+	return getit(remote, local, -1, "w");
 }
 
 /*
  * Receive one file.
  */
-int Connection::getit(int argc, char *argv[], int restartit, char *mode)
-  {  PROC(( "getit"," %d %s %d [%s,%s,%s]",restartit,mode,argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
+int Connection::getit(const std::wstring &remote, const std::wstring& local, int restartit, char *mode)
+{
+	std::wstring loc = local;
+	if(loc.empty())
+		loc = remote;
 
-     if (argc == 2) {
-       argc++;
-       argv[2] = argv[1];
-     }
-     if (argc < 3) {
-       code = -1;
-       return (0);
-     }
+	if(restartit == -1)
+		restart_point = -1;
+	else
+		if (restartit)
+		{
+			restart_point = Fsize(loc);
+			BOOST_LOG(INF, L"Restart from " << restart_point);
+		}
 
-     if ( restartit == -1 )
-       restart_point = -1;
-      else
-	 if ( restartit )
-	 {
-		restart_point = Fsize( argv[2] );
-		Log(( "Restart from %I64u",restart_point ));
-	 }
+	recvrequest(g_manager.opt.cmdRetr, loc, remote, mode);
+	restart_point = 0;
 
-     recvrequest(g_manager.opt.cmdRetr, argv[2], argv[1], mode );
-     restart_point = 0;
-
- return 0;
+	return RPL_OK;
 }
 
 
 /*
  * Toggle PORT cmd use before each data connection.
  */
-void Connection::setport()
+bool Connection::setport()
 {
-  sendport = !sendport;
-  code = sendport;
+	sendport_ = !sendport_;
+	return true;
 }
 
 
@@ -200,192 +224,146 @@ void Connection::setport()
  * Set current working directory
  * on remote machine.
  */
-void Connection::cd(int argc, char *argv[])
-{
-	PROC(( "cd","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-	if(argc==2)
-		if(command(g_manager.opt.cmdCwd + " " + argv[1]) >= RPL_COMPLETE && code == 500)
-			command(g_manager.opt.cmdXCwd + " " + argv[1]);
-}
 
+bool Connection::cd(const std::wstring &dir)
+{
+	int rc = command(g_manager.opt.cmdCwd + L" " + dir);
+	if(rc == SyntaxErrorBadCommand)
+		rc = command(g_manager.opt.cmdXCwd + L" " + dir);
+	return isComplete(rc);
+}
 
 /*
  * Delete a single file.
  */
-void Connection::deleteFile(int argc, char *argv[])
+bool Connection::deleteFile(const std::wstring& filename)
 {  
-	PROC(( "deleteFile","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-
-	if (argc < 2)
-	{
-		code = -1;
-		return;
-	}
-	command(g_manager.opt.cmdDel + " " + argv[1]);
+	if(filename.empty())
+		return false;
+	return command(g_manager.opt.cmdDel + L" " + filename);
 }
 
 
 /*
  * Rename a remote file.
  */
-void Connection::renamefile(int argc, char *argv[])
+bool Connection::renamefile(const std::wstring& oldfilename, const std::wstring& newfilename)
 {
-	PROC(( "renamefile","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-	if(argc < 3)
-	{
-		code = -1;
-		return;
-	}
+	PROC;
+	if(oldfilename.empty() || newfilename.empty())
+		return false;
 
-	if(command(g_manager.opt.cmdRen + " " + argv[1]) == RPL_CONTINUE)
-		command(g_manager.opt.cmdRenTo + " " + argv[2]);
+	int rc = command(g_manager.opt.cmdRen + L' ' + oldfilename);
+	if(rc == RPL_CONTINUE)
+		rc = command(g_manager.opt.cmdRenTo + L' ' + newfilename);
+	return rc;
 }
 
 /*
  * Get a directory listing
  * of remote files.
  */
-void Connection::ls(int argc, char *argv[])
-{ PROC(( "ls","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-
-  if (argc < 2)
-    argc++, argv[1] = NULL;
-
-  if (argc < 3)
-    argc++, argv[2] = "-";
-
-  if (argc > 3) {
-    code = -1;
-    return;
-  }
-
-  if ( argv[0][0] == 'n' )
-    recvrequest( g_manager.opt.cmdNList, argv[2], argv[1], "w" );
-   else
-  if ( !Host.ExtList )
-    recvrequest( g_manager.opt.cmdList, argv[2], argv[1], "w" );
-   else
-   {
-		recvrequest( Unicode::toOem(Host.listCMD_).c_str(), argv[2], argv[1], "w" ); // TODO
-		if ( code > 500 && argv[1] != NULL )
-			recvrequest( g_manager.opt.cmdList, argv[2], argv[1], "w" );
+bool Connection::ls(const std::wstring &path)
+{
+	ResetOutput();
+	if(!getHost().ExtList)
+		recvrequest(g_manager.opt.cmdList, L"-", path, "w");
+	else
+	{
+		recvrequest(getHost().listCMD_, L"-", path, "w");
+//TODO		if(code > SyntaxErrorBadCommand && !path.empty())
+			recvrequest(g_manager.opt.cmdList, L"-", path, "w");
 	}
+	return true;
 }
 
+
+bool Connection::nlist(const std::wstring &path)
+{
+	recvrequest(g_manager.opt.cmdNList, L"-", path, "w");
+	return RPL_OK;
+}
 
 /*
  * Send new user information (re-login)
  */
-int Connection::user(int argc, char **argv)
+bool Connection::user(const std::wstring& usr, const std::wstring& pwd, const std::wstring &accountcmd)
 {
-	PROC(( "user","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-	char acct[80];
-	int n, aflag = 0;
-
-	if (argc < 2 || argc > 4) {
-		code = -1;
-		return (0);
-	}
-
-	n = command(g_manager.opt.cmdUser_  + " " +  argv[1]);
-	if (n == RPL_CONTINUE)
-	{
-		std::string password;
-		if (argc < 3)
-			password = UserPassword;
-		else
-			password = argv[2];
-		n = command(g_manager.opt.cmdPass_ + " " + UserPassword);
-	}
-
-	if (n == RPL_CONTINUE)
-	{
-		if (argc < 4)
-		{
-			*acct=0;
-			argv[3] = acct;
-			argc++;
-		}
-		n = command(g_manager.opt.cmdAcct_ + " " + argv[3]);
-		aflag++;
-	}
-
-	if (n != RPL_COMPLETE) {
-		SetLastError(ERROR_INTERNET_LOGIN_FAILURE);
-		return 0;
-	}
-
-	if (!aflag && argc == 4)
-		command(g_manager.opt.cmdAcct_ + " " + argv[3] );
-
-	return 1;
+	return login(usr, pwd);
 }
 
 /*
  * Print working directory.
  */
-void Connection::pwd()
-  {  PROC(( "pwd",NULL ));
+bool Connection::pwd()
+{
+	PROC;
 
-     if (command(g_manager.opt.cmdPwd) >= RPL_COMPLETE && code == 500) {
-       Log(( "Try XPWD [%s]",g_manager.opt.cmdXPwd ));
-       command( g_manager.opt.cmdXPwd );
-     }
+	int rc = command(g_manager.opt.cmdPwd);
+	if(rc == SyntaxErrorBadCommand)
+	{
+		BOOST_LOG(INF, L"Try XPWD " << g_manager.opt.cmdXPwd);
+		rc = command(g_manager.opt.cmdXPwd);
+	}
+	return isComplete(rc);
 }
 
 /*
  * Make a directory.
  */
-void Connection::makedir(int argc, char *argv[])
+bool Connection::makedir(const std::wstring &dir)
 {  
-	PROC(( "makedir","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
+	if(dir.empty())
+		return false;
 
-	if (argc < 2) {
-		code = -1;
-		return;
-	}
-
-	if(command(g_manager.opt.cmdMkd + " " + argv[1]) >= RPL_COMPLETE && code == 500 )
-		command(g_manager.opt.cmdXMkd + " " + argv[1]);
+	int rc = command(g_manager.opt.cmdMkd + L" " + dir);
+	if(rc == SyntaxErrorBadCommand)
+		rc = command(g_manager.opt.cmdXMkd + L" " + dir);
+	return isComplete(rc);
 }
 
 /*
  * Remove a directory.
  */
-void Connection::removedir(int argc, char *argv[])
+bool Connection::removedir(const std::wstring &dir)
 {
-	PROC(( "removedir","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-	if (argc < 2)
-	{
-		code = -1;
-		return;
-	}
+	PROC;
+	if(dir.empty())
+		return false;
 
-	if(command(g_manager.opt.cmdRmd  + " " + argv[1]) >= RPL_COMPLETE && code == 500)
-		command(g_manager.opt.cmdXRmd + " " + argv[1]);
+	int rc = command(g_manager.opt.cmdRmd  + L' ' + dir);
+	if(rc == SyntaxErrorBadCommand)
+		rc = command(g_manager.opt.cmdXRmd + L' ' + dir);
+	return isComplete(rc);
 }
 
 /*
  * Send a line, verbatim, to the remote machine.
  */
-void Connection::quote(int argc, char *argv[])
-{PROC(( "quote","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-  int i;
-  char buf[BUFSIZ];
+bool Connection::quote(const std::vector<std::wstring> &params)
+{
+	PROC;
 
-  if (argc < 2) {
-    code = -1;
-    return;
-  }
+	if(params.size() < 2)
+		return false;
 
-  StrCpy(buf, argv[1]);
-  for (i = 2; i < argc; i++) {
-    StrCat(buf, " ");
-    StrCat(buf, argv[i]);
-  }
+	std::vector<std::wstring>::const_iterator itr = params.begin()+1;
+	std::wstring cmd = *itr;
+	while(++itr != params.end())
+	{
+		cmd += L' ' + *itr;
+	}
 
-  if (command(buf) == RPL_PRELIM)
-    while (getreply(0) == RPL_PRELIM);
+	int rc = command(cmd);
+	if(isPrelim(rc))
+	{
+		do 
+		{
+			rc = getreply();
+		} while(isPrelim(rc));
+	}
+	// TODO WTF
+	return rc;
 }
 
 /*
@@ -394,250 +372,204 @@ void Connection::quote(int argc, char *argv[])
  * first argument is changed to SITE.
  */
 
-void Connection::site(int argc, char *argv[])
+bool Connection::site(const std::vector<std::wstring>& params)
 {  
-	PROC(( "site","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-	int  i;
-	std::string cmd;
+	PROC;
 
-	if (argc < 2)
-	{
-		code = -1;
-		return;
-	}
+	if (params.size() < 2)
+		return false;
 
-	cmd = g_manager.opt.cmdSite + " " + argv[1];
-	for(i = 2; i < argc; i++)
+	std::vector<std::wstring>::const_iterator itr = params.begin()+1;
+	std::wstring cmd = g_manager.opt.cmdSite;
+	while(itr != params.end())
+		cmd +=  + L" " + *itr;
+	int rc = command(cmd);
+	if(isPrelim(rc))
 	{
-		cmd += " ";
-		cmd += argv[i];
+		do 
+		{
+			rc = getreply();
+		} while(isPrelim(rc));
 	}
-	if(command(cmd) == RPL_PRELIM)
-		while(getreply(0) == RPL_PRELIM);
+	return rc;
 }
 
-void Connection::do_chmod(int argc, char *argv[])
-{  
-	PROC(( "do_chmod","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-
-	if (argc != 3)
-	{
-		code = -1;
-		return;
-	}
-
-	command(g_manager.opt.cmdSite + " " + g_manager.opt.cmdChmod + " " + argv[1] + " " + argv[2]);
-}
-
-void Connection::do_umask(int argc, char *argv[])
+bool Connection::do_umask(const std::wstring &mask)
 {
-	PROC(( "do_umask","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
+	PROC;
 
-	std::string cmd = g_manager.opt.cmdSite + " " + g_manager.opt.cmdUmask;
-	if(argc != 1)
-		cmd += std::string(" ") + argv[1];
-	command(cmd);
+	std::wstring cmd = g_manager.opt.cmdSite + L" " + g_manager.opt.cmdUmask;
+	if(!mask.empty())
+		cmd += L" " + mask;
+	return isComplete(command(cmd));
 }
 
-void Connection::idle(int argc, char *argv[])
+bool Connection::idle(const std::wstring &time)
 {
-	PROC(( "idle","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-
-	std::string cmd = g_manager.opt.cmdSite + " " + g_manager.opt.cmdIdle;
-	if(argc != 1)
-		cmd += std::string(" ") + argv[1];
-	command(cmd);
+	return isComplete(command(g_manager.opt.cmdSite + L' ' + g_manager.opt.cmdIdle + 
+		L' ' + time));
 }
 
 /*
  * Terminate session and exit.
  */
 /*VARARGS*/
-void Connection::quit()
-  {  PROC(( "quit",NULL ));
+bool Connection::quit()
+{
+	PROC;
 
-     if (connected)
-       disconnect();
+	if(isConnected())
+		disconnect();
 
-     pswitch(1);
-
-     if (connected)
-       disconnect();
+	return true;
 }
-
 
 /*
  * Terminate session, but don't exit.
  */
-void Connection::disconnect()
-{PROC(( "disconnect",NULL ));
-  if (!connected)
-    return;
-  command(g_manager.opt.cmdQuit);
-  cout = NULL;
-  connected = 0;
-  scClose( data_peer, -1 );
+bool Connection::disconnect()
+{
+	if (!isConnected())
+		return true;
+	int rc = command(g_manager.opt.cmdQuit, true);
+	setConnected(false);
+	data_peer_.close();
+	return rc;
 }
 
 
-void Connection::account(int argc,char **argv)
+bool Connection::account(const std::vector<std::wstring> &params)
 {  
-	PROC(( "account","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-	std::string  acct;
+	PROC;
+	std::wstring  acct;
 
-	if(argc > 1)
+	if(params.size() < 2)
+		return false;
+
+	std::vector<std::wstring>::const_iterator itr = params.begin()+1;
+	while(itr != params.end())
 	{
-		++argv;
-		--argc;
-		acct = *argv;
-		while (argc > 1)
-		{
-			--argc;
-			++argv;
-			acct += *argv;
-		}
+		acct += L' ' + *itr;
+		++itr;
+
 	}
-	command(g_manager.opt.cmdAcct_ + " " + acct);
+	return command(g_manager.opt.cmdAcct_ + acct);
 }
 
 
-void Connection::doproxy(int argc, char *argv[])
-  {  PROC(( "doproxy","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-     register struct cmd *c;
-
-     if (argc < 2) {
-       code = -1;
-       return;
-     }
-
-     c = getcmd(argv[1]);
-
-     //Not found
-     if ( c == (cmd*)-1 || c == 0 ) {
-       SetLastError( ERROR_BAD_DRIVER_LEVEL );
-       code = -1;
-       return;
-     }
-
-     //Unsupported in proxy mode
-     if ( !c->c_proxy ) {
-       SetLastError( ERROR_BAD_NET_RESP );
-       code = -1;
-       return;
-     }
-
-     //Allready in proxy mode
-     if ( proxy > 0 )
-       ExecCmdTab(c, argc-1, argv+1);
-      else {
-     //Temp switch to proxy mode
-       pswitch(1);
-       if ( c->c_conn && !connected ) {
-         pswitch(0);
-         code = -1;
-         return;
-       }
-       ExecCmdTab(c, argc-1, argv+1);
-       proxflag = (connected) ? 1 : 0;
-       pswitch(0);
-     }
-}
-
-void Connection::setsunique()
+bool Connection::setsunique()
 {
-  sunique = !sunique;
-  code = sunique;
+	sunique = !sunique;
+	return true;
 }
 
 
-void Connection::setrunique()
+bool Connection::setrunique()
 {
-  runique = !runique;
-  code = runique;
+	runique = !runique;
+	return true;
 }
 
 /* change directory to parent directory */
-void Connection::cdup()
-{PROC(( "cdup",NULL ));
-  if ( command(g_manager.opt.cmdCDUp) >= RPL_COMPLETE && code == 500 )
-    command( g_manager.opt.cmdXCDUp );
+bool Connection::cdup()
+{
+	PROC;
+	int rc = command(g_manager.opt.cmdCDUp);
+	if(rc == SyntaxErrorBadCommand)
+		rc = command(g_manager.opt.cmdXCDUp);
+	return isComplete(rc);
 }
 
 /* restart transfer at specific point */
-void Connection::restart(int argc, char *argv[])
-{PROC(( "restart","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-  if (argc == 2)
-    restart_point = atol(argv[1]);
+bool Connection::restart(const std::wstring& point)
+{
+	PROC;
+	if(!point.empty())
+	{
+		try
+		{
+			restart_point = boost::lexical_cast<int>(point);
+		}
+		catch (boost::bad_lexical_cast &)
+		{
+			return false;
+		}
+		
+	}
+	return RPL_OK;
 }
 
 
 /* show remote system type */
-void Connection::syst()
-{PROC(( "syst",NULL ));
-  command( g_manager.opt.cmdSyst );
+bool Connection::syst()
+{
+	PROC;
+	return isComplete(command(g_manager.opt.cmdSyst));
 }
 
 
 /*
  * get size of file on remote machine
  */
-void Connection::sizecmd(int argc, char *argv[])
+bool Connection::sizecmd(const std::wstring& filename)
 {
-	PROC(( "sizecmd","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-	if(argc < 2)
-	{
-		code = -1;
-		return;
-	}
-	command(g_manager.opt.cmdSize + " " + argv[1] );
+	PROC;
+	if(filename.empty())
+		return false;
+	return command(g_manager.opt.cmdSize + L' ' + filename);
 }
 
 /*
  * get last modification time of file on remote machine
  */
-void Connection::modtime(int argc, char *argv[])
+bool Connection::modtime(const std::wstring& file)
 {
-	PROC(( "modtime","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
+	if(file.empty())
+		return false;
 
-	if (argc < 2)
+	if(isComplete(command(g_manager.opt.cmdMDTM + L" " + file)))
 	{
-		code = -1;
-		return;
+//TODO		int yy, mo, day, hour, min, sec;
+// 			sscanf( replyString_.c_str(),
+// 			g_manager.opt.fmtDateFormat.c_str(),
+// 			&yy, &mo, &day, &hour, &min, &sec);
+		return true;
 	}
-
-	if(command(g_manager.opt.cmdMDTM + " " + argv[1] ) == RPL_COMPLETE)
-	{
-		int yy, mo, day, hour, min, sec;
-		sscanf( replyString_.c_str(),
-			g_manager.opt.fmtDateFormat.c_str(),
-			&yy, &mo, &day, &hour, &min, &sec);
-
-	}
+	return false;
 }
 
 /*
  * show status on remote machine
  */
-void Connection::rmtstatus(int argc, char *argv[])
+bool Connection::rmtstatus(const std::wstring &c)
 {
-	PROC(( "rmtstatus","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-	std::string cmd = g_manager.opt.cmdStat;
-	if(argc > 1)
-	{
-		cmd += std::string(" ") + argv[1];
-	}
-	command(cmd);
+	PROC;
+	std::wstring cmd = g_manager.opt.cmdStat;
+	if(!c.empty())
+		cmd += L' ' + c;
+	return command(cmd);
 }
 
 /*
  * Ask the other side for help.
  */
-void Connection::rmthelp(int argc, char *argv[])
+bool Connection::rmthelp(const std::wstring &c)
 {
-	PROC(( "rmthelp","%d [%s,%s,%s]",argc,(argc>=1)?argv[0]:"nil",(argc>=2)?argv[1]:"nil",(argc>=3)?argv[2]:"nil" ));
-	std::string cmd = g_manager.opt.cmdHelp;
-	if(argc > 1)
-	{
-		cmd += std::string(" ") + argv[1];
-	}
+	PROC;
+	std::wstring cmd = g_manager.opt.cmdHelp;
+	if(c.empty())
+		cmd += L' ' + c;
+	return command(cmd);
+}
+
+bool Connection::doport(in_addr data_addr, int port)
+{
+	std::wstring cmd = g_manager.opt.cmdPort + L' ' + 
+		boost::lexical_cast<std::wstring>(data_addr.S_un.S_un_b.s_b1) + L',' +
+		boost::lexical_cast<std::wstring>(data_addr.S_un.S_un_b.s_b2) + L',' +
+		boost::lexical_cast<std::wstring>(data_addr.S_un.S_un_b.s_b3) + L',' +
+		boost::lexical_cast<std::wstring>(data_addr.S_un.S_un_b.s_b4) + L',' +
+		boost::lexical_cast<std::wstring>((port >> 8)& 0xFF) +          L',' +
+		boost::lexical_cast<std::wstring>(port & 0xFF);
+	return isComplete(command(cmd));
 }

@@ -1,9 +1,10 @@
 Структура папок
 
-bin          
-  far.exe
-  Plugins
-    FTP      <- суда копируется dll когда debug строится
-
-common       <- http://www.farmanager.com/svn/plugins/common/trunk/ascii/
-ftp          <- http://www.farmanager.com/svn/plugins/ftp/branches/civilis/
+|-bin
+| |
+| |-far.exe
+| |-Plugins
+| | |-FTP      <- суда копируется dll когда debug строится
+|
+|-common       <- http://farmanager.com/svn/plugins/trunk/common/unicode/
+|-ftp          <- http://farmanager.com/svn/plugins/branches/ftp/civilis/

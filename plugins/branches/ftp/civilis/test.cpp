@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "servertype.h"
 #include "utils/uniconverts.h"
+#include "utils/codecvt.h"
 
 #ifdef CONFIG_TEST
 #define BOOST_AUTO_TEST_MAIN
@@ -15,17 +16,6 @@ init_unit_test_suite( int, char* [] )
 	return 0;
 }
 
-
-/*
-boost::unit_test::test_suite*
-init_unit_test_suite( int argc, char* argv[] ) {
-	using namespace ::boost::unit_test;
-	assign_op( framework::master_test_suite().p_name.value, BOOST_TEST_STRINGIZE( BOOST_TEST_MODULE ).trim( "\"" ), 0 );
-
-	return master_test_suite;
-}
-
-*/
 
 std::wistream& operator >> (std::wistream& is, std::vector<FTPFileInfo> &list)
 {
@@ -49,7 +39,9 @@ BOOST_AUTO_TEST_CASE(listing_test)
 {
 	std::ifstream fi("test\\ftpdir.txt", std::ifstream::binary);
 	std::wofstream os("test\\ftpdir.out");
-//	BOOST_REQUIRE(fi.good());
+
+	os.rdbuf()->pubimbue(std::locale(std::locale(), new utf8_conversion()));
+	BOOST_REQUIRE(fi.good());
 
 
 	std::wstringstream ss;

@@ -1,7 +1,10 @@
 #include "stdafx.h"
-//#include "windows.h"
 
 #include "uniconverts.h"
+#include <Mmsystem.h>
+
+int FunctionTracer::counter_ = 0;
+std::wstringstream FunctionTracer::params_;
 
 namespace WinAPI
 {
@@ -79,17 +82,22 @@ namespace WinAPI
 		void    *GData;
 		bool     rc = false;
 
+		BOOST_ASSERT(0 && "TEST");
 		if (data.empty() || !OpenClipboard(0))
 			return false;
 
-		EmptyClipboard();
-		BOOST_ASSERT(0 && "To test");
+		if(!EmptyClipboard())
+		{
+			CloseClipboard();
+			return false;
+		}
 
 		if((hData=GlobalAlloc(GMEM_MOVEABLE|GMEM_DDESHARE, data.size()*2+2))!=NULL)
 		{
 			if((GData = GlobalLock(hData)) != NULL)
 			{
 				std::copy(data.begin(), data.end(), static_cast<wchar_t*>(GData));
+				static_cast<wchar_t*>(GData)[data.size()] = 0;
 				GlobalUnlock(hData);
 				SetClipboardData(CF_UNICODETEXT, (HANDLE)hData);
 				rc = true;
@@ -152,4 +160,97 @@ namespace WinAPI
 		} while(n == 0);
 		return std::wstring(p.get(), n);
 	}
+
+	int	getConsoleWidth()
+	{
+		CONSOLE_SCREEN_BUFFER_INFO ci;
+
+		return GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &ci ) ? ci.dwSize.X : 0;
+	}
+
+	int getConsoleHeight()
+	{
+		CONSOLE_SCREEN_BUFFER_INFO ci;
+
+		return GetConsoleScreenBufferInfo( GetStdHandle(STD_OUTPUT_HANDLE),&ci ) ? ci.dwSize.Y : 0;
+	}
+
+	std::wstring getStringError()
+	{
+		DWORD err = GetLastError();
+		return getStringError(err);
+	}
+
+	std::wstring getStringError(DWORD error)
+	{
+		wchar_t* buff;
+		DWORD size = FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+			NULL,error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPWSTR>(&buff),0,NULL );
+		if(size == 0)
+			return L"Unknown error";
+		else
+		{
+			std::wstring str(buff, size);
+			LocalFree(buff);
+			return str;
+		}
+	}
+
+	int checkForKeyPressed(const WORD* codes, int size)
+	{
+		static HANDLE hConInp = CreateFileW(L"CONIN$", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+		DWORD         readCount;
+		INPUT_RECORD  rec;
+
+		BOOST_STATIC_ASSERT(sizeof(INPUT_RECORD) == 20);
+
+		while(1)
+		{
+			PeekConsoleInputW(hConInp, &rec, 1, &readCount);
+			if(readCount == 0) 
+				break;
+
+			ReadConsoleInputW(hConInp, &rec, 1, &readCount);
+
+			if(rec.EventType = KEY_EVENT && rec.Event.KeyEvent.bKeyDown)
+			{
+				const WORD* p = std::find(codes, codes+size, rec.Event.KeyEvent.wVirtualKeyCode);
+				if(p != codes+size)
+					return static_cast<int>(p-codes);
+			}
+		}
+		return -1;
+	}
+
+	Stopwatch::Stopwatch(size_t timeout)
+		: timeout_(timeout)
+	{
+		reset();
+	}
+
+	size_t Stopwatch::getPeriod() const
+	{
+		return timeGetTime()-startTime_;
+	}
+
+	bool Stopwatch::isTimeout() const
+	{
+		return timeout_? getPeriod() >= timeout_ : false;
+	}
+
+	size_t Stopwatch::getSecond() const
+	{
+		return getPeriod()/1000;
+	}
+
+	void Stopwatch::reset()
+	{
+		startTime_ = timeGetTime();
+	}
+
+	void Stopwatch::setTimeout(size_t timeout)
+	{
+		timeout_ = timeout;
+	}
+
 }

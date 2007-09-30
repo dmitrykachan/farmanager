@@ -1,5 +1,11 @@
 #pragma once
 
+#ifdef _DEBUG
+#define DEBUG_NEW   new( _CLIENT_BLOCK, __FILE__, __LINE__)
+#else
+#define DEBUG_NEW
+#endif // _DEBUG
+
 
 // Modify the following defines if you have to target a platform prior to the ones specified below.
 // Refer to MSDN for the latest info on corresponding values for different platforms.
@@ -20,32 +26,23 @@
 #endif
 
 #define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
-#define _ATL_SECURE_NO_DEPRECATE
-#define _AFX_SECURE_NO_DEPRECATE
-#pragma warning(disable : 4996)
 
-#define NOMINMAX
+#include "config.h"
 
-
-#include "../common/plugin.hpp"
+#include "../common/unicode/plugin.hpp"
 
 #ifdef CONFIG_TEST
-
-//#define BOOST_AUTO_TEST_MAIN
 #include <boost/test/auto_unit_test.hpp>
-
 #endif
 
 
-//#include <windows.h>
-
-#include "config.h"
 #include <boost/assert.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/scoped_array.hpp>
+#include <boost/scoped_ptr.hpp>
 
 #pragma warning (push)
 #pragma warning(disable : 4180)
@@ -58,14 +55,16 @@
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/algorithm/string/compare.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/split.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/convenience.hpp>
 #include <boost/foreach.hpp>
+#include <boost/tuple/tuple.hpp>
 
-BOOST_STATIC_ASSERT(sizeof(PluginPanelItem) == 366);
+#include "utils/log.h"
 
 #include <iostream>
 #include <string>
@@ -79,10 +78,25 @@ BOOST_STATIC_ASSERT(sizeof(PluginPanelItem) == 366);
 #include <limits>
 #include <exception>
 #include <numeric>
+#include <map>
+#include <hash_set>
 
+#include <Winsock2.h>
 
 #include "utils/winwrapper.h"
 #include "utils/sregexp.h"
 #include "utils/regkey.h"
 
+#include "farwrapper/info.h"
+#include "farwrapper/panel.h"
+#include "farwrapper/utils.h"
+#include "farwrapper/info.h"
+#include "farwrapper/message.h"
+
+
 extern std::locale defaultLocale_;
+
+#if !defined( ARRAY_SIZE )
+	#define ARRAY_SIZE( v )  (sizeof(v) / sizeof( (v)[0] ))
+#endif
+

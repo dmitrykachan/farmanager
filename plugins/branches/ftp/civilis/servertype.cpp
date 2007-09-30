@@ -781,6 +781,7 @@ ServerList::ServerList()
 	addServer(new KomutServer);
 	addServer(new NetwareServer);
 	addServer(new PCTPCServer);
+	addServer(new AutodetectServer);
 }
 
 static bool updateTime(FTPFileInfo& fileinfo)
@@ -825,7 +826,6 @@ void parseListing(const std::wstring &listing, boost::shared_ptr<ServerType> pSe
 #ifdef CONFIG_TEST
 			BOOST_CHECK_MESSAGE(false, std::string(e.what())+" : " + std::string(entry.first, entry.second));
 #endif
-			//TODO
 			fileinfo.setType(FTPFileInfo::undefined);
 		}
 		files.push_back(fileinfo);
@@ -836,9 +836,16 @@ void parseListing(const std::wstring &listing, boost::shared_ptr<ServerType> pSe
 ServerType::entry ServerType::getEntry(const_iterator &itr, const const_iterator &itr_end) const
 {
 	const_iterator first = itr, last;
-	itr = last = std::find(itr, itr_end, '\n');
-	while(itr != itr_end && *itr == '\n')
-		++itr; 
+	const wchar_t entrySeparator[] = L"\n\r";
+	itr = last = std::find_first_of(itr, itr_end, entrySeparator, entrySeparator + 2);
+
+	if(itr != itr_end)
+	{
+		++itr;
+
+		while(itr != itr_end && (*itr == '\n' || *itr == '\r'))
+			++itr;
+	}
 	return std::make_pair(first, last);
 }
 

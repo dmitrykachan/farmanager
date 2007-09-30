@@ -2,11 +2,6 @@
 Microsoft Visual Studio Solution File, Format Version 9.00
 # Visual Studio 2005
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ftp", "ftp.vcproj", "{206E5305-8698-417D-8196-3EF870294D7D}"
-	ProjectSection(ProjectDependencies) = postProject
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4} = {2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}
-	EndProjectSection
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FStdLib", "fstdlib\fstdlib.vcproj", "{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -30,18 +25,6 @@ Global
 		{206E5305-8698-417D-8196-3EF870294D7D}.test|Win32.Build.0 = test|Win32
 		{206E5305-8698-417D-8196-3EF870294D7D}.test|x64.ActiveCfg = test|x64
 		{206E5305-8698-417D-8196-3EF870294D7D}.test|x64.Build.0 = test|x64
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.Debug|Win32.ActiveCfg = Debug|Win32
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.Debug|Win32.Build.0 = Debug|Win32
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.Debug|x64.ActiveCfg = Debug|x64
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.Debug|x64.Build.0 = Debug|x64
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.Release|Win32.ActiveCfg = Release|Win32
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.Release|Win32.Build.0 = Release|Win32
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.Release|x64.ActiveCfg = Release|x64
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.Release|x64.Build.0 = Release|x64
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.test|Win32.ActiveCfg = test|Win32
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.test|Win32.Build.0 = test|Win32
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.test|x64.ActiveCfg = test|x64
-		{2DFF4195-AFFA-47B2-ACA4-A71229C67CE4}.test|x64.Build.0 = test|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

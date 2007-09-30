@@ -2,52 +2,97 @@
 #define __MY_JM
 
 class FTP;
-
+#include "servertype.h"
 
 const int defaultCodePage = CP_OEMCP;
 
-extern const wchar_t* ftp_sig;
-extern const wchar_t* http_sig;
-extern const wchar_t* ftp_sig_end;
-extern const wchar_t* http_sig_end;
-
-
-//------------------------------------------------------------------------
-//ftp_FTPHost.cpp
-struct FTPHost : public FTPHostPlugin
+struct FTPUrl_
 {
 	std::wstring	username_;
 	std::wstring	password_;
-	std::wstring	hostname_;
+	std::wstring	fullhostname_;
 	std::wstring	directory_;
 	size_t			port_;
 	std::wstring	Host_;
 
+	FTPUrl_()
+		: port_(0)
+	{};
+
+	void clear()
+	{
+		username_ = password_ = fullhostname_ = directory_ = Host_ = L"";
+		port_ = 0;
+	}
+
+	bool parse(const std::wstring& s);
+	std::wstring toString(bool insertPassword = false) const;
+};
+
+
+
+//------------------------------------------------------------------------
+//ftp_FTPHost.cpp
+struct FTPHost// : public FTPHostPlugin
+{
+	// FTPHostPlugin
+	BOOL    AskLogin;
+	BOOL    PassiveMode;
+	BOOL    UseFirewall;
+	BOOL    AsciiMode;
+	BOOL    ExtCmdView;
+	BOOL    ProcessCmd;
+	BOOL    CodeCmd;
+	int		IOBuffSize;                    // Size of buffer used to send|recv data
+	BOOL    ExtList;                       // Use extended list command
+	std::wstring listCMD_;                 // Extended list command
+	ServerTypePtr   serverType_;           // Type of server
+	BOOL    FFDup;                         // Duplicate FF char on string sent to server
+	BOOL    UndupFF;                       // Remove FF duplicate from PWD
+	BOOL    DecodeCmdLine;                 // Decode OEM cmd line chars to hosts code page
+	BOOL    SendAllo;                      // Send allo before upload
+	BOOL    UseStartSpaces;					// Ignore spaces from start of file name
+
+	FTPUrl_			url_;
 //Reg
 	bool			Folder;
 	std::wstring	hostDescription_;
 	FILETIME		LastWrite;
 	int				codePage_;
 
-	WinAPI::RegKey	regKey_;
-
 	void			Init( void );
 	void			Assign(const FTPHost* p);
 	void			MkUrl(std::wstring &str, const std::wstring &Path, const std::wstring &nm, bool sPwd = false);
-	std::wstring	MkINIFile(const std::wstring &path, const std::wstring &destPath) const;
-	bool			Cmp(FTPHost* p);
+	void			MkINIFile();
 	BOOL			CmpConnected( FTPHost* p );
-	void			FindFreeKey(WinAPI::RegKey &r);
+	WinAPI::RegKey	findFreeKey(const std::wstring &path, std::wstring &name);
 
 	bool			SetHostName(const std::wstring& hnm, const std::wstring &usr, const std::wstring &pwd);
-	bool			parseFtpUrl(const std::wstring &s);
 
-	bool			Read(const std::wstring &keyName);
-	bool			Write(FTP* ftp, const std::wstring &nm);
+	bool Read(const std::wstring &keyName, const std::wstring &path);
+	bool			Write(const std::wstring &path);
 	bool			ReadINI(const std::wstring &nm);
 	bool			WriteINI(const std::wstring &nm) const;
 
-	static bool		CheckHost(const std::wstring &path, const std::wstring &name);
+	std::wstring	regName_;
+	std::wstring	getRegName() const
+	{
+		return regName_;
+	}
+
+	void			setRegName(const std::wstring &name)
+	{
+		regName_ = name;
+	}
+
+	const std::wstring&	getIniFilename() const
+	{
+		return iniFilename_;
+	}
+
+private:
+	std::wstring	regKeyPath_;
+	std::wstring	iniFilename_;
 };
 
 //------------------------------------------------------------------------

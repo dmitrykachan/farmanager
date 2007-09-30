@@ -175,7 +175,7 @@
 " сек"
 "Сканирую папку..."
 "Повтор через"
-"{Enter - повтор; ESC - отмена}"
+"ENTER - повтор; ESC - отмена}"
 
 "WSAEINTR: The (blocking) call was canceled through WSACancelBlockingCall"
 "WSAEBADF"

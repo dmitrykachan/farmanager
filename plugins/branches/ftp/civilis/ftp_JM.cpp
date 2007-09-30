@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include <all_far.h>
+
 #pragma hdrstop
 
 #include "ftp_Int.h"
@@ -15,87 +15,11 @@
     8 - [OPT] button2
     9 - [OPT] button Cancel
 */
-#define NBUTTONSADDON 10
+const int NBUTTONSADDON = 10;
 
+const wchar_t* horizontalLine = L"\x1";
 
-const wchar_t* ftp_sig	= L"ftp://";
-const wchar_t* http_sig	= L"http://";
-const wchar_t* ftp_sig_end = ftp_sig + 6;
-const wchar_t* http_sig_end = http_sig + 7;
-
-
-//------------------------------------------------------------------------
-// DEBUG ONLY
-//------------------------------------------------------------------------
-#if defined(__FILELOG__)
-void LogPanelItems(struct PluginPanelItem *pi, size_t cn)
-{
-	Log(( "Items in list %p: %d", pi, cn ));
-	if(pi)
-		for(size_t n = 0; n < cn; n++ )
-		{
-			Log(( "%2d) [%s] attr: %08X (%s)",
-				n+1, Unicode::toOem(FTP_FILENAME( &pi[n] )).c_str(),
-				pi[n].FindData.dwFileAttributes, IS_FLAG(pi[n].FindData.dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY)?"DIR":"FILE"
-				));
-		}
-}
-#endif
-
-//------------------------------------------------------------------------
-int FARINProc::Counter = 0;
-
-FARINProc::FARINProc( CONSTSTR nm,CONSTSTR s,... )
-    : Name(nm)
-  {  va_list  ap;
-     char     str[500];
-     DWORD    err = GetLastError();
-
-     if ( s ) {
-       va_start( ap,s );
-       SNprintf( str, sizeof(str), "%*c%s(%s) {",
-                 Counter*2,' ', nm, MessageV(s,ap) );
-       va_end(ap);
-     } else
-       SNprintf( str, sizeof(str), "%*c%s() {",
-                 Counter*2,' ', nm );
-
-    LogCmd( str, ldInt );
-
-    Counter++;
-    SetLastError(err);
-}
-
-FARINProc::~FARINProc()
-  {  DWORD err = GetLastError();
-     char  str[500];
-
-    Counter--;
-
-    SNprintf( str, sizeof(str), "%*c}<%s>", Counter*2,' ',Name );
-    LogCmd( str,ldInt );
-
-    SetLastError(err);
-}
-
-void FARINProc::Say( CONSTSTR s,... )
-  {  va_list ap;
-     char    str[500];
-     size_t     rc;
-     DWORD   err = GetLastError();
-
-    va_start( ap,s );
-      rc = SNprintf( str, sizeof(str), "%*c", Counter*2,' ' );
-      if ( rc < sizeof(str) )
-        VSNprintf( str+rc, sizeof(str)-rc, s,ap );
-    va_end(ap);
-
-    LogCmd( str,ldInt );
-
-    SetLastError(err);
-}
-
-std::wstring DECLSPEC FixFileNameChars(std::wstring s, BOOL slashes)
+std::wstring WINAPI FixFileNameChars(std::wstring s, BOOL slashes)
 {  
 	if(g_manager.opt.InvalidSymbols.empty()) 
 		return s;
@@ -196,149 +120,33 @@ static struct {
        { 0, MNone__ }
 };
 
-CONSTSTR DECLSPEC GetSocketErrorSTR( void )
-  {
- return GetSocketErrorSTR( WSAGetLastError() );
+const std::wstring GetSocketErrorSTR()
+{
+	return GetSocketErrorSTR(WSAGetLastError());
 }
 
-CONSTSTR DECLSPEC GetSocketErrorSTR( int err )
-  {  static char estr[70];
+const std::wstring GetSocketErrorSTR(int err)
+{  
+	if(!err)
+		return getMsg(MWSAENoError);
 
-     if ( !err )
-       return FP_GetMsg(MWSAENoError);
+	for(int n = 0; stdSockErrors[n].MCode != MNone__; n++)
+		if ( stdSockErrors[n].Code == err)
+			return getMsg(stdSockErrors[n].MCode);
 
-     for ( int n = 0; stdSockErrors[n].MCode != MNone__; n++ )
-       if ( stdSockErrors[n].Code == err )
-         return FP_GetMsg( stdSockErrors[n].MCode );
-
-     Sprintf( estr,"%s: %d",FP_GetMsg(MWSAEUnknown),err );
- return estr;
-}
-//------------------------------------------------------------------------
-/*
-   Procedure for convert digit to string
-   Like an AtoI but can manipulate __int64 and has buffer limit
-
-   Align digit to left, if buffer less when digit the output will be
-   truncated at right.
-   If size set to -1 the whole value will be output to ctring.
-*/
-char *DECLSPEC PDigit( char *buff,__int64 val,size_t sz /*=-1*/ )
-  {  static char lbuff[100];
-     char str[ 100 ];
-     int pos = sizeof(str)-1;
-
-     if ( !buff ) buff = lbuff;
-
-     str[pos] = 0;
-     if ( !val )
-       str[--pos] = '0';
-      else
-     for ( ; pos && val; val /= 10 )
-       str[--pos] = (char)('0'+val%10);
-
-     if ( sz != -1 ) {
-       if ( (sizeof(str))-1-pos > sz ) {
-         str[ pos+sz-1 ] = FAR_RIGHT_CHAR;
-       }
-     }
-     if ( pos <= 0 )
-       str[0] = FAR_LEFT_CHAR;
-
-     StrCpy( buff,str+pos,sz == -1 ? (-1) : (sz+1) );
- return buff;
-}
-/*
-   Output digit to string
-   Can delimit thousands by special character
-
-   Fill buffer always with `sz` characters
-   If digit less then `sz` in will be added by ' ' at left
-   If digit more then buffer digit will be truncated at left
-*/
-char *DECLSPEC FDigit( char *buff,__int64 val, size_t sz )
-  {  static char lbuff[100];
-     char str[FAR_MAX_PATHSIZE];
-     size_t  len,n,d;
-     char *s;
-
-     if ( !buff ) buff = lbuff;
-     *buff = 0;
-
-     if (!sz) return buff;
-
-     if ( !val || !g_manager.opt.dDelimit || !g_manager.opt.dDelimiter ) 
-	 {
-       PDigit( buff,val,sz );
-       return buff;
-     }
-
-     PDigit( str,val,sz );
-     len = strlen(str);
-     s   = str + len-1;
-     if (sz == -1)
-       sz = len + len/3 - ((len%3) == 0);
-     d = sz;
-     buff[d--] = 0;
-
-     for ( n = 0; d >= 0 && n < sz && n < len; n++ ) {
-       if ( n && (n%3) == 0 )
-	   {
-         buff[d--] = '.'; // TODO g_manager.opt.dDelimiter;
-         sz--;
-       }
-       if (d >= 0)
-         buff[d--] = *(s--);
-     }
-
-     if ( n > sz )
-       buff[0] = FAR_LEFT_CHAR;
-
-     if ( d >= 0 )
-       for( ; d >= 0; d-- ) buff[d] = ' ';
-
- return buff;
+	return getMsg(MWSAEUnknown) + boost::lexical_cast<std::wstring>(err);
 }
 
-//------------------------------------------------------------------------
 /*
     Show `Message` with attention caption and query user to select YES or NO
     Returns nonzero if user select YES
 */
-int DECLSPEC AskYesNoMessage( CONSTSTR LngMsgNum )
-{  
-	static CONSTSTR MsgItems[] = {
-        FMSG(MAttention),
-        NULL,
-        FMSG(MYes), FMSG(MNo) };
-
-     MsgItems[1] = LngMsgNum;
-
-	return FMessage( FMSG_WARNING, NULL, MsgItems, ARRAY_SIZE(MsgItems),2 );
-}
-
-BOOL DECLSPEC AskYesNo( CONSTSTR LngMsgNum )
-  {
- return AskYesNoMessage(LngMsgNum) == 0;
-}
-/*
-    Show void `Message` with attention caption
-*/
-void DECLSPEC SayMsg( CONSTSTR LngMsgNum )
-  {  CONSTSTR MsgItems[]={
-        FMSG(MAttention),
-        LngMsgNum,
-        FMSG(MOk) };
-
-    FMessage( FMSG_WARNING, NULL, MsgItems,ARRAY_SIZE(MsgItems),1 );
-}
-
-bool DECLSPEC IsCmdLogFile(void)
+bool WINAPI IsCmdLogFile(void)
 {
-	return g_manager.opt.CmdLogFile[0] != 0;
+	return !g_manager.opt.CmdLogFile.empty();
 }
 
-std::wstring DECLSPEC GetCmdLogFile()
+std::wstring WINAPI GetCmdLogFile()
 {  
 	static std::wstring str;
 	HMODULE m;
@@ -352,11 +160,11 @@ std::wstring DECLSPEC GetCmdLogFile()
 				return str;
 			else
 			{
-				wchar_t buffer[FAR_MAX_PATHSIZE] = {0};
-				m = GetModuleHandleW( FP_GetPluginNameW() );
+				wchar_t buffer[_MAX_PATH+1] = {0};
+				m = GetModuleHandleW(L"ftp.dll");
 				buffer[GetModuleFileNameW(m, buffer, sizeof(buffer)/sizeof(*buffer))] = 0;
 				str = buffer;
-				size_t n = str.rfind(SLASH_CHAR);
+				size_t n = str.rfind('\\');
 				str.resize(n+1);
 				str += g_manager.opt.CmdLogFile;
 				return str;
@@ -373,9 +181,8 @@ std::wstring DECLSPEC GetCmdLogFile()
 
 static HANDLE LogFile = NULL;
 
-void DECLSPEC LogCmd( CONSTSTR src,CMDOutputDir out,DWORD Size )
+void WINAPI LogCmd(const wchar_t* src,CMDOutputDir out, DWORD Size)
 {
-
 //File opened and fail
     if ( LogFile == INVALID_HANDLE_VALUE )
       return;
@@ -384,9 +191,7 @@ void DECLSPEC LogCmd( CONSTSTR src,CMDOutputDir out,DWORD Size )
     if ( !IsCmdLogFile() || !src )
       return;
 
-    src = FP_GetMsg( src );
-
-    if ( out == ldRaw && (!Size || Size == MAX_DWORD) )
+    if ( out == ldRaw && (!Size || Size == UINT_MAX) )
       return;
      else
     if ( !src[0] )
@@ -399,7 +204,7 @@ void DECLSPEC LogCmd( CONSTSTR src,CMDOutputDir out,DWORD Size )
       return;
 
     //Open
-    LogFile = _wfopen(m.c_str(), !LogFile && g_manager.opt.TruncateLogFile ? L"w" : L"w+" );
+    LogFile = Fopen(m.c_str(), !LogFile && g_manager.opt.TruncateLogFile ? L"w" : L"w+" );
     if ( !LogFile ) {
       LogFile = INVALID_HANDLE_VALUE;
       return;
@@ -418,8 +223,8 @@ void DECLSPEC LogCmd( CONSTSTR src,CMDOutputDir out,DWORD Size )
 
 //-- RAW
     if ( out == ldRaw ) {
-      SNprintf( tmstr, sizeof(tmstr), "%d ", PluginUsed() );
-      Fwrite( LogFile,tmstr,strLen(tmstr) );
+//      SNprintf( tmstr, sizeof(tmstr), "%d ", PluginUsed() );
+      Fwrite( LogFile,tmstr,strlen(tmstr) );
 
       signed n;
       for( n = ((int)Size)-1; n > 0 && strchr( "\n\r",src[n]); n-- );
@@ -435,18 +240,18 @@ void DECLSPEC LogCmd( CONSTSTR src,CMDOutputDir out,DWORD Size )
 //-- TEXT
 
 //Replace PASW
-    if ( !g_manager.opt._ShowPassword && StrCmp(src,"PASS ",5,TRUE) == 0 )
-      src = "PASS *hidden*";
+    if ( !g_manager.opt._ShowPassword && wcscmp(src, L"PASS ") == 0)
+		src = L"PASS *hidden*";
 
 //Write multiline to log
     do{
        //Plugin
-       SNprintf( tmstr, sizeof(tmstr), "%d ", PluginUsed() );
-       Fwrite( LogFile,tmstr,strLen(tmstr) );
+//       SNprintf( tmstr, sizeof(tmstr), "%d ", PluginUsed() );
+       Fwrite( LogFile,tmstr,strlen(tmstr) );
 
        //Time
        GetLocalTime( &st );
-       SNprintf( tmstr,sizeof(tmstr),
+       _snprintf( tmstr,sizeof(tmstr),
                  "%4d.%02d.%02d %02d:%02d:%02d:%04d",
                  st.wYear, st.wMonth,  st.wDay,
                  st.wHour, st.wMinute, st.wSecond, st.wMilliseconds );
@@ -454,9 +259,9 @@ void DECLSPEC LogCmd( CONSTSTR src,CMDOutputDir out,DWORD Size )
 
        //Delay
        if ( !stOld.wYear )
-          Sprintf( tmstr," ----" );
+          sprintf(tmstr, " ----");
          else
-          Sprintf( tmstr," %04d",
+          sprintf(tmstr, " %04d",
                    (st.wSecond-stOld.wSecond)*1000 + (st.wMilliseconds-stOld.wMilliseconds) );
        Fwrite( LogFile,tmstr,strlen(tmstr) );
 
@@ -479,17 +284,9 @@ void DECLSPEC LogCmd( CONSTSTR src,CMDOutputDir out,DWORD Size )
     Fclose( LogFile );
 }
 
-//------------------------------------------------------------------------
-//  Connection
-//------------------------------------------------------------------------
 void Connection::InitIOBuff( void )
-  {
-    CloseIOBuff();
-    IOBuff = (char*)_Alloc( Host.IOBuffSize+1 );
-}
-void Connection::CloseIOBuff( void )
-  {
-    _Del( IOBuff ); IOBuff = NULL;
+{
+    IOBuff.reset(new char[getHost().IOBuffSize+1]);
 }
 
 /*
@@ -500,14 +297,10 @@ void Connection::InitCmdBuff()
 	if(!cmdBuff_.empty())
 		CloseCmdBuff();
 
-	hIdle        = g_manager.opt.IdleShowPeriod ? FP_PeriodCreate(g_manager.opt.IdleShowPeriod) : NULL;
 	CmdVisible   = TRUE;
-	cmdLineSize  = g_manager.opt.CmdLine;
-	cmdSize_		= g_manager.opt.CmdLength;
 	RetryCount   = 0;
 	//Command lines + status command
-	cmdMsg_.reserve(cmdSize_ + NBUTTONSADDON);
-	ResetCmdBuff();
+	cmdMsg_.reserve(g_manager.opt.CmdCount + NBUTTONSADDON);
 }
 /*
    Free initialize CMD buffer data
@@ -515,68 +308,28 @@ void Connection::InitCmdBuff()
 void Connection::CloseCmdBuff( void )
 {
 	cmdBuff_.resize(0);
-	rplBuff_.resize(0);
 	cmdMsg_.resize(0);
-
-	IOBuff  = NULL;
-	FP_PeriodDestroy(hIdle);
 }
 //------------------------------------------------------------------------
 /*
    Output message about internal plugin error
 */
 void Connection::InternalError( void )
-  {  CONSTSTR MsgItems[] = {
-       FMSG(MFtpTitle),
-       FMSG(MIntError),
-       FMSG(MOk) };
-
-     FMessage( FMSG_WARNING, NULL, MsgItems, ARRAY_SIZE(MsgItems), 1 );
-}
-/*
-   Set CMD buffer data to zero state
-
-   Used just after new connection established
-*/
-void Connection::ResetCmdBuff( void )
 {
-    hostname[0]	= 0;
-    lastHost_	= L"";
-    lastMsg_	= L"";
+	FARWrappers::message(MFtpTitle, MIntError);
 }
 
-std::string Connection::SetCmdLine(const std::string &src, CMDOutputDir direction)
+void Connection::pushCmdLine(const std::wstring &src, CMDOutputDir direction)
 {
-	std::string result = src;
+	std::wstring result = src;
 
 	if(!g_manager.opt._ShowPassword && g_manager.opt.cmdPass_ == src)
-		result = "PASS *hidden*";
+		result = L"PASS *hidden*";
 	else
-		if(static_cast<BYTE>(src[0]) == (BYTE)ffDM &&
-			src.find("ABOR", 1, 4) != std::wstring::npos)
-			result = "<ABORT>";
+		if(!src.empty() && src[0] == cffDM &&
+			src.find(L"ABOR", 1, 4) != std::wstring::npos)
+			result = L"<ABORT>";
 
-	switch(direction)
-	{
-	case ldInt:
-		result = "<- " + result;
-		break;
-	case ldOut:
-		result = "-> " + result;
-	}
-
-	size_t n = result.find('\r');
-	if(n != std::wstring::npos)
-		result.resize(n);
-	n = result.find('\n');
-	if(n != std::wstring::npos)
-		result.resize(n);
-	return result;
-}
-
-std::wstring Connection::SetCmdLine(const std::wstring &src, CMDOutputDir direction)
-{
-	std::wstring result;
 	switch(direction)
 	{
 	case ldInt:
@@ -586,13 +339,32 @@ std::wstring Connection::SetCmdLine(const std::wstring &src, CMDOutputDir direct
 		result = L"-> " + src;
 	}
 
-	size_t n = result.find('\r');
-	if(n != std::wstring::npos)
+	if(direction == ldRaw)
+	{
+		size_t n, start = 0;
+		std::wstring s;
+		do 
+		{
+ 			n = result.find_first_of(L"\n\r", start);
+			s = std::wstring(result, start, (n == std::wstring::npos)? n : n-start);
+			size_t ofs = 0;
+			do 
+			{
+				cmdBuff_.push_back(std::wstring(s, ofs, g_manager.opt.CmdLine-4));
+				ofs += g_manager.opt.CmdLine;
+			} while(ofs < s.size());
+			if(n == std::wstring::npos)
+				break;
+			start = result.find_first_not_of(L"\n\r", n+1);
+		} while(start != std::wstring::npos);
+	} else
+	{
+		size_t n = std::min(result.find_first_of(L"\n\r"),
+							static_cast<size_t>(g_manager.opt.CmdLine-4));
+		n = std::min(result.size(), n);
 		result.resize(n);
-	n = result.find('\n');
-	if(n != std::wstring::npos)
-		result.resize(n);
-	return result;
+		cmdBuff_.push_back(result);
+	}
 }
 
 
@@ -601,39 +373,36 @@ void Connection::AddCmdLine(const std::wstring &str, CMDOutputDir direction)
 	std::wstring buff;
 
 	std::wstring::const_iterator itr = str.begin();
-	while(itr != str.end() && (*itr == L'\r' || *itr == L'\n'))
-		++itr;
-	if(itr == str.end())
+	if(str.find_first_not_of(L"\r\n") == std::wstring::npos)
 		return;
 
 	buff = str; // TODO replyString_;
 
+	const size_t cmdSize = g_manager.opt.CmdCount;
 	//Remove overflow lines
-	if(cmdBuff_.size() >= cmdSize_)
-	{
-		cmdBuff_.erase(cmdBuff_.begin(), cmdBuff_.begin() + (cmdSize_ - cmdBuff_.size() + 1));
-		rplBuff_.erase(rplBuff_.begin(), rplBuff_.begin() + (cmdSize_ - cmdBuff_.size() + 1));
-	}
+	if(cmdBuff_.size() >= cmdSize)
+		cmdBuff_.erase(cmdBuff_.begin(), cmdBuff_.begin() + (cmdBuff_.size()-cmdSize+1));
 
 	//Add new line
-		LogCmd(Unicode::toOem(buff).c_str(), direction);
+	LogCmd(buff.c_str(), direction);
 
-		cmdBuff_.push_back(toOEM(SetCmdLine(buff, direction)));
-		rplBuff_.push_back(toOEM(SetCmdLine(buff, direction)));
+	pushCmdLine(buff, direction);
+	if(cmdBuff_.size() > cmdSize)
+		cmdBuff_.erase(cmdBuff_.begin(), cmdBuff_.begin() + (cmdBuff_.size()-cmdSize));
 
-		//Start
-		if(startReply_.empty() && direction == ldIn)
-		{
-			// TODO wtf
-			std::wstring::const_iterator itr = str.begin();
-			while(itr != str.end() && 
-				(std::isdigit(*itr, std::locale()) || *itr == ' ' || *itr == '\b' || *itr == '\t' ))
-				++itr;
+	//Start
+	if(startReply_.empty() && direction == ldIn)
+	{
+		size_t start = str.find_first_not_of(L"0123456789 -");
+		if(start == std::wstring::npos)
+			start = 0;
+		size_t end = str.find_first_of(L"\n\r", start);
+		if(end == std::wstring::npos)
+			end = str.size();
+		startReply_.assign(str, start, end-start);
+	}
 
-			startReply_ = FromOEM(std::string(itr, str.end())); // TODO check
-		}
-
-		ConnectMessage();
+	ConnectMessage();
 }
 
 /*
@@ -646,265 +415,208 @@ void Connection::AddCmdLine(const std::wstring &str, CMDOutputDir direction)
    IF `str` == NULL
      Place to buffer last response string
 */
-void Connection::AddCmdLine( CONSTSTR str )
+void Connection::AddCmdLine(const std::string& str, CMDOutputDir direction)
 {
-	std::wstring buff;
 
-	if ( str ) {
-		str = FP_GetMsg( str );
-		//Skip IAC
-		if ( ((BYTE)str[0]) == ffIAC && ((BYTE)str[1]) == ffIP )
-			return;
+	char ffIacIp[] = {cffIAC, cffIP, 0};
+	if(boost::starts_with(str, ffIacIp))
+		return;
 
-		//Skip empty
-		while( *str && strchr("\n\r",*str) != NULL ) str++;
-		if ( !str[0] )
-			return;
+	AddCmdLine(FromOEM(str), direction);
+}
+
+
+int Connection::ConnectMessage(std::wstring message, bool messageTime,
+								const std::wstring &title, const std::wstring &bottom, 
+								bool showcmds, bool error,
+								int button1, int button2, int button3)
+{
+	cmdMsg_.resize(0);
+	cmdMsg_.push_back(title);
+
+	if(messageTime)
+	{
+		SYSTEMTIME st;
+		GetLocalTime(&st);
+		std::wstringstream stream;
+		stream << std::setfill(L'0') << std::setw(2) << st.wHour << L':' << 
+			std::setw(2) << st.wMinute << L':' << std::setw(2) << st.wSecond <<
+			L" \"" << message << + "\"";
+		message = stream.str();
+	};
+	message.resize(g_manager.opt.CmdLine-4, L' ');
+	cmdMsg_.push_back(message);
+
+	if(showcmds)
+	{
+		cmdMsg_.push_back(horizontalLine);
+
+		std::deque<std::wstring>::const_iterator itr = cmdBuff_.begin();
+		while(itr != cmdBuff_.end())
+		{
+			cmdMsg_.push_back(*itr);
+			++itr;
+		}
+		for(size_t n = cmdBuff_.size(); n < static_cast<size_t>(g_manager.opt.CmdCount); ++n)
+			cmdMsg_.push_back(L"");
 	}
 
-	// TODO
+	if(!bottom.empty())
+	{
+		cmdMsg_.push_back(horizontalLine);
+		cmdMsg_.push_back(bottom);
+	}
+
+	int buttonCount = 0;
+	if(button1 != MNone__)
+	{
+		cmdMsg_.push_back(horizontalLine);
+		cmdMsg_.push_back(getMsg(button1));
+		++buttonCount;
+		if(button2 != MNone__)
+		{
+			cmdMsg_.push_back(getMsg(button2));
+			++buttonCount;
+			if(button3 != MNone__)
+			{
+				cmdMsg_.push_back(getMsg(button3));
+				++buttonCount;
+			}
+		}
+	}
+	
+	return FARWrappers::message(cmdMsg_, buttonCount, (error? FMSG_WARNING : 0) | FMSG_LEFTALIGN);	
 }
-//------------------------------------------------------------------------
-/*
-    Show CMD window
-    Use `CmdBuff` string to write in window
-    Returns nonzero if `btn` to specified or user select button from modal dialog
 
-    IF `btn` != MNone__
-      Show modal message with button `btn`
-    IF `btn` < 0
-      Show modal message with button Abs(`btn`) and error color of message window
-    IF `HostName` != NULL
-      Set LastHost to this value
-*/
-static WORD Keys[] = { VK_ESCAPE, 'C', 'R', VK_RETURN };
-
-bool Connection::ConnectMessageTimeout(int Msg /*= MNone__*/, const std::wstring &hostname, int BtnMsg /*= MNone__*/ )
+bool Connection::ConnectMessageTimeout(int Msg, const std::wstring& hostname, int BtnMsg)
 {  
-	std::string		str;
-	std::wstring	host;
-	BOOL              rc, 
-		first = TRUE;
-	TIME_TYPE         b,e;
-	CMP_TIME_TYPE     diff;
-	int               secNum;
+	bool	first = true;
+	int		secNum;
 
-	if (IS_FLAG(FP_LastOpMode, OPM_FIND) ||
-		!g_manager.opt.RetryTimeout ||
-		(BtnMsg != -MRetry && BtnMsg != -MRestore) )
-		return ConnectMessage( Msg, Unicode::toOem(hostname).c_str(), BtnMsg );
-
-	host = lastHost_;
+	if (is_flag(FP_LastOpMode, OPM_FIND) || !g_manager.opt.RetryTimeout)
+		return ConnectMessage(Msg, hostname, BtnMsg);
 
 	secNum = 0;
-	GET_TIME( b );
-	do{
-		switch( CheckForKeyPressed( Keys,ARRAY_SIZE(Keys) ) )
+	WinAPI::Stopwatch stopwatch(1000);
+	do
+	{
+		static const WORD Keys[] = { VK_ESCAPE, 'C', 'R', VK_RETURN };
+
+		switch(WinAPI::checkForKeyPressed(Keys))
 		{
-		 case 1:
-		 case 2: SetLastError( ERROR_CANCELLED );
-			 return FALSE;
+		 case 0: case 1:
+			 return false;
+		 case 2:
 		 case 3:
-		 case 4: return TRUE;
+			 return true;
 		}
 
-		GET_TIME( e );
-		diff = CMP_TIME( e,b );
-		if ( first || diff > 1.0 )
+		if(first || stopwatch.isTimeout())
 		{
-			first = FALSE;
-			str = std::string("\"") + Unicode::toOem(hostname) + "\" " + 
-				FP_GetMsg(MAutoRetryText) + " " +
-				boost::lexical_cast<std::string>(g_manager.opt.RetryTimeout-secNum) +
-				FP_GetMsg(MSeconds) + " " + FP_GetMsg(MRetryText);
-
-			ConnectMessage(Msg, str.c_str());
-
-			std::wstring wstr  = std::wstring(Unicode::fromOem(FP_GetMsg(Msg))) + L' ' +
-				Unicode::fromOem(FP_GetMsg(MAutoRetryText)) + L' ' +
+			first = false;
+			std::wstring s = std::wstring(L" ") + getMsg(MAutoRetryText) + L" " +
 				boost::lexical_cast<std::wstring>(g_manager.opt.RetryTimeout-secNum) +
-				Unicode::fromOem(FP_GetMsg(MSeconds));
-			WinAPI::setConsoleTitle(wstr);
+				getMsg(MSeconds);
+
+			ConnectMessage(std::wstring(getMsg(Msg)) + s, false, hostname, 
+						getMsg(MRetryText), true, true);
+
+			WinAPI::setConsoleTitle(std::wstring(getMsg(Msg)) + s);
 
 			secNum++;
-			b = e;
+			stopwatch.reset();
 		}
 
-		if ( secNum > g_manager.opt.RetryTimeout )
-		{
-			rc = TRUE;
-			break;
-		}
+		if(secNum > g_manager.opt.RetryTimeout)
+			return false;
 
 		Sleep(100);
 	}while( 1 );
 
-	lastHost_ = host;
-
-	return rc;
+	return false;
 }
 
-int Connection::ConnectMessageW( int Msg, const std::wstring &HostName,
+int Connection::ConnectMessage(std::wstring msg, std::wstring subtitle, bool error,
 							   int btn, int btn1, int btn2)
 {
-	return ConnectMessage(Msg, Unicode::toOem(HostName).c_str(), btn, btn1, btn2);
-}
+	PROCP(msg << L", " << subtitle << L", " << btn << L", " << btn1 << L", " << btn2); 
+	int			res;
+	bool		exCmd;
 
-int Connection::ConnectMessage( int Msg /*= MNone__*/,CONSTSTR HostName /*= NULL*/,
-                                int btn /*= MNone__*/,int btn1 /*= MNone__*/,int btn2 /*= MNone__*/ )
-{
-	//PROC(( "ConnectMessage", "%d,%s,%d,%d,%d", Msg, HostName, btn, btn1, btn2 ))
-	size_t			n;
-	BOOL			res;
-	CONSTSTR		m;
-	BOOL			exCmd;
-
-	if ( btn < 0 && g_manager.opt.DoNotExpandErrors )
-		exCmd = FALSE;
+	if(error && g_manager.opt.DoNotExpandErrors)
+		exCmd = false;
 	else
-		exCmd = Host.ExtCmdView;
+		exCmd = getHost().ExtCmdView;
 
 	//Called for update CMD window but it disabled
-	if ( Msg == MNone__ && !HostName && !exCmd )
-		return TRUE;
+	if(msg.empty() && subtitle.empty() && !exCmd)
+		return true;
 
-	if ( Msg != MNone__ )          lastMsg_ = SetCmdLine(Unicode::fromOem(FP_GetMsg(Msg)), ldRaw);
-	if ( HostName && HostName[0] ) lastHost_= SetCmdLine(Unicode::fromOem(HostName), ldRaw);
+	if(subtitle.empty())
+	{
+		if(!userName_.empty())
+		{
+			subtitle = userName_ + L':';
+			if (!userPassword_.empty())
+				subtitle += L"*@";
+		}
+		subtitle += getHost().url_.Host_;
+	}
 
-	if ( btn == MNone__ )
-		if ( IS_FLAG(FP_LastOpMode,OPM_FIND)                       ||  //called from find
+	if(btn == MNone__)
+		if ( is_flag(FP_LastOpMode,OPM_FIND)                       ||  //called from find
 			!CmdVisible                                           ||  //Window disabled
-			(IS_SILENT(FP_LastOpMode) && !g_manager.opt.ShowSilentProgress) ) { //show silent processing disabled
-				if ( HostName )
-				{
-					SetLastError( ERROR_SUCCESS );
-					IdleMessage( HostName, g_manager.opt.ProcessColor );
-				}
-				return FALSE;
+			(IS_SILENT(FP_LastOpMode) && !g_manager.opt.ShowSilentProgress) )
+		{ //show silent processing disabled
+			if(!subtitle.empty())
+				IdleMessage(subtitle.c_str(), g_manager.opt.ProcessColor );
+			return false;
 		}
 
-		cmdMsg_.resize(0);
+	//Title
+	std::wstring title = getMsg(MFtpTitle) + std::wstring(L" \"") + subtitle + L'\"';
 
-		//Title
-		String str;
+	if(!msg.empty())
+		lastMsg_ = msg;
 
-		m = FP_GetMsg(MFtpTitle);
-		if ( hostname[0] ) {
-			if ( UserPassword[0] )
-				str.printf( "%s \"%s:*@%s\"",m,userName_,hostname );
-			else
-				str.printf( "%s \"%s:%s\"",m,userName_,hostname );
-		} else
-			str = m;
-		str.SetLength( cmdLineSize );
-		cmdMsg_.push_back(str.c_str());
+	//Display error in title
+	if(error && FARWrappers::Screen::isSaved())
+	{
+		WinAPI::setConsoleTitle(lastMsg_ + L" \"" + title + L"\"");
+	}
 
-		//Error delimiter
-		if (btn != MNone__ && btn < 0 )
-			switch( GetLastError() ) {
-		 case   ERROR_SUCCESS:
-		 case ERROR_CANCELLED: break;
-		 default: cmdMsg_.push_back("\x1");
-		}
+	res = ConnectMessage(lastMsg_, true, title, L"", exCmd, error, btn, btn1, btn2);
 
-		if ( GetLastError() == ERROR_CANCELLED )
-			SetLastError( ERROR_SUCCESS );
+//SLEEP!!	Sleep(1000);
 
-		//Commands
-		if ( exCmd )
-			for ( n = 0; n < cmdBuff_.size(); n++ )
-				cmdMsg_.push_back(cmdBuff_[n]);
+	//If has user buttons: return number of pressed button
+	if(btn1 != MNone__)
+		return res;
 
-		//Message
-		std::wstring msg;
-
-		if(Msg != MOk && !lastMsg_.empty())
-		{
-			if (exCmd && !cmdBuff_.empty())
-				cmdMsg_.push_back("\x1");
-
-			if(exCmd)
-			{
-				SYSTEMTIME st;
-				GetLocalTime(&st);
-				// msg.printf("%02d:%02d:%02d \"%s\"", st.wHour, st.wMinute, st.wSecond, lastMsg_);
-				std::wstringstream stream;
-				stream <<	std::setw(2) << st.wHour << L':' << 
-							std::setw(2) << st.wMinute << L':' << 
-							std::setw(2) << st.wSecond << 
-							L" \"" << lastMsg_  << + "\"";
-				msg = stream.str();
-			} else
-				msg = lastMsg_;
-
-			msg.resize(cmdLineSize);
-			cmdMsg_.push_back(Unicode::toOem(msg.c_str()));
-			Log(( "CMSG: %s", Unicode::toOem(lastMsg_.c_str())));
-		}
-
-		//Host
-		std::wstring lh;
-		if (!lastHost_.empty() && (!HostName || HostName[0]) )
-		{
-			lh = lastHost_;
-			lh.resize(cmdLineSize);
-			cmdMsg_.push_back(Unicode::toOem(lh));
-		}
-
-		//Buttons
-#define ADD_BTN(v)  do{ cmdMsg_.push_back(v); btnAddon++; }while(0)
-
-		int btnAddon = 0;
-
-		if ( btn != MNone__ )
-		{
-			cmdMsg_.push_back("\x1");
-			ADD_BTN( FP_GetMsg(Abs(btn)) );
-
-			if ( btn1 != MNone__ ) ADD_BTN( FP_GetMsg(btn1) );
-			if ( btn2 != MNone__ ) ADD_BTN( FP_GetMsg(btn2) );
-
-			if ( btn < 0 && btn != -MOk )
-				ADD_BTN( FP_GetMsg(MCancel) );
-		}
-
-		//Display error in title
-		if(btn < 0 && btn != MNone__ && FP_Screen::isSaved())
-		{
-			WinAPI::setConsoleTitle(lastMsg_ + L" \"" + lastHost_ + L"\"");
-		}
-
-		//Message
-		BOOL isErr = (btn != MNone__ || btn < 0) && GetLastError() != ERROR_SUCCESS,
-			isWarn = btn != MNone__ && btn < 0;
-
-		res = FMessage( (isErr ? FMSG_ERRORTYPE : 0) | (isWarn ? FMSG_WARNING : 0) | (exCmd ? FMSG_LEFTALIGN : 0),
-			NULL, cmdMsg_, btnAddon );
-		Log(( "CMSG: rc=%d", res ));
-
-		//Del auto-added `cancel`
-		btnAddon -= btn < 0 && btn != -MOk;
-
-		//If has user buttons: return number of pressed button
-		if ( btnAddon > 1 )
-			return res;
-
-		//If single button: return TRUE if button was selected
-		return btn != MNone__ && res == 0;
+	//If single button: return TRUE if button was selected
+	return btn != MNone__ && res == 0;
 }
 
-void DECLSPEC OperateHidden( CONSTSTR fnm, BOOL set )
-  {
-     if ( !g_manager.opt.SetHiddenOnAbort ) return;
-     Log(( "%s hidden", set ? "Set" : "Clr" ));
 
-     DWORD dw = GetFileAttributes( fnm );
-     if ( dw == MAX_DWORD ) return;
-
-     if ( set )
-       SET_FLAG( dw, FILE_ATTRIBUTE_HIDDEN );
-      else
-       CLR_FLAG( dw, FILE_ATTRIBUTE_HIDDEN );
-
-     SetFileAttributes( fnm, dw );
+int Connection::ConnectMessage(int Msg, std::wstring subtitle, bool error,
+							   int btn, int btn1, int btn2)
+{
+	return ConnectMessage(Msg == MNone__? L"" : getMsg(Msg), subtitle, error, btn, btn1, btn2);
 }
+
+void WINAPI OperateHidden(const std::wstring& fnm, bool set)
+{
+	if(!g_manager.opt.SetHiddenOnAbort)
+		return;
+	BOOST_LOG(INF, (set ? L"Set" : L"Clr") << L" hidden");
+
+	DWORD dw = GetFileAttributesW(fnm.c_str());
+	if(dw == UINT_MAX)
+		return;
+
+	set_flag(dw, FILE_ATTRIBUTE_HIDDEN, set);
+
+	SetFileAttributesW(fnm.c_str(), dw);
+}
+
+

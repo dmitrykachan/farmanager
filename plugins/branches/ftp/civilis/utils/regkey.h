@@ -70,6 +70,7 @@ public:
 	operator HKEY() const				{ return hKey_;}
 
 	void		open(HKEY hKeyParent, const wchar_t* name, REGSAM samDesired = KEY_READ | KEY_WRITE);
+	void		openOnly(HKEY hKeyParent, const wchar_t* name, REGSAM samDesired = KEY_READ | KEY_WRITE);
 	void		close();
 
 	void		set(const wchar_t* name, const wchar_t* value, DWORD dwType = REG_SZ) const;

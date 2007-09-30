@@ -1,108 +1,40 @@
 #ifndef __FAR_PLUGIN_CONFIGDATA
 #define __FAR_PLUGIN_CONFIGDATA
 
-//Traffic message [ftp_TraficCB.cpp]
-#include "ftp_pwd.h"
-#define FTR_MAXTIME           FTR_HOURSEC*99        //max calculated estimated time (sec)
-#define FTR_MINBUFFSIZE       50
+#include "servertype.h"
+
+const int FTR_MINBUFFSIZE = 50;
+enum
+{
+	FTR_MAXTIME		= 3600*99 //max calculated estimated time (sec)
+};
 
 //Dialog edit history
-#define FTP_GETHISTORY        "FTPGet"
-#define FTP_PUTHISTORY        "FTPPut"
-#define FTP_HOSTHISTORY       "FTPHost"
-#define FTP_FOLDHISTORY       "FTPFolder"
-#define FTP_USERHISTORY       "FTPUser"
-#define FTP_INCHISTORY        "FTPIncludeMask"
-#define FTP_EXCHISTORY        "FTPExcludeMask"
+#define FTP_GETHISTORY        L"FTPGet"
+#define FTP_PUTHISTORY        L"FTPPut"
+#define FTP_HOSTHISTORY       L"FTPHost"
+#define FTP_FOLDHISTORY       L"FTPFolder"
+#define FTP_USERHISTORY       L"FTPUser"
+#define FTP_INCHISTORY        L"FTPIncludeMask"
+#define FTP_EXCHISTORY        L"FTPExcludeMask"
 
 #define FTP_CMDPREFIX         L"ftp"
 #define FTP_CMDPREFIX_SIZE    3
 
-#define FTP_HOSTID            MK_ID( 'F','H','s','t' )
-
-#define FTR_HOURSEC           3600
-#define FTR_MINSEC            60
-
-#define MAXHOSTNAMELEN        64
-
-#define DIALOG_EDIT_SIZE      8000  //Size of max dialog edit field
-
-
-class PluginPanelItemEx: public PluginPanelItem
+enum
 {
-public:
-	PluginPanelItemEx()
-	{
-		std::fill_n(reinterpret_cast<int*>(this), sizeof(PluginPanelItem)/4, 0);
-	}
-
-	PluginPanelItemEx(const PluginPanelItemEx& p)
-	{
-		FindData		= p.FindData;
-		PackSizeHigh	= p.PackSizeHigh;
-		PackSize		= p.PackSize;
-		Flags			= p.Flags;
-		NumberOfLinks	= p.NumberOfLinks;
-		CRC32			= p.CRC32;
-		Reserved[0]		= p.Reserved[0];
-		Reserved[1]		= p.Reserved[1];
-		UserData		= p.UserData;
-
-		Description		= strdup(p.Description);
-		Owner			= strdup(p.Owner);
-
-		if(p.CustomColumnNumber)
-		{
-			CustomColumnNumber = p.CustomColumnNumber;
-			CustomColumnData = new char* [CustomColumnNumber];
-			for(int i = 0; i < CustomColumnNumber; i++)
-			{
-				CustomColumnData[i] = strdup(p.CustomColumnData[i]);
-			}
-		} else
-		{
-			CustomColumnData = 0;
-			CustomColumnNumber = 0;
-		}
-	}
-
-	~PluginPanelItemEx()
-	{
-		for(int i = 0; i < CustomColumnNumber; i++)
-		{
-			free(CustomColumnData[i]);
-		}
-		delete [] CustomColumnData;
-		free(Owner);
-		free(Description);
-	}
-
+	FTR_HOURSEC		= 3600,
+	FTR_MINSEC		= 60
 };
-
-
 
 inline std::wstring FTP_FILENAME(const PluginPanelItem *p)
 {
-	return FPIL_ADDEXIST(p) ? FPIL_ADD_STRING(p) : Unicode::utf8ToUtf16(p->FindData.cFileName);
-}
-
-inline void SET_FTP_FILENAME(PluginPanelItem *p, const std::wstring &str)
-{
-	const char* s = Unicode::utf16ToUtf8(str).c_str();
-	strncpy(p->FindData.cFileName, s, sizeof(p->FindData.cFileName)-1);
-	p->FindData.cFileName[sizeof(p->FindData.cFileName)-1] = '\0';
-	if(str.size() > sizeof(p->FindData.cFileName)-1)
-	{
-		FPIL_ADDSET(p, str);
-	}
+	return p->FindData.lpwszFileName;
 }
 
 
 //Security flags
 #define SEC_PLAINPWD          0x0001        //plugin can place password in generated url in a plain text
-
-typedef char*                 FCmdLine;
-typedef const char*           FMenuLine;
 
 //transfer types
 enum ftTypes {
@@ -124,26 +56,23 @@ enum {
 
 //FTP overwrite mode
 enum overCode {
-  ocOverAll,
+  ocOverAll = 1,
   ocSkip,
   ocSkipAll,
   ocOver,
   ocResume,
   ocResumeAll,
-  ocCancel,
-  ocNone
+  ocNone,
+  ocCancel = -1
 };
 
 //Current FTP state
 enum FTPCurrentStates {
-  fcsNormal       = 0,
-  fcsExpandList   = 1,
-  fcsClose        = 2,
-  fcsConnecting   = 3,
-  fcsFTP          = 4,
-  fcsOperation    = 5,
-  fcsProcessFile  = 6,
-  fcs_None
+  fcsNormal,
+  fcsExpandList,
+  fcsClose,
+  fcsConnecting,
+  fcsFTP,
 };
 
 //CMDLog output directions
@@ -157,7 +86,7 @@ enum CMDOutputDir {
 
 class FTP;
 //ExpandList callback
-typedef BOOL (*ExpandListCB)(const FTP* ftp, PluginPanelItem *p,LPVOID Param );
+typedef BOOL (*ExpandListCB)(const FTP* ftp, PluginPanelItem &item, LPVOID Param);
 
 //Save list options
 enum sliTypes {
@@ -169,34 +98,85 @@ enum sliTypes {
 
 struct SaveListInfo
 {
-
-  char     path[ FAR_MAX_PATHSIZE ];
-  BOOL     Append;
-  BOOL     AddPrefix;             //all
-  BOOL     AddPasswordAndUser;
-  BOOL     Quote;
-  BOOL     Size;                  //tree and group
-  int      RightBound;            //tree
-  sliTypes ListType;
+	std::wstring path;
+	BOOL     Append;
+	BOOL     AddPrefix;             //all
+	BOOL     AddPasswordAndUser;
+	BOOL     Quote;
+	BOOL     Size;                  //tree and group
+	int      RightBound;            //tree
+	sliTypes ListType;
 };
 
-//Configuration options
-struct Options : public OptionsPlugin
+enum
 {
+	IDLE_CONSOLE = 1,
+	IDLE_CAPTION = 2,
+	IDLE_BOTH    = IDLE_CONSOLE | IDLE_CAPTION
+};
+//Configuration options
+struct Options // : public OptionsPlugin
+{
+	// OptionsPlugin
+	int     AddToDisksMenu;
+	int     AddToPluginsMenu;
+	int     DisksMenuDigit;
+	int     ReadDescriptions;
+	int     UpdateDescriptions;
+	int     UploadLowCase;
+	int     ShowUploadDialog;
+	int     ResumeDefault;
+	std::wstring firewall;
+	int     PassiveMode;
+	std::wstring	DescriptionNames;
+	//Configurable
+	BOOL    dDelimit;                      //Delimite digits with spec chars                              TRUE
+	wchar_t dDelimiter;                    //Character delimiter                                          '.'
+	BOOL    AskAbort;                      //Ask Yes/No on abort pressed                                  TRUE
+	int     CmdLine;                       //Length of one line in command buffer                         70
+	int     CmdCount;                     //Length of command lines in cache                             7
+	int     IOBuffSize;                    //Size of IO buffer                                            10.000 (bytes)
+	int     ExtCmdView;                    //Extended CMD window                                          TRUE
+	int     KeepAlive;                     //Keep alive period (sec)                                      60
+	int     PluginColumnMode;              //Default mode for hosts panel                                 -1 (have no preferred mode)
+	BOOL    TimeoutRetry;                  //Auto retry operation if timeout error occured                TRUE
+	int     RetryCount;                    //Count of auto retryes                                        0
+	BOOL    LogOutput;                     //Write output data to log                                     FALSE
+	int     LongBeepTimeout;               //long operation beeper
+	int     WaitTimeout;                   //Maximum timeout to wait data receiving  (sec)                300
+	BOOL    ShowIdle;                      //Show idle percent                                            TRUE
+	int     IdleColor;                     //idle percent text color                                      FAR_COLOR(fccCYAN,fccBLUE)
+	int     IdleMode;                      //Show mode of idle info (set of IDLE_xxx flags)               IDLE_CONSOLE
+	int     ProcessColor;                  //color of processing string in quite mode                     FAR_COLOR(fccBLACK,fccLIGHTGRAY) | COL_DIALOGBOX
+	ServerTypePtr    defaultServerType_;   //Type of server
+	BOOL    FFDup;                         //Duplicate FF symbols on transfer to server
+	BOOL    UndupFF;                       //Remove FF duplicate from PWD
+	BOOL    ShowSilentProgress;            //Show normal progress on silent operations
+	BOOL    ProcessCmd;                    //Default for command line processing
+	BOOL    UseBackups;                    //Use FTP backups
+	int     IdleShowPeriod;                //Period to refresh idle state (ms)
+	int     IdleStartPeriod;               //Period before first idle message shown (ms)
+	BOOL    AutoAnonymous;                 //Fill blank name with "anonimous"
+	int     RetryTimeout;                  //Timeout of auto-retry (sec)
+	BOOL    DoNotExpandErrors;             //Do not expand CMD window on error
+	int     AskLoginFail;                  //Reask user name and password if login fail                   TRUE
+
+
+
 
 	std::wstring defaultPassword_;
 
 //Configurable
-	std::wstring CmdLogFile;  //Log file where FTP commands placed                           "" (none)
+	std::wstring	CmdLogFile;  //Log file where FTP commands placed                           "" (none)
   int     CmdLogLimit;                   //Limit of cmd log file (*1000 bytes)                          100 (100.000 bytes)
   BOOL    CloseDots;                     //Switch on ".." to hosts                                      TRUE
   BOOL    QuoteClipboardNames;           //Quote names placed to clipboard
   BOOL    SetHiddenOnAbort;              //Set hidden attribute on uncomplete files
 
 //Techinfos
-  DWORD   PwdSecurity;                   //Set of SEC_xxx
+  int		PwdSecurity;                   //Set of SEC_xxx
 
-  std::string	fmtDateFormat;           //Server date-time format                                      "%*s %04d%02d%02d%02d%02d%02d"
+  std::wstring	fmtDateFormat;           //Server date-time format                                      "%*s %04d%02d%02d%02d%02d%02d"
   BOOL			TruncateLogFile;               //Truncate log file on plugin start                            FALSE
   std::wstring	InvalidSymbols;
   std::wstring	CorrectedSymbols;
@@ -209,43 +189,43 @@ struct Options : public OptionsPlugin
 
   BOOL    _ShowPassword;                 //Show paswords in any places                                  FALSE
 
-	std::string	cmdPut;                  //"STOR" /*APPE*/
-	std::string	cmdAppe;                 //"APPE"
-	std::string	cmdStor;                 //"STOR"
-	std::string	cmdPutUniq;              //"STOU"
-	std::string	cmdPasv_;					//"PASV"
-	std::string	cmdPort;                 //"PORT"
-	std::string	cmdMDTM;                 //"MDTM"
-	std::string	cmdRetr;                 //"RETR"
-	std::string	cmdRest_;					//"REST"
-	std::string	cmdAllo;                 //"ALLO"
-	std::string	cmdCwd;                  //"CWD"
-	std::string	cmdXCwd;                 //"XCWD"
-	std::string	cmdDel;                  //"DELE"
-	std::string	cmdRen;                  //"RNFR"
-	std::string	cmdRenTo;                //"RNTO"
-	std::string	cmdList;                 //"LIST"
-	std::string	cmdNList;                //"NLIST"
-	std::string	cmdUser_;					//"USER"
-	std::string	cmdPass_;					//"PASS"
-	std::string	cmdAcct_;					//"ACCT"
-	std::string	cmdPwd;                  //"PWD"
-	std::string	cmdXPwd;                 //"XPWD"
-	std::string	cmdMkd;                  //"MKD"
-	std::string	cmdXMkd;                 //"XMKD"
-	std::string	cmdRmd;                  //"RMD"
-	std::string	cmdXRmd;                 //"XRMD"
-	std::string	cmdSite;                 //"SITE"
-	std::string	cmdChmod;                //"CHMOD"
-	std::string	cmdUmask;                //"UMASK"
-	std::string	cmdIdle;                 //"IDLE"
-	std::string	cmdHelp;                 //"HELP"
-	std::string	cmdQuit;                 //"QUIT"
-	std::string	cmdCDUp;                 //"CDUP"
-	std::string	cmdXCDUp;                //"XCUP"
-	std::string	cmdSyst;                 //"SYST"
-	std::string	cmdSize;                 //"SISE"
-	std::string	cmdStat;                 //"STAT"
+	std::wstring	cmdPut;                  //"STOR" /*APPE*/
+	std::wstring	cmdAppe;                 //"APPE"
+	std::wstring	cmdStor;                 //"STOR"
+	std::wstring	cmdPutUniq;              //"STOU"
+	std::wstring	cmdPasv_;				//"PASV"
+	std::wstring	cmdPort;                 //"PORT"
+	std::wstring	cmdMDTM;                 //"MDTM"
+	std::wstring	cmdRetr;                 //"RETR"
+	std::wstring	cmdRest_;					//"REST"
+	std::wstring	cmdAllo;                 //"ALLO"
+	std::wstring	cmdCwd;                  //"CWD"
+	std::wstring	cmdXCwd;                 //"XCWD"
+	std::wstring	cmdDel;                  //"DELE"
+	std::wstring	cmdRen;                  //"RNFR"
+	std::wstring	cmdRenTo;                //"RNTO"
+	std::wstring	cmdList;                 //"LIST"
+	std::wstring	cmdNList;                //"NLIST"
+	std::wstring	cmdUser_;					//"USER"
+	std::wstring	cmdPass_;					//"PASS"
+	std::wstring	cmdAcct_;					//"ACCT"
+	std::wstring	cmdPwd;                  //"PWD"
+	std::wstring	cmdXPwd;                 //"XPWD"
+	std::wstring	cmdMkd;                  //"MKD"
+	std::wstring	cmdXMkd;                 //"XMKD"
+	std::wstring	cmdRmd;                  //"RMD"
+	std::wstring	cmdXRmd;                 //"XRMD"
+	std::wstring	cmdSite;                 //"SITE"
+	std::wstring	cmdChmod;                //"CHMOD"
+	std::wstring	cmdUmask;                //"UMASK"
+	std::wstring	cmdIdle;                 //"IDLE"
+	std::wstring	cmdHelp;                 //"HELP"
+	std::wstring	cmdQuit;                 //"QUIT"
+	std::wstring	cmdCDUp;                 //"CDUP"
+	std::wstring	cmdXCDUp;                //"XCUP"
+	std::wstring	cmdSyst;                 //"SYST"
+	std::wstring	cmdSize;                 //"SISE"
+	std::wstring	cmdStat;                 //"STAT"
 };
 
 #endif

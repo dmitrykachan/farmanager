@@ -1,105 +1,120 @@
 #include "stdafx.h"
-#include <all_far.h>
 #pragma hdrstop
 
 #include "ftp_Int.h"
 #include <boost/algorithm/string/trim.hpp>
 #include "utils/winwrapper.h"
 
-
 /* ANY state */
-BOOL FTP::ExecCmdLineANY( CONSTSTR str, BOOL Prefix )
+bool FTP::ExecCmdLineANY(const std::wstring& str, bool Prefix)
 {  
-	BOOL             iscmd = ShowHosts || Prefix;
+	bool             iscmd = ShowHosts || Prefix;
 	FTPUrl           ui;
 	QueueExecOptions op;
 
-	//Help
-	if ( (iscmd && StrCmpI( str,"HELP" ) == 0) || StrCmpI( str,"?" ) == 0 ) {
-		FP_Info->ShowHelp( FP_Info->ModuleName,"FTPCommandLineHelp",FHELP_SELFHELP );
-		return TRUE;
-	} else
-		//Add to queue
-		if ( iscmd && StrNCmpI( str,"QADD ",5 ) == 0 ) {
-			UrlInit( &ui );
-			for( str += 5; *str && isspace(*str); str++ );
-			if ( *str )
-			{
-				ui.SrcPath = Unicode::fromOem(str);
-				if ( EditUrlItem(&ui) )
-					AddToQueque( &ui );
-			}
-			return TRUE;
-		} else
-			//Add and execute
-			if ( iscmd && StrNCmpI( str,"XADD ",5 ) == 0 ) {
-				UrlInit( &ui );
-				for( str += 5; *str && isspace(*str); str++ );
-				if ( *str )
-				{
-					ui.SrcPath = Unicode::fromOem(str);
-					if ( EditUrlItem(&ui) )
-						AddToQueque( &ui );
-				}
+	std::wstring::const_iterator itr = str.begin();
+	Parser::skipNSpaces(itr, str.end());
+	if(itr != str.end())
+		++itr;
+	std::wstring cmd(str.begin(), itr);
+	Parser::skipSpaces(itr, str.end());
 
-				SetupQOpt( &op );
-				if ( QuequeSize &&
-					WarnExecuteQueue(&op) ) {
-						ExecuteQueue(&op);
-						if ( QuequeSize ) QuequeMenu();
-				}
-				return TRUE;
-			} else
-				//Show queue
-				if ( iscmd && StrCmpI( str,"Q" ) == 0 ) {
-					QuequeMenu();
-				} else
-					//Execute queue
-					if ( iscmd && StrCmpI( str,"QX" ) == 0 ) {
-						SetupQOpt( &op );
-						if ( QuequeSize &&
-							WarnExecuteQueue(&op) ) {
-								ExecuteQueue(&op);
-								if ( QuequeSize ) QuequeMenu();
-						}
-						return TRUE;
-					}
+	if(boost::iequals(cmd, "help") || cmd == L"?")
+	{
+		FARWrappers::getInfo().ShowHelp(FARWrappers::getModuleName(), L"FTPCommandLineHelp", FHELP_SELFHELP);
+		return true;
+	}
 
+	if(iscmd == false)
+		return false;
 
-					return FALSE;
+	if(boost::iequals(cmd, L"qadd"))
+	{
+		UrlInit(&ui);
+		if(itr != str.end())
+		{
+			ui.SrcPath.assign(itr, str.end());
+			if(EditUrlItem(&ui))
+				AddToQueque(&ui);
+		}
+		return true;
+	}
+
+	if(boost::iequals(cmd, L"xadd"))
+	{
+		UrlInit(&ui);
+		if(itr != str.end())
+		{
+			ui.SrcPath.assign(itr, str.end());
+			if(EditUrlItem(&ui))
+				AddToQueque(&ui);
+		}
+		SetupQOpt(&op);
+		if(QuequeSize && WarnExecuteQueue(&op))
+		{
+			ExecuteQueue(&op);
+			if(QuequeSize)
+				QuequeMenu();
+		}
+
+		return true;
+	}
+
+	if(boost::iequals(cmd, L"q"))
+	{
+		QuequeMenu();
+		return true;
+	}
+
+	if(boost::iequals(cmd, L"qx"))
+	{
+		SetupQOpt( &op );
+		if(QuequeSize && WarnExecuteQueue(&op))
+		{
+			ExecuteQueue(&op);
+			if(QuequeSize)
+				QuequeMenu();
+		}
+		return true;
+	}
+	return false;
 }
 
 /* HOSTS state */
-BOOL FTP::ExecCmdLineHOST( CONSTSTR str, BOOL Prefix )
+bool FTP::ExecCmdLineHOST(const std::wstring &str, bool prefix)
 {
-	//Exit
-	if ( StrCmpI( str,"EXIT" ) == 0 ||
-		StrCmpI( str,"QUIT" ) == 0 ) {
+	if(boost::iequals(str, L"EXIT") || boost::iequals(str, L"QUIT"))
+	{
+		CurrentState = fcsClose;
+		FARWrappers::getInfo().Control(this, FCTL_CLOSEPLUGIN, NULL);
+		return true;
+	}
 
-			CurrentState = fcsClose;
-			FP_Info->Control( this,FCTL_CLOSEPLUGIN,NULL );
-			return TRUE;
-	} else
-		//Connect to ftp
-		if ( str[0] == '/' && str[1] == '/' )  {
-			Host.Init();
-			Host.SetHostName(std::wstring(L"ftp:") + Unicode::fromOem(str), L"", L"");
-			FullConnect();
-			return TRUE;
-		} else
-			//Connect to http
-			if ( StrNCmpI( str, "HTTP://", 7 ) == 0 )  {
-				Host.Init();
-				Host.SetHostName(Unicode::fromOem(str), L"", L"");
-				FullConnect();
-				return TRUE;
-			} else
-				//Change dir
-				if ( StrNCmpI( str,"CD ",3 ) == 0 ) {
-					str += 3;
-					return SetDirectory(Unicode::fromOem(str),0 ); // TODO
-				}
-				return FALSE;
+	//Connect to ftp
+	if(boost::starts_with(str, L"//"))
+	{
+		chost_.Init();
+		chost_.SetHostName(std::wstring(L"ftp:") + str, L"", L"");
+		FullConnect();
+		return true;
+	}
+	
+	//Connect to http
+	if(boost::istarts_with(str, L"HTTP://"))
+	{
+		chost_.Init();
+		chost_.SetHostName(str, L"", L"");
+		FullConnect();
+		return true;
+	}
+
+	if(boost::istarts_with(str, L"CD "))
+	{
+		std::wstring::const_iterator itr = str.begin()+3;
+		Parser::skipSpaces(itr, str.end());
+		return FtpFilePanel_.SetDirectory(std::wstring(itr, str.end()), 0);
+	}
+	return false;
 }
 
 #define FCMD_SINGLE_COMMAND 0
@@ -108,182 +123,197 @@ BOOL FTP::ExecCmdLineHOST( CONSTSTR str, BOOL Prefix )
 #define FCMD_SHOW_MSG       0x0001
 #define FCMD_SHOW_EMSG      0x0002
 
-BOOL FTP::DoCommand( CONSTSTR str, int type, DWORD flags )
+bool FTP::DoCommand(const std::wstring& str, int type, DWORD flags)
 {
-	FP_Screen _scr;
-	BOOL ext = hConnect->Host.ExtCmdView,
-		dex = g_manager.opt.DoNotExpandErrors;
+	FARWrappers::Screen scr;
+
+	bool	ext = getConnection().getHost().ExtCmdView,
+			dex = g_manager.opt.DoNotExpandErrors;
 	int  rc;
 	std::wstring m;
 
-	hConnect->Host.ExtCmdView = TRUE;
+	getConnection().getHost().ExtCmdView = TRUE;
 	g_manager.opt.DoNotExpandErrors     = FALSE;
 
-	m = WinAPI::fromOEM(str);
+	m = str;
 
 	//Process command types
 	switch( type ) 
 	{
 	case FCMD_SINGLE_COMMAND: 
-		rc = hConnect->command(hConnect->toOEM(m)); // TODO
-		if ( rc == RPL_PRELIM )
-			while( (rc=hConnect->getreply(0)) == RPL_PRELIM );
-		rc = rc == RPL_COMPLETE ||
-			rc == RPL_OK;
+		rc = getConnection().command(m);
+		if(Connection::isPrelim(rc))
+		{
+			do 
+			{
+				rc = getConnection().getreply();
+			} while(Connection::isPrelim(rc));
+		}
+		rc = Connection::isComplete(rc);
 		break;
 
 	case   FCMD_FULL_COMMAND: //Convert string quoting to '\x1'
-		/* TODO
-		for( rc = 0; m[rc]; rc++ )
-		if ( m[rc] == '\\' )
-		rc++;
-		else
-		if ( m[rc] == '\"' )
-		m[rc] = '\x1';
-		*/
-		rc = hConnect->ProcessCommand( WinAPI::toOEM(m).c_str() ); // TODO
+		{
+			std::wstring::iterator itr = m.begin();
+			while(itr != m.end())
+			{
+				if(*itr == L'\\')
+				{
+					if(++itr == m.end())
+						break;
+				}
+				else
+				{
+					if(*itr == L'\"')
+						*itr = quoteMark;
+				}
+				++itr;
+			}
+			rc = getConnection().ProcessCommand(m);
+		}
 		break;
 	}
 
-	if ( (rc && IS_FLAG(flags,FCMD_SHOW_MSG)) ||
-		(!rc && IS_FLAG(flags,FCMD_SHOW_EMSG)) )
-		hConnect->ConnectMessage( MOk,"",rc ? MOk : (-MOk) );
+	if ( (rc && is_flag(flags,FCMD_SHOW_MSG)) ||
+		(!rc && is_flag(flags,FCMD_SHOW_EMSG)) )
+		getConnection().ConnectMessage(MOk, L"", rc != 0, MOk);
 
 	//Special process of known commands
-	if ( type == FCMD_SINGLE_COMMAND ) {
-		if ( StrNCmpI(str,"CWD ",4) == 0 ) {
-			ResetCache = TRUE;
-		}
-	}
+	if(type == FCMD_SINGLE_COMMAND)
+		if(boost::istarts_with(str, L"CWD "))
+			resetCache_ = true;
 
-	hConnect->Host.ExtCmdView = ext;
+	getConnection().getHost().ExtCmdView = ext;
 	g_manager.opt.DoNotExpandErrors     = dex;
-	return rc;
+	return rc == RPL_OK;
 }
 
 /* FTP state */
-BOOL FTP::ExecCmdLineFTP( CONSTSTR str, BOOL Prefix )
-{  
-	PROC(( "FTP::ExecCmdLineFTP", "[%s],%d", str, Prefix ))
-
-	if ( Prefix && *str == '/' ) 
+bool FTP::ExecCmdLineFTP(const std::wstring& str, bool Prefix)
+{
+	std::wstring s = str;
+	if(Prefix && s.size()> 0 && s[0] == L'/')
 	{
+		// TODO possible a bug
 		FTPHost tmp;
-		tmp.Assign( &Host );
-		if ( StrCmp(str,"FTP:",4,FALSE) != 0 )
-			str = Message( "ftp:%s",str );
-		if (tmp.SetHostName(Unicode::fromOem(str), L"", L""))
+		tmp.Assign(&chost_);
+		if(boost::istarts_with(s, L"FTP:") == false)
+			s = L"ftp:" + s;
+		if(tmp.SetHostName(s, L"", L""))
 		{
-			if ( Host.CmpConnected(&tmp) )
+			if (chost_.CmpConnected(&tmp) )
 			{
-				SetDirectory(tmp.directory_, 0);
-				return TRUE;
+				FtpFilePanel_.SetDirectory(tmp.url_.directory_, 0);
+				return true;
 			}
-			Host.Assign( &tmp );
+			chost_.Assign(&tmp);
 			FullConnect();
-			return TRUE;
+			return true;
 		}
 	}
 
+	std::wstring::const_iterator itr = s.begin();
+	Parser::skipNSpaces(itr, s.end());
+	if(itr != s.end())
+		++itr;
+	std::wstring cmd(itr, s.end());
+	Parser::skipSpaces(itr, s.end());
+	s.assign(itr, s.end());
+
 	//Switch to hosts
-	if ( StrCmpI(str,"TOHOSTS") == 0 ) {
-		hConnect->disconnect();
-		return TRUE;
+	if(boost::iequals(cmd, L"TOHOSTS") == 0)
+	{
+		getConnection().disconnect();
+		return true;
 	}
 
 	//DIRFILE
-	if ( StrNCmpI(str,"DIRFILE ",8) == 0 ) {
-		for( str+=7; *str && *str == ' '; str++ );
-		if ( *str )
-			StrCpy( hConnect->DirFile, str, sizeof(hConnect->DirFile) );
-		else
-			hConnect->DirFile[0] = 0;
-		return TRUE;
+	if(boost::iequals(cmd, L"DIRFILE") == 0)
+	{
+		getConnection().DirFile = s;
+		return true;
 	}
 
 	//CMD
-	if ( StrNCmpI(str,"CMD ",4) == 0 ) {
-		for( str+=4; *str && *str == ' '; str++ );
-		if ( *str )
-			DoCommand( str, FCMD_FULL_COMMAND, FCMD_SHOW_MSG|FCMD_SHOW_EMSG );
-		return TRUE;
+	if(boost::iequals(cmd, L"CMD"))
+	{
+		if(!s.empty())
+			DoCommand(s, FCMD_FULL_COMMAND, FCMD_SHOW_MSG|FCMD_SHOW_EMSG );
+		return true;
 	}
 
-	Log(( "ProcessCmd=%d", Host.ProcessCmd ));
-	if ( !Host.ProcessCmd )
-		return FALSE;
+	BOOST_LOG(INF, L"ProcessCmd" << chost_.ProcessCmd);
+	if (!chost_.ProcessCmd)
+		return false;
 
 	//CD
-	if ( StrNCmpI(str,"CD ",3) == 0 ) {
-		str+=3;
-		if ( *str ) {
-			SetDirectory(Unicode::fromOem(str),0 ); // TODO
-			return TRUE;
-		}
+	if(boost::iequals(cmd, L"CD"))
+	{
+		if(!s.empty())
+		{
+			FtpFilePanel_.SetDirectory(s, 0);
+			return true;
+		} 
+		else
+			return false;
 	}
 
 	//Manual command line to server
-	if ( !Prefix ) {
-		DoCommand( str, FCMD_SINGLE_COMMAND, FCMD_SHOW_MSG|FCMD_SHOW_EMSG );
-		return TRUE;
+	if(!Prefix)
+	{
+		DoCommand(s, FCMD_SINGLE_COMMAND, FCMD_SHOW_MSG|FCMD_SHOW_EMSG);
+		return true;
 	}
 
-	return FALSE;
+	return false;
 }
 
-BOOL FTP::ExecCmdLine( CONSTSTR _str, BOOL WasPrefix )
-{  PROC(( "ExecCmdLine","%s",_str ))
-String    buff;
-BOOL      isConn = hConnect && hConnect->connected;
-FP_Screen _scr;
+bool FTP::ExecCmdLine(const std::wstring& str, bool wasPrefix)
+{
+	BOOL      isConn = getConnection().isConnected();
+	FARWrappers::Screen scr;
 
-if ( !_str || !_str[0] ) return FALSE;
+	if(str.empty())
+		return false;
 
-//Trim spaces
-//Remove start
-while( *_str && isspace(*_str) ) _str++;
-if ( !_str[0] ) return FALSE;
+	std::wstring::const_iterator itr = str.begin();
+	bool prefix = Parser::checkString(itr, str.end(), L"FTP:", false) || wasPrefix;
 
-//Split command
-BOOL Prefix = StrCmp( _str,"FTP:",4,FALSE) == 0;
-if (Prefix) _str += 4; else Prefix = WasPrefix;
-buff = _str;
+	do{
+		//Any state
+		if(ExecCmdLineANY(std::wstring(itr, str.end()), prefix))
+			break;
 
-do{
-	//Any state
-	if ( ExecCmdLineANY(buff.c_str(),Prefix) ) break;
+		//HOSTS state
+		if(ShowHosts && ExecCmdLineHOST(str, prefix))
+			break;
 
-	//HOSTS state
-	if ( ShowHosts &&
-		ExecCmdLineHOST(buff.c_str(),Prefix) )
-		break;
+		//CONNECTED state
+		if(!ShowHosts && ExecCmdLineFTP(str, prefix))
+			break;
 
-	//CONNECTED state
-	if ( !ShowHosts && hConnect &&
-		ExecCmdLineFTP(buff.c_str(),Prefix) )
-		break;
+		//Unprocessed
+		if(prefix)
+		{
+			FARWrappers::getInfo().Control(this, FCTL_SETCMDLINE, (void*)L"");
+			FARWrappers::getInfo().ShowHelp(FARWrappers::getModuleName(), L"FTPCommandLineHelp", FHELP_SELFHELP);
+			return true;
+		} else
+			return false;
+	}while(0);
 
-	//Unprocessed
-	if ( Prefix ) {
-		FP_Info->Control( this,FCTL_SETCMDLINE,(void*)"" );
-		FP_Info->ShowHelp( FP_Info->ModuleName,"FTPCommandLineHelp",FHELP_SELFHELP );
-		return TRUE;
-	} else
-		return FALSE;
-}while( 0 );
+	//processed
+	FARWrappers::getInfo().Control( this,FCTL_SETCMDLINE,(void*)"" );
 
-//processed
-FP_Info->Control( this,FCTL_SETCMDLINE,(void*)"" );
+	if(isConn && (!getConnection().isConnected()))
+		BackToHosts();
 
-if ( isConn && (!hConnect || !hConnect->connected) )
-BackToHosts();
+	if(CurrentState != fcsClose)
+		Invalidate();
+	else
+		FARWrappers::getInfo().Control(0,FCTL_REDRAWPANEL,NULL);
 
-if ( CurrentState != fcsClose )
-Invalidate();
-else
-FP_Info->Control(0,FCTL_REDRAWPANEL,NULL);
-
-return TRUE;
+	return TRUE;
 }
 
 template<typename Itr, typename CH>
@@ -296,54 +326,52 @@ Itr skip(Itr i, Itr e, CH ch)
 	return i;
 }
 
-//------------------------------------------------
-int FTP::ProcessCommandLine(char *CommandLine)
+int FTP::ProcessCommandLine(wchar_t *CommandLine)
 {
-	PROC(( "ProcessCommandLine","%s",CommandLine ))
-		BOOL isHostName;
-
-	if (!CommandLine)
+	if(!CommandLine)
 		return false;
 
-	std::wstring cmdLine = WinAPI::fromOEM(CommandLine);
+	FTPUrl_ url;
+	std::wstring cmdLine = boost::trim_copy(std::wstring(CommandLine));
 	if(cmdLine.empty())
-		return true;
-
-	std::wstring::iterator itr = skip(cmdLine.begin(), cmdLine.end(), L' ');
-	if(cmdLine.empty())
-		return true;
-	isHostName = cmdLine[0] != L'/';
-	itr = skip(itr, cmdLine.end(), L'/');
-	if(cmdLine.empty() || (cmdLine[0] == L'.' && cmdLine.size() == 1))
-		return true;
+		return false;
 
 	//Hosts
-	if ( isHostName )
-		return ExecCmdLine(WinAPI::toOEM(std::wstring(itr, cmdLine.end())).c_str(), true);
+	if(cmdLine[0] != L'/')
+		return ExecCmdLine(cmdLine, true);
+
+	if(url.parse(cmdLine))
+		return false;
 
 	//Connect
 	FTPUrl            ui;
 	QueueExecOptions  op;
-	char             *UrlName = ( CommandLine[ strlen(CommandLine)-1 ] != '/' &&
-		strchr(CommandLine,'/') != NULL )
-		? strrchr( CommandLine,'/' )
-		: NULL;
+	std::wstring::iterator UrlName = 
+		(*cmdLine.rbegin() != '/' && cmdLine.find(L'/') != std::wstring::npos)? 
+			cmdLine.begin() + cmdLine.rfind(cmdLine, L'/') : cmdLine.end();
 
-	Host.Init();
+	chost_.Init();
 	UrlInit( &ui );
 	SetupQOpt( &op );
 
-	if ( UrlName )
-		ui.SrcPath = L"ftp://" + Unicode::fromOem(CommandLine);
+	if(UrlName != cmdLine.end())
+		ui.SrcPath = L"ftp://" + cmdLine;
 
 	//Get URL
-	if ( !ui.SrcPath.empty() )
+	BOOST_ASSERT(0 && "TODO");
+	if(!ui.SrcPath.empty())
 	{
-		if ( !EditUrlItem(&ui) )
+		if (!EditUrlItem(&ui))
 		{
-			static CONSTSTR itms[] = { FMSG(MRejectTitle), FMSG(MQItemCancelled), FMSG(MYes), FMSG(MNo) };
-			if ( FMessage( FMSG_WARNING,NULL,itms,ARRAY_SIZE(itms),2 ) != 0 )
-				return FALSE;
+			static const wchar_t* itms[] = 
+			{ 
+				getMsg(MRejectTitle),
+				getMsg(MQItemCancelled),
+				getMsg(MYes),
+				getMsg(MNo)
+			};
+			if(FARWrappers::message(itms, 2, FMSG_WARNING) != 0)
+				return false;
 			*UrlName = 0;
 			UrlName++;
 		} else {
@@ -368,17 +396,14 @@ int FTP::ProcessCommandLine(char *CommandLine)
 	ClearQueue();
 
 	//Fill`n`Connect
-	Host.SetHostName(Unicode::fromOem(CommandLine), L"", L""); // TODO
+	chost_.SetHostName(CommandLine, L"", L"");
 
-	if ( !FullConnect() )        return FALSE;
-	FP_Screen::FullRestore();
+	if(!FullConnect())
+		return false;
 
-	do{
-		if ( !UrlName || ShowHosts ) break;
+	FARWrappers::Screen::fullRestore();
 
-		selectFile_ = Unicode::fromOem(UrlName);
-
-	}while( 0 );
-
-	return TRUE;
+	if(UrlName != cmdLine.end() && !ShowHosts)
+		selectFile_.assign(UrlName, cmdLine.end()); // TODO selFile
+	return true;
 }

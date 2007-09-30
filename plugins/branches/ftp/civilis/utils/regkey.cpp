@@ -51,7 +51,7 @@ RegKey& RegKey::operator=(const RegKey& key )
 	if(hKey_ != key.hKey_)
 	{
 		RegKey r;
-		r.open(key.hKey_, NULL);
+		r.openOnly(key.hKey_, NULL);
 		swap(r);
 		r.close();
 	}
@@ -63,20 +63,34 @@ RegKey& RegKey::operator=(HKEY hKey)
 	if(hKey_ != hKey)
 	{
 		RegKey r;
-		r.open(hKey, NULL);
+		r.openOnly(hKey, NULL);
 		swap(r);
 		r.close();
 	}
 	return( *this );
 }
 
-void RegKey::open(HKEY hKeyParent, const wchar_t* name, REGSAM samDesired)
+
+void RegKey::openOnly(HKEY hKeyParent, const wchar_t* name, REGSAM samDesired)
 {
 	BOOST_ASSERT(hKeyParent != 0);
 	HKEY hKey = NULL;
 	LONG lRes = ::RegOpenKeyExW(hKeyParent, name, 0, samDesired, &hKey);
 	if(lRes != ERROR_SUCCESS)
 		throw exception(lRes);
+	close();
+	hKey_ = hKey;
+}
+
+void RegKey::open(HKEY hKeyParent, const wchar_t* name, REGSAM samDesired)
+{
+	BOOST_ASSERT(hKeyParent != NULL);
+	HKEY hKey = NULL;
+	LONG res = ::RegCreateKeyExW(hKeyParent, name, 0,
+		REG_NONE, REG_OPTION_NON_VOLATILE, samDesired, NULL, &hKey, NULL);
+	if(res != ERROR_SUCCESS)
+		throw exception(res);
+
 	close();
 	hKey_ = hKey;
 }
@@ -122,9 +136,11 @@ void RegKey::set(const wchar_t* name, long long qwValue) const
 
 void RegKey::set(const wchar_t* name, std::vector<unsigned char> &vec) const
 {
-	set(name, REG_BINARY, reinterpret_cast<const BYTE*>(&vec[0]), vec.size());
+	if(vec.empty())
+		set(name, REG_BINARY, 0, 0);
+	else
+		set(name, REG_BINARY, reinterpret_cast<const BYTE*>(&vec[0]), vec.size());
 }
-
 
 std::wstring RegKey::enumKey(DWORD index) const
 {
@@ -202,15 +218,6 @@ void RegKey::deleteSubKey(const wchar_t* name, bool recursive) const
 		return deleteSubKey(name, false);
 	}
 }
-
-void RegKey::deleteValue(const wchar_t* name) const
-{
-	BOOST_ASSERT(hKey_ != 0);
-	LONG res = ::RegDeleteValueW(hKey_, name);
-	if(res != ERROR_SUCCESS)
-		throw exception(res);
-}
-
 
 /*
 void RegKey::create(HKEY hKeyParent, const wchar_t* name, wchar_t* cls / * = REG_NONE * /, 
@@ -333,7 +340,9 @@ std::wstring RegKey::get(const wchar_t* name, const std::wstring &defValue) cons
 	long res = get(name, &type, NULL, &size);
 	if(res != ERROR_SUCCESS && type != REG_SZ)
 		return defValue;
-
+	
+	if(size == 0)
+		return L"";
 	boost::scoped_array<wchar_t> buff(new wchar_t[size/sizeof(wchar_t)]);
 	res = get(name, &type, buff.get(), &size);
 	return std::wstring(buff.get(), buff.get()+size/sizeof(wchar_t)-1);
@@ -363,7 +372,8 @@ void RegKey::get(const wchar_t* name, std::vector<unsigned char> *vec) const
 		throw exception("Invalid reg type. DWORD is expected");
 
 	vec->resize(size);
-	res = get(name, &type, &(*vec)[0], &size);
+	if(size)
+		get(name, &type, &(*vec)[0], &size);
 }
 
 bool RegKey::isSubKeyExists(const wchar_t* name) const

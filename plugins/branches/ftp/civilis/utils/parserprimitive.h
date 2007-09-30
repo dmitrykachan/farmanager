@@ -64,13 +64,23 @@ namespace Parser
 	}
 
 	template<typename Itr1, typename Itr2, typename C>
-	static bool checkString(Itr1& itr, const Itr2 &itr_end, const C* str)
+	static bool checkString(Itr1& itr, const Itr2 &itr_end, const C* str, bool matchCase = true)
 	{
 		Itr1 i = itr;
-		while(i != itr_end && *i == *str)
+		if(matchCase)
 		{
-			++i; ++str;
+			while(i != itr_end && *i == *str)
+			{
+				++i; ++str;
+			}
+		} else
+		{
+			while(i != itr_end && std::toupper(*i, defaultLocale_) == std::toupper(*str, defaultLocale_))
+			{
+				++i; ++str;
+			}
 		}
+
 		if(*str != 0)
 			return false;
 		else

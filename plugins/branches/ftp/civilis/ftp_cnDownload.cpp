@@ -1,11 +1,9 @@
 #include "stdafx.h"
-#include <all_far.h>
 #pragma hdrstop
 
 #include "ftp_Int.h"
 
-//--------------------------------------------------------------------------------
-void Connection::recvrequest(const std::string& cmd, char *local, char *remote, char *mode )
+void Connection::recvrequest(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, char *mode )
 {  
 	//??SaveConsoleTitle _title;
 
@@ -13,251 +11,237 @@ void Connection::recvrequest(const std::string& cmd, char *local, char *remote, 
 	IdleMessage(NULL, 0);
 }
 
-void Connection::recvrequestINT(const std::string& cmd, char *local, char *remote, char *mode )
+void Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, char *mode )
 {
-  int              oldtype = 0,
-                   is_retr;
-  FHandle          fout;
-  SOCKET           din = INVALID_SOCKET;
-  int              ocode, oecode;
-  BOOL             oldBrk = FtpSetBreakable( this, -1 );
-  FTPCurrentStates oState = CurrentState;
-  FTNNotify        ni;
+	int              oldtype = 0,
+		is_retr;
+	FHandle          fout;
+	int              ocode, oecode;
+	BOOL             oldBrk = getBreakable();
+	FTPCurrentStates oState = CurrentState;
 
-  if ( type == TYPE_A )
-    restart_point = 0;
+	if ( type == TYPE_A )
+		restart_point = 0;
 
-  ni.Upload       = FALSE;
-  ni.Starting     = TRUE;
-  ni.Success      = TRUE;
-  ni.RestartPoint = restart_point;
-  ni.Port         = ntohs( portnum );
-  ni.Password[0] = 0; //TStrCpy( ni.Password,   UserPassword );
-  ni.username_		= userName_;
-  TStrCpy( ni.HostName,   hostname );
-  TStrCpy( ni.LocalFile,  local );
-  TStrCpy( ni.RemoteFile, remote );
-
-  if ( local[0] == '-' && local[1] == 0 ) {
-    ;
-  } else {
-    fout.Handle = Fopen( local, mode, g_manager.opt.SetHiddenOnAbort ? FILE_ATTRIBUTE_HIDDEN : FILE_ATTRIBUTE_NORMAL );
-    Log(("recv file [%d] \"%s\"=%p",Host.IOBuffSize,local,fout.Handle ));
-    if ( !fout.Handle ) {
-      ErrorCode = GetLastError();
-      Log(( "!Fopen [%s] %s",mode,FIO_ERROR ));
-      if ( !ConnectMessage( MErrorOpenFile,local,-MRetry ) )
-        ErrorCode = ERROR_CANCELLED;
-      //goto abort;
-      return;
-    }
-
-    if ( restart_point != -1 ) {
-      if ( !Fmove( fout.Handle,restart_point ) ) {
-        ErrorCode = GetLastError();
-        if ( !ConnectMessage( MErrorPosition,local,-MRetry ) )
-          ErrorCode = ERROR_CANCELLED;
-        return;
-      }
-    }
-    TrafficInfo->Resume( restart_point == -1 ? 0 : restart_point );
-  }
-
-  is_retr = g_manager.opt.cmdRetr == cmd;
-  if (proxy && is_retr) {
-    proxtrans(cmd, local, remote);
-    return;
-  }
-
-  if ( !initconn() ) {
-    Log(("!initconn"));
-    return;
-  }
-
-  if (!is_retr) {
-    if ( type != TYPE_A ) {
-      oldtype = type;
-      setascii();
-    }
-  } else
-  if ( restart_point ) {
-    if ( !ResumeSupport ) {
-      AddCmdLine( FMSG(MResumeRestart) );
-      restart_point = 0;
-    } else
-	if ( restart_point != -1 )
+	if(local != L"-")
 	{
-		if(command(g_manager.opt.cmdRest_ + " " + boost::lexical_cast<std::string>(restart_point)) != RPL_CONTINUE)
+		fout.Handle = Fopen(local.c_str(), WinAPI::fromOEM(mode).c_str(), g_manager.opt.SetHiddenOnAbort ? FILE_ATTRIBUTE_HIDDEN : FILE_ATTRIBUTE_NORMAL );
+		BOOST_LOG(INF, L"recv file [" << getHost().IOBuffSize << L"] \"" << local << L"\"=" << fout.Handle);
+		if ( !fout.Handle )
 		{
-			Log(("!restart SIZE"));
+			ErrorCode = GetLastError();
+			BOOST_LOG(ERR, L"!Fopen [" << mode << L"] " << WinAPI::getStringError());
+			if ( !ConnectMessage( MErrorOpenFile, local, true, MRetry) )
+				ErrorCode = ERROR_CANCELLED;
+			//goto abort;
 			return;
 		}
+
+		if ( restart_point != -1 ) {
+			if ( !Fmove( fout.Handle,restart_point ) )
+			{
+				ErrorCode = GetLastError();
+				if ( !ConnectMessage( MErrorPosition, local, true, MRetry) )
+					ErrorCode = ERROR_CANCELLED;
+				return;
+			}
+		}
+		TrafficInfo->Resume( restart_point == -1 ? 0 : restart_point );
 	}
-  }
 
-  if ( Host.PassiveMode ) {
-    din = dataconn();
-    if(din == INVALID_SOCKET) {
-      Log(("!dataconn: PASV ent"));
-      goto abort;
-    }
-  }
+	is_retr = g_manager.opt.cmdRetr == cmd;
 
-  if(remote)
-  {
-	  if(command(cmd + " " + remote) != RPL_PRELIM)
-	  {
-		  if (oldtype)
-			  SetType(oldtype);
-		  Log(("!command [%s]",cmd));
-		  fout.Close();
-		  if ( Fsize(local) )
-			  DeleteFile( local );
-		  return;
-	  }
-  } else
-	  if (command(cmd) != RPL_PRELIM)
-	  {
-		  if (oldtype)
-			  SetType(oldtype);
-		  return;
-	  }
+	in_addr data_addr;
+	int		port;
 
-  if( !Host.PassiveMode ) {
-    din = dataconn();
-    if (din == INVALID_SOCKET) {
-      Log(("!dataconn: PASV ret"));
-      goto abort;
-    }
-  }
+	if(!initDataConnection(data_addr, port))
+	{
+		BOOST_LOG(INF, L"!initconn");
+		return;
+	}
 
-/**/
+	if (!is_retr) {
+		if ( type != TYPE_A ) {
+			oldtype = type;
+			setascii();
+		}
+	} else
+		if(restart_point)
+		{
+			if(!resumeSupport_)
+			{
+				AddCmdLine( getMsg(MResumeRestart) );
+				restart_point = 0;
+			} else
+				if ( restart_point != -1 )
+				{
+					if(command(g_manager.opt.cmdRest_ + L" " + boost::lexical_cast<std::wstring>(restart_point)) != RPL_CONTINUE)
+					{
+						BOOST_LOG(INF, L"!restart SIZE");
+						return;
+					}
+				}
+		}
 
-  switch (type) {
-  case TYPE_A:
-  case TYPE_I:
-  case TYPE_L: {
+		if (getHost().PassiveMode )
+		{
+			if(!dataconn(data_addr, port))
+			{
+				BOOST_LOG(ERR, "!dataconn: PASV ent");
+				goto abort;
+			}
+		}
 
-      __int64 totalValue = 0;
-      TIME_TYPE b,e;
-      GET_TIME(b);
-      FtpSetBreakable( this, FALSE );
-      CurrentState = fcsProcessFile;
+		if(!remote.empty())
+		{
+			if(!isPrelim(command(cmd + L" " + remote)))
+			{
+				if (oldtype)
+					SetType(oldtype);
+				BOOST_LOG(ERR, L"!command: " << cmd);
+				fout.Close();
+				if(Fsize(local))
+					DeleteFileW(local.c_str());
+				return;
+			}
+		} else
+			if(!isPrelim(command(cmd)))
+			{
+				if (oldtype)
+					SetType(oldtype);
+				return;
+			}
 
-      if ( fout.Handle && isPluginAvailable(FTP_NOTIFY_MAGIC) )
-        FTPNotify().Notify( &ni );
+			if(!getHost().PassiveMode )
+			{
+				if (!dataconn(data_addr, port))
+				{
+					BOOST_LOG(ERR, ("!dataconn: PASV ret"));
+					goto abort;
+				}
+			}
 
-      while( 1 ) {
-       //Recv
-        int c = nb_recv(&din, IOBuff, Host.IOBuffSize, 0);
-        if ( c < 0 ) {
-          Log(("gf(%d,%s)=%I64u: !read buff",code,GetSocketErrorSTR(),totalValue ));
-          code = RPL_TRANSFERERROR;
-          goto NormExit;
-        } else
-        if ( c == 0 ) {
-          Log(("gf(%d,%s)=%I64u: read zero",code,GetSocketErrorSTR(),totalValue ));
-          break;
-        }
-        totalValue += c;
+		switch (type)
+		{
+		case TYPE_A:
+		case TYPE_I:
+		case TYPE_L:
+			{
+				__int64 totalValue = 0;
+				WinAPI::Stopwatch stopwatch(500);
+				setBreakable(false);
 
-        if ( !fout.Handle ) {
-          //Add readed to buffer
-          Log(( "AddOutput: +%d bytes", c ));
-          AddOutput( (BYTE*)IOBuff,c );
-        } else
-        if ( Fwrite(fout.Handle,IOBuff,c) != c ) {
-        //Write to file
-          Log(("!write local"));
-          ErrorCode = GetLastError();
-          goto abort;
-        }
+				// TODO		if ( fout.Handle )
+				//			FTPNotify().Notify( &ni );
 
-        //Call user CB
-        if ( IOCallback ) {
-          if ( !TrafficInfo->Callback(c) ) {
-            Log(("gf: canceled by CB" ));
-            ErrorCode = ERROR_CANCELLED;
-            goto abort;
-          }
-        } else
-        //Show Quite progressing
-        if ( g_manager.opt.ShowIdle && !remote ) {
-          char   digit[ 20 ];
-          String str;
-          GET_TIME( e );
-          if ( CMP_TIME(e,b) > 0.5 ) {
-            str.printf( "%s%s ", FP_GetMsg(MReaded), FCps(digit,(double)totalValue) );
-            SetLastError( ERROR_SUCCESS );
-            IdleMessage( str.c_str(),g_manager.opt.ProcessColor );
-            b = e;
-            if ( CheckForEsc(FALSE) ) {
-              ErrorCode = ERROR_CANCELLED;
-              goto abort;
-            }
-          }
-        }
-      }
+				while( 1 )
+				{
+					int len = getHost().IOBuffSize;
+					len = nb_recv(data_peer_, IOBuff.get(), len, 0);
+					if(len == 0)
+						break;
+					totalValue += len;
 
-      if ( IOCallback )
-        TrafficInfo->Callback(0);
+					if ( !fout.Handle )
+					{
+						//Add readed to buffer
+						BOOST_LOG(INF, L"AddOutput: +" << len << L" bytes");
+						AddOutput( (BYTE*)IOBuff.get(), len);
+					} else
+						if ( Fwrite(fout.Handle,IOBuff.get(), len) != len)
+						{
+							//Write to file
+							BOOST_LOG(ERR, L"!write local");
+							ErrorCode = GetLastError();
+							goto abort;
+						}
 
-      break;
-    }
-  }
+						//Call user CB
+						if ( IOCallback ) {
+							if ( !TrafficInfo->Callback(len) )
+							{
+								BOOST_LOG(INF, L"gf: canceled by CB");
+								ErrorCode = ERROR_CANCELLED;
+								goto abort;
+							}
+						} else
+							//Show Quite progressing
+							if ( g_manager.opt.ShowIdle && remote.empty())
+							{
+								std::wstring str;
+								if (stopwatch.isTimeout())
+								{
+									str = getMsg(MReaded) + Size2Str(totalValue);
+									SetLastError( ERROR_SUCCESS );
+									IdleMessage(str.c_str(),g_manager.opt.ProcessColor );
+									stopwatch.reset();
+									if ( CheckForEsc(FALSE) ) {
+										ErrorCode = ERROR_CANCELLED;
+										goto abort;
+									}
+								}
+							}
+				}
 
-NormExit:
-  FtpSetBreakable( this, oldBrk );
-  ocode              = code;
-  oecode             = ErrorCode;
-  CurrentState       = oState;
+				if ( IOCallback )
+					TrafficInfo->Callback(0);
 
-  scClose( data_peer,-1 );
+				break;
+			}
+		}
 
-  if ( getreply(FALSE) == RPL_ERROR ||
-       oldtype && !SetType(oldtype) ) {
-    lostpeer();
-  } else {
-    code      = ocode;
-    ErrorCode = oecode;
-  }
+			setBreakable(oldBrk);
+//			ocode              = code;
+			oecode             = ErrorCode;
+			CurrentState       = oState;
 
-  if(fout.Handle && isPluginAvailable(FTP_NOTIFY_MAGIC))
-  {
-	  ni.Starting = FALSE;
-	  ni.Success  = TRUE;
-	  FTPNotify().Notify( &ni );
-  }
-  return;
+			data_peer_.close();
+
+			if ( getreply(false) == RPL_ERROR ||
+				oldtype && !SetType(oldtype) ) {
+					lostpeer();
+			} else {
+//				code      = ocode;
+				ErrorCode = oecode;
+			}
+
+			if(fout.Handle)
+			{
+//				ni.Starting = FALSE;
+//				ni.Success  = TRUE;
+				//TODO	  FTPNotify().Notify( &ni );
+			}
+			return;
 
 abort:
-  FtpSetBreakable( this, oldBrk );
-  if ( !cpend ) {
-    Log(( "!!!cpend" ));
-  }
+			setBreakable(oldBrk);
+			if ( !cpend )
+			{
+				BOOST_LOG(INF, L"!!!cpend");
+			}
 
-  ocode        = code;
-  oecode       = ErrorCode;
-  CurrentState = oState;
+//			ocode        = code;
+			oecode       = ErrorCode;
+			CurrentState = oState;
 
-  if ( !SendAbort(din) ||
-       (oldtype && !SetType(oldtype)) )
-    lostpeer();
-   else {
-    code      = ocode;
-    ErrorCode = oecode;
-  }
+//TODO 			if ( !SendAbort(din) ||
+// 				(oldtype && !SetType(oldtype)) )
+// 				lostpeer();
+// 			else {
+// //				code      = ocode;
+// 				ErrorCode = oecode;
+// 			}
 
-  scClose( data_peer,-1 );
+			data_peer_.close();
 
-  if(fout.Handle && isPluginAvailable(FTP_NOTIFY_MAGIC))
-  {
-	  ni.Starting = FALSE;
-	  ni.Success  = FALSE;
-	  FTPNotify().Notify( &ni );
-  }
+			if(fout.Handle)
+			{
+//				ni.Starting = FALSE;
+//				ni.Success  = FALSE;
+				//TODO	  FTPNotify().Notify( &ni );
+			}
 
- return;
+			return;
 }
 
 /* abort using RFC959 recommended ffIP,SYNC sequence  */
@@ -295,72 +279,76 @@ abort:
   <-450 Transfer aborted. Link to file server lost.
   <-500 ÿôÿòABOR not understood
 */
-BOOL Connection::SendAbort( SOCKET din )
+bool Connection::SendAbort(TCPSocket &din)
 {
+/* TODO
 	do
 	{
-		if(!fprintfSocket(cout,"%c%c",ffIAC,ffIP))
-		{
-			Log(( "!send ffIAC" ));
-			break;
-		}
+		std::string s;
+		s = cffIAC;
+		s += cffIP;
+		fputsSocket(cmd_socket_, s);
 
-		unsigned char msg = ffIAC;
-		/* send ffIAC in urgent mode instead of DM because UNIX places oob mark */
-		/* after urgent byte rather than before as now is protocol            */
-		if (nb_send(&cout,&msg,1,MSG_OOB) != 1) {
-			Log(("rr: !send urgent" ));
-			break;
-		}
+		unsigned char msg = cffIAC;
+		/ * send ffIAC in urgent mode instead of DM because UNIX places oob mark * /
+		/ * after urgent byte rather than before as now is protocol            * /
+		nb_send(cmd_socket_, reinterpret_cast<char*>(&msg), 1, MSG_OOB); // TODO OOB
 
-		if ( !fprintfSocket(cout,"%cABOR\r\n",ffDM) ) {
-			Log(( "!send ABOR" ));
-			break;
-		}
+		s = cffDM;
+		s += "ABOR\r\n";
 
-		scClose( data_peer,-1 );
+		fputsSocket(cmd_socket_, s);
+
+		data_peer_.close();
 		int res;
 
-		Log(( "Wait ABOT reply" ));
-		res = getreply( FALSE );
-		if ( res == RPL_TIMEOUT ) {
-			Log(( "Error waiting first ABOR reply" ));
+		BOOST_LOG(INF, L"Wait ABOT reply");
+		res = getreply(false);
+		if ( res == ReplyTimeOut)
+		{
+			BOOST_LOG(ERR, L"Error waiting first ABOR reply");
 			return FALSE;
 		}
 
 		//Single line
-		if ( code == 225 ) {
-			Log(( "Single line ABOR reply" ));
+		if(true / *code == DataConnectionOpen* /)
+		{
+			BOOST_LOG(INF, L"Single line ABOR reply");
 			return TRUE;
 		} else
 			//Wait OPTIONAL second line
-			if ( code == 226 ) {
-				Log(( "Wait OPT second reply" ));
+			if(ClosingDataConnection == 226)
+			{
+				BOOST_LOG(INF, L"Wait OPT second reply");
 				do{
-					res = getreply( FALSE,500 );
-					if ( res == RPL_TIMEOUT ) {
-						Log(( "Timeout: res: %d, code: %d", res, code ));
+					res = getreply(500);
+					if ( res == ReplyTimeOut)
+					{
+//						BOOST_LOG(INF, L"Timeout: res: " << res << ", code: " << code);
 						return TRUE;
 					} else
-						if ( res == RPL_ERROR ) {
-							Log(( "Error: res: %d, code: %d", res, code ));
+						if ( res == RPL_ERROR )
+						{
+//							BOOST_LOG(ERR, L"Error: res: " << res << ", code: " << code);
 							return FALSE;
 						}
-						Log(( "Result: res: %d, code: %d", res, code ));
+//						BOOST_LOG(INF, "Result: res: " << res << ", code: " << code);
 				}while(1);
 			} else {
 				//Wait second line
-				Log(( "Wait second reply" ));
+				BOOST_LOG(INF, L"Wait second reply");
 
-				res = getreply( FALSE );
-				if ( res == RPL_TIMEOUT ) {
-					Log(( "Error waiting second ABOR reply" ));
+				res = getreply(false);
+				if ( res == ReplyTimeOut)
+				{
+					BOOST_LOG(ERR, L"Error waiting second ABOR reply");
 					return FALSE;
 				}
-				Log(( "Second reply: res: %d, code: %d", res,code ));
+//				BOOST_LOG(INF, L"Second reply: res: " << res << ", code: " << code);
 				return TRUE;
 			}
 
-	}while(0); /*Error sending ABOR*/
+	}while(0); / *Error sending ABOR* /
+*/
 	return FALSE;
 }

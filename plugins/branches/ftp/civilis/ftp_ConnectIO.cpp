@@ -1,40 +1,25 @@
 #include "stdafx.h"
-#include <all_far.h>
+
 #pragma hdrstop
 
 #include "ftp_Int.h"
 
-//--------------------------------------------------------------------------------
-BOOL Connection::SetType( int type )
-  {
-    switch ( type ) {
-      case TYPE_A: return setascii();
-      case TYPE_I: return setbinary();
-      case TYPE_E: return setebcdic();
-    }
+int Connection::SetType(int type)
+{
+	switch ( type )
+	{
+		case TYPE_A: return setascii();
+		case TYPE_I: return setbinary();
+		case TYPE_E: return setebcdic();
+	}
 
- return FALSE;
+	return RPL_ERROR;
 }
 
-void Connection::reset()
+bool Connection::reset()
 {
-  struct fd_set mask;
-  int           nfnd;
-
-  do{
-      FD_ZERO(&mask);
-      FD_SET(cin, &mask);  /*!*/
-
-      nfnd = empty(&mask,0);
-
-      if ( nfnd < 0) {
-        Log(("!reset"));
-        code = -1;
-        lostpeer();
-      } else
-      if (nfnd)
-        getreply(0);
-  }while( nfnd > 0 );
+	BOOST_ASSERT(0 && "Not implemented");
+	return true;
 }
 
 void Connection::AbortAllRequest(int BrkFlag)
@@ -43,430 +28,162 @@ void Connection::AbortAllRequest(int BrkFlag)
 		brk_flag = TRUE;
 	else 
 	{
-		scClose( data_peer,-1 );
-		scClose( cmd_peer,-1 );
+		data_peer_.close();
+		cmd_socket_.close();
 	}
 }
 
-int Connection::empty(struct fd_set *mask, int sec)
+int Connection::command(const std::string &str, bool isQuit)
 {  
-	struct timeval t;
+	ConnectMessage(MLast);
 
-	t.tv_sec = (long) sec;
-	t.tv_usec = 0;
-	return select(FD_SETSIZE, mask, NULL, NULL, &t);
-}
-
-//--------------------------------------------------------------------------------
-int Connection::command(const std::string &str)
-{  
-	PROC(("Connection::command", "%s", str.c_str()));
-	int     r;
-
-	if (!cout)
+	while(true)
 	{
-		Log(("!control connection for command [%s]", str.c_str()));
-		code = -1;
-		return (0);
-	}
-
-	if(!fputsSocket(str.c_str(), cout))
-	{
-		Log(( "!puts" ));
-		lostpeer();
-		code = -1;
-		return RPL_ERROR;
-	}
-
-	cpend = 1;
-	r = getreply(str == g_manager.opt.cmdQuit) == 0;
-	Log(( "reply rc=%d",r ));
-	return r;
-}
-
-
-//--------------------------------------------------------------------------------
-int Connection::getreply(BOOL expecteof, DWORD tm)
-{  
-	int		c, n, dig;
-	int		originalcode = 0,
-			continuation = 0,
-			pflag        = 0;
-	char	*pt = pasv;
-
-	if ( cin == INVALID_SOCKET ) 
-	{
-		Log(("gr: inv socket" ));
-		code = 421;
-		return RPL_ERROR;
-	}
-
-	for (;;) 
-	{
-		dig = n = code = 0;
-		replyString_ = "";
-		//Read line
-
-		while((c = fgetcSocket(cin,tm)) != '\n')
+		try
 		{
-			if(c == RPL_TIMEOUT)
-				return RPL_TIMEOUT;
-
-			if (!c) 
+			fputsSocket(cmd_socket_, (str + "\r\n").c_str());
+			getKeepStopWatch().reset();
+			return getreply();
+		}
+		catch(ConnectionError& e)
+		{
+			BOOST_LOG(ERR, L"!command(" << FromOEM(str) << L"): " << FromOEM(e.what()));
+			AddCmdLine(WinAPI::fromOEM(e.what()), ldRaw);
+			if(ConnectMessageTimeout(MConnectionLost, getHost().url_.Host_, true))
+				getPlugin()->FullConnect();
+			else
 			{
-				Log(("gr conn closed" ));
+				getPlugin()->BackToHosts();
+				getPlugin()->Invalidate();
 				lostpeer();
-				code = 421;
 				return RPL_ERROR;
 			}
-
-			if ( !dig ) 
-			{
-				// handle telnet commands
-				if (c == ffIAC) 
-				{
-					switch (c = fgetcSocket(cin)) 
-					{
-					case ffWILL:
-					case ffWONT:
-						c = fgetcSocket(cin);
-						fprintfSocket(cout, "%c%c%c",ffIAC,ffDONT,c);
-						break;
-					case ffDO:
-					case ffDONT:
-						c = fgetcSocket(cin);
-						fprintfSocket(cout, "%c%c%c",ffIAC,ffWONT,c);
-						break;
-					default:
-						break;
-					}
-					continue;
-				}
-
-				if (!c || c == ffEOF) 
-				{
-					Log(( "gr EOF: c: %d (%d)",c,expecteof ));
-					if (expecteof) 
-					{
-						code = 221;
-						return RPL_OK;
-					}
-					lostpeer();
-					code = 421;
-					return RPL_TRANSIENT;
-				}
-			}
-
-			dig++;
-			if (dig < 4 && isdigit(c))
-				code = code * 10 + (c - '0');
-			if (!pflag && code == 227)
-				pflag = 1;
-			if (dig > 4 && pflag == 1 && isdigit(c))
-				pflag = 2;
-			if (pflag == 2) {
-				if (c != '\r' && c != ')')
-					*pt++ = c;
-				else {
-					*pt = '\0';
-					pflag = 3;
-				}
-			}
-
-			if (dig == 4 && c == '-') {
-				if (continuation)
-					code = 0;
-				continuation++;
-			}
-
-			if (n == 0)
-				n = c;
-
-			replyString_.push_back((char)c);
 		}
-
-		AddCmdLine(NULL);
-
-		if (continuation && code != originalcode) {
-		//Log(( "Continue: Cont: %d Code: %d Orig: %d", continuation,code,originalcode ));
-		if (originalcode == 0)
-		originalcode = code;
-		continue;
-		}
-
-		if (n != '1')
-		cpend = 0;
-
-		if (code == 421 || originalcode == 421) {
-		//Log(( "Code=%d, Orig=%d -> lostpeer",code,originalcode ));
-		lostpeer();
-		}
-
-		//Log(( "rc = %d", (n - '0') ));
-		return (n - '0');
 	}
 }
 
-//--------------------------------------------------------------------------------
-void Connection::pswitch(int flag)
+
+int Connection::command(const std::wstring &str, bool isQuit)
 {
-  struct comvars *ip, *op;
-
-  if (flag) {
-    if (proxy) return;
-    ip = &tmpstruct;
-    op = &proxstruct;
-    proxy++;
-  } else {
-    if (!proxy) return;
-    ip = &proxstruct;
-    op = &tmpstruct;
-    proxy = 0;
-  }
-
-  ip->connect = connected;
-  connected = op->connect;
-
-  if (hostname) {
-    StrCpy(ip->name, hostname, sizeof(ip->name) - 1);
-    ip->name[strLen(ip->name)] = '\0';
-  } else
-    ip->name[0] = 0;
-
-  StrCpy( hostname,op->name,sizeof(hostname) );
-  ip->hctl = hisctladdr;
-  hisctladdr = op->hctl;
-  ip->mctl = myctladdr;
-  myctladdr = op->mctl;
-  ip->in = (FILE *)cin; // What the hell am I looking at...?
-  cin = (int)op->in;
-  ip->out = (FILE *)cout; // Same again...
-  cout = (int)op->out;
-  ip->tpe = type;
-  type = op->tpe;
-
-  if ( !type )
-    type = TYPE_A;
-
-  ip->cpnd = cpend;
-  cpend = op->cpnd;
-  ip->sunqe = sunique;
-  sunique = op->sunqe;
-  ip->runqe = runique;
-  runique = op->runqe;
+	return command(toOEM(str), isQuit);
 }
 
-//--------------------------------------------------------------------------------
-void Connection::proxtrans(const std::string &cmd, char *local, char *remote)
+void Connection::getline(std::string &str, DWORD tm)
 {
-	int tmptype, oldtype = 0, secndflag = 0, nfnd;
-	std::string cmd2;
-	struct fd_set mask;
+	int c;
+	bool wasCarriageReturn = false;
+	str = "";
+	char buffer[3] = {cffIAC};
 
-	if(cmd == g_manager.opt.cmdRetr)
-		cmd2 = g_manager.opt.cmdRetr;
-	else
-		cmd2 = runique ? g_manager.opt.cmdPutUniq : g_manager.opt.cmdStor;
-
-	if(command(g_manager.opt.cmdPasv_) != RPL_COMPLETE)
+	do
 	{
-		ConnectMessage( MProxyNoThird,NULL,-MOk );
-		return;
-	}
-
-	tmptype = type;
-	pswitch(0);
-
-	if(!connected)
-	{
-		ConnectMessage( MNotConnected,NULL,-MOk );
-		pswitch(1);
-		code = -1;
-		return;
-	}
-
-	if (type != tmptype)
-	{
-		oldtype = type;
-		SetType( tmptype );
-	}
-
-	if (command(g_manager.opt.cmdPort + " " + pasv) != RPL_COMPLETE)
-	{
-		SetType(oldtype);
-		pswitch(1);
-		return;
-	}
-
-	if (command(cmd  + " " + remote) != RPL_PRELIM)
-	{
-		SetType(oldtype);
-		pswitch(1);
-		return;
-	}
-
-	pswitch(1);
-	secndflag++;
-
-	if (command(cmd2  + " " + local) != RPL_PRELIM)
-		goto abort;
-
-	getreply(0);
-	pswitch(0);
-	getreply(0);
-	SetType(oldtype);
-	pswitch(1);
-	return;
-
-abort:
-	if (cmd != g_manager.opt.cmdRetr && !proxy)
-		pswitch(1);
-	else
-		if(cmd == g_manager.opt.cmdRetr && proxy)
-			pswitch(0);
-
-	if (!cpend && !secndflag)
-	{  /* only here if cmd = "STOR" (proxy=1) */
-		if(command(cmd2 + " " + local) != RPL_PRELIM)
+		c = fgetcSocket(cmd_socket_, tm);
+		if(str.empty()) 
 		{
-			pswitch(0);
-			SetType(oldtype);
-			if(cpend)
+			// handle telnet commands
+			if(c == cffIAC) 
 			{
-				unsigned char msg[2];
-
-				fprintfSocket(cout,"%c%c",ffIAC,ffIP);
-				*msg = ffIAC;
-				*(msg+1) = ffDM;
-				if ( nb_send(&cout,msg,2,MSG_OOB) != RPL_COMPLETE ) {
-					Log(("!send [%s:%d]",__FILE__ , __LINE__ ));
+				switch (c = fgetcSocket(cmd_socket_, tm))
+				{
+				case cffWILL:
+				case cffWONT:
+					c = fgetcSocket(cmd_socket_, tm);
+					buffer[1] = cffDONT;
+					buffer[2] = c;
+					nb_send(cmd_socket_, buffer, 3, 0);
+					break;
+				case cffDO:
+				case cffDONT:
+					c = fgetcSocket(cmd_socket_, tm);
+					buffer[1] = cffWONT;
+					buffer[2] = c;
+					nb_send(cmd_socket_, buffer, 3, 0);
+					break;
+				default:
+					break;
 				}
-				fprintfSocket(cout,"ABOR\r\n");
-				FD_ZERO(&mask);
-				FD_SET(cin, &mask); /*!*/ // Chris: Need to correct this
-				if ((nfnd = empty(&mask,10)) <= 0) {
-					Log(("abort" ));
-					lostpeer();
-				}
-				if ( getreply(0) != RPL_ERROR)
-					getreply(0);
-				else {
-					lostpeer();
-					return;
-				}
+				continue;
 			}
 		}
-		pswitch(1);
-		return;
-	}
-
-	if (cpend)
-	{
-		unsigned char msg[2];
-
-		fprintfSocket(cout,"%c%c",ffIAC,ffIP);
-		*msg = ffIAC;
-		*(msg+1) = ffDM;
-		if (nb_send(&cout,msg,2,MSG_OOB) != RPL_COMPLETE ) {
-			Log(("!send [%s:%d]",__FILE__ , __LINE__ ));
-		}
-		fprintfSocket(cout,"ABOR\r\n");
-		FD_ZERO(&mask);
-		/*!*/FD_SET(cin, &mask); // Chris: Need to correct this...
-		if ((nfnd = empty(&mask,10)) <= 0) {
-			if (nfnd < 0) { Log(("abort" )); }
-			lostpeer();
-		}
-		if ( getreply(0) != RPL_ERROR )
-			getreply(0);
-		else {
-			lostpeer();
-			return;
-		}
-	}
-	pswitch(!proxy);
-
-	if (!cpend && !secndflag) {  /* only if cmd = "RETR" (proxy=1) */
-
-		if (command(cmd2 + " " + local) != RPL_PRELIM)
+		if(wasCarriageReturn)
 		{
-			pswitch(0);
-			SetType(oldtype);
-
-			if(cpend)
-			{
-				unsigned char msg[2];
-
-				fprintfSocket(cout,"%c%c",ffIAC,ffIP);
-				*msg = ffIAC;
-				*(msg+1) = ffDM;
-				if (nb_send(&cout,msg,2,MSG_OOB) != RPL_COMPLETE) {
-					Log(("!send [%s:%d]",__FILE__ , __LINE__ ));
-				}
-				fprintfSocket(cout,"ABOR\r\n");
-				FD_ZERO(&mask);
-				/*!*/FD_SET(cin, &mask); // Chris:
-				if ((nfnd = empty(&mask,10)) <= 0) {
-					if (nfnd < 0) { Log(("abort" )); }
-					lostpeer();
-				}
-				if ( getreply(0) != RPL_ERROR )
-					getreply(0);
-				else {
-					lostpeer();
-					return;
-				}
-			}
-			pswitch(1);
+			if(c != '\n')
+				throw std::exception("invalid replay");
 			return;
 		}
-	}
-	if (cpend)
+		if(c == '\r')
+			wasCarriageReturn = true;
+		else
+			str.push_back(c);
+	} while(true);
+}
+
+int Connection::getreply(DWORD tm)
+{
+	int		originalcode = 0;
+	bool	continuation = false;
+	bool	isLastLine;
+	std::string line;
+	int		code;
+
+	replyString_ = "";
+	do
 	{
-		 unsigned char msg[2];
-
-		fprintfSocket(cout,"%c%c",ffIAC,ffIP);
-		*msg = ffIAC;
-		*(msg+1) = ffDM;
-		if (nb_send(&cout,msg,2,MSG_OOB) != RPL_COMPLETE) {
-			Log(("!send [%s:%d]",__FILE__ , __LINE__ ));
-		}
-		fprintfSocket(cout,"ABOR\r\n");
-		FD_ZERO(&mask);
-		/*!*/FD_SET(cin, &mask);
-		if ((nfnd = empty(&mask,10)) <= 0) {
-			if (nfnd < 0) { Log(("abort")); }
-			lostpeer();
-		}
-		if ( getreply(0) != RPL_ERROR )
-			getreply(0);
-		else {
-			lostpeer();
-			return;
-		}
-	}
-
-	pswitch(!proxy);
-
-	if (cpend) {
-		FD_ZERO(&mask);
-		/*!*/FD_SET(cin, &mask); // Chris:
-		if ((nfnd = empty(&mask,10)) <= 0) {
-			if (nfnd < 0) {
-				Log(("abort"));
+		getline(line, tm);
+		code = 0;
+		isLastLine = false;
+		if(line.size() >= 4)
+		{
+			int i;
+			for(i = 0; i < 3; ++i)
+			{
+				if(isdigit(line[i]))
+					code = code * 10 + line[i] - '0';
+				else
+					break;
 			}
-			lostpeer();
+			if(i == 3)
+			{
+				if(line[3] == ' ')
+					isLastLine = true;
+				else
+					if(line[3] == '-')
+						continuation = true;
+			}
 		}
-		if ( getreply(0) != RPL_ERROR )
-			getreply(0);
-		else {
-			lostpeer();
-			return;
-		}
-	}
-	if (proxy)
-		pswitch(0);
 
-	SetType(oldtype);
-	pswitch(1);
+		if(replyString_.empty())
+		{
+			// parsing of the first line
+			if(!isLastLine && !continuation)
+				throw std::exception("incorrect reply");
+			originalcode = code;
+		} else
+			replyString_ += '\n';
+
+		replyString_ += line;
+
+	} while(!(isLastLine && (!continuation || code == originalcode)));
+
+	AddCmdLine(replyString_, ldIn);
+
+	cpend = !isPrelim(originalcode);
+	return originalcode;
+}
+
+void Connection::setHost(FTPHost* host)
+{
+	pHost_ = host;
+}
+
+FTPHost& Connection::getHost()
+{
+	BOOST_ASSERT(pHost_);
+	return *pHost_;
+}
+
+const FTPHost& Connection::getHost() const
+{
+	BOOST_ASSERT(pHost_);
+	return *pHost_;
 }

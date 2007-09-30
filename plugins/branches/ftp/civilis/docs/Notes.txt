@@ -266,52 +266,6 @@ The file is divided into sections for different plugin actions:
        time interval. Currently, the interval is set to 0.4 seconds.
        In other words, the copy progress dialog is drawn no more often than
        about 3 times per second.
-       Thus, if the time of copying a single file is less than this interval,
-       the dialog for that file can be shown only once, or not shown at all.
+       Thus, if the time of copying a single file is less than this int
 
- 4  Q: I try to enter a directory with a lot of files (several thousand).
-       The plugin shows that it is entering the directory, then waits for
-       something for a long time and aborts the operation by time-out.
-       FAR takes about 5 seconds to enter that directory. What is the
-       plugin waiting for? After all, I'm on a 100-Mbit LAN!
-    A: First of all, not all FTP servers are optimized for working with a
-       large number of files. If FAR takes 5 seconds to enter a directory,
-       other programs can require 10 times longer to do the same.
-       Second, some FTP servers (for example, WarFTPd) do not transmit the
-       list of files one by one while the directory is being scanned, but
-       rather send the entire list after the scan is complete.
-       If the plugin received some data, the time-out counter would be
-       reset. But the server does not send any data before the directory scan
-       is complete. Thus, all the time the server spends creating the list
-       is seen by the plugin as one long communication interruption.
-       If you are on a fast LAN and have a small timeout, the only way to
-       solve the problem is to increase the timeout so that the server has
-       enough time to generate the file list.
-
- 5  Q: I can see a directory but I cannot enter it. All the permissions
-       are configured correctly. The FTP server is IIS running under
-       Windows.
-    A: If you are using Cyrillic characters in directory names, I don't
-       know of a solution for this. The plugin transmits the filename
-       in the same encoding as it has received it, and that should be
-       used for transmitting, but the server fails to understand that.
-
- 6  Q: We have two Sun servers. Why does your plugin download files from
-       a Sun server much slower than a primitive client working on the
-       other Sun?
-    A: Did you also try running the plugin on a Sun, to compare the speed?
-       You should not compare the operation of the TCP/IP stack of different
-       operating systems. Two systems of the same type will always work
-       with each other differently from two systems of different types.
-       Not worse or better, but differently.
-       Parameters like file transfer speed depend on many factors, and you
-       should not compare these parameters under conditions that differ so
-       much and blame the plugin.
-       On the other hand, if you find a Windows FTP client that works
-       significantly faster than the FTP plugin, your bug report would be
-       most welcome.
-
- 7  Q: How to receive list of unix "hidden" files with names starting with ".",
-       character, for instance ".bash_profile" ?
-    A: To use extended listing command.
-       The common used command for this operation is: "LIST -la"
+-- ˆ

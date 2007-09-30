@@ -43,7 +43,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="./FStdLib"
+				AdditionalIncludeDirectories=""
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;FTP_EXPORTS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -64,7 +64,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="$(SolutionDir)obj\$(ConfigurationName)\fstdlib.lib WSOCK32.LIB"
+				AdditionalDependencies="Winmm.lib Ws2_32.lib"
 				LinkIncremental="2"
 				ModuleDefinitionFile="ftp.def "
 				GenerateDebugInformation="true"
@@ -95,169 +95,6 @@
 			<Tool
 				Name="VCPostBuildEventTool"
 				CommandLine="copy $(TargetDir)\ftp.dll ..\bin\Plugins\ftp"
-			/>
-		</Configuration>
-		<Configuration
-			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)obj\$(ConfigurationName)"
-			IntermediateDirectory="$(SolutionDir)obj\$(ConfigurationName)\fstd"
-			ConfigurationType="2"
-			CharacterSet="0"
-			WholeProgramOptimization="1"
-			>
-			<Tool
-				Name="VCPreBuildEventTool"
-			/>
-			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"
-			/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"
-			/>
-			<Tool
-				Name="VCMIDLTool"
-			/>
-			<Tool
-				Name="VCCLCompilerTool"
-				Optimization="1"
-				FavorSizeOrSpeed="2"
-				AdditionalIncludeDirectories="./FStdLib"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;FTP_EXPORTS"
-				StringPooling="true"
-				RuntimeLibrary="2"
-				BufferSecurityCheck="false"
-				EnableEnhancedInstructionSet="0"
-				UsePrecompiledHeader="2"
-				WarningLevel="3"
-				Detect64BitPortabilityProblems="true"
-				DebugInformationFormat="3"
-			/>
-			<Tool
-				Name="VCManagedResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCPreLinkEventTool"
-			/>
-			<Tool
-				Name="VCLinkerTool"
-				AdditionalDependencies="$(SolutionDir)obj\$(ConfigurationName)\fstdlib.lib WSOCK32.LIB"
-				LinkIncremental="1"
-				ModuleDefinitionFile="ftp.def"
-				GenerateDebugInformation="true"
-				SubSystem="2"
-				OptimizeReferences="2"
-				EnableCOMDATFolding="2"
-				TargetMachine="1"
-			/>
-			<Tool
-				Name="VCALinkTool"
-			/>
-			<Tool
-				Name="VCManifestTool"
-			/>
-			<Tool
-				Name="VCXDCMakeTool"
-			/>
-			<Tool
-				Name="VCBscMakeTool"
-			/>
-			<Tool
-				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
-				Name="VCPostBuildEventTool"
-			/>
-		</Configuration>
-		<Configuration
-			Name="test|Win32"
-			OutputDirectory="$(SolutionDir)obj\$(ConfigurationName)"
-			IntermediateDirectory="$(SolutionDir)obj\$(ConfigurationName)\fstd"
-			ConfigurationType="1"
-			CharacterSet="0"
-			>
-			<Tool
-				Name="VCPreBuildEventTool"
-			/>
-			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"
-			/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"
-			/>
-			<Tool
-				Name="VCMIDLTool"
-			/>
-			<Tool
-				Name="VCCLCompilerTool"
-				Optimization="0"
-				AdditionalIncludeDirectories="./FStdLib"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;FTP_EXPORTS;CONFIG_TEST"
-				MinimalRebuild="true"
-				ExceptionHandling="2"
-				BasicRuntimeChecks="3"
-				RuntimeLibrary="1"
-				UsePrecompiledHeader="2"
-				WarningLevel="3"
-				Detect64BitPortabilityProblems="false"
-				DebugInformationFormat="4"
-			/>
-			<Tool
-				Name="VCManagedResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCPreLinkEventTool"
-			/>
-			<Tool
-				Name="VCLinkerTool"
-				AdditionalDependencies="WSOCK32.LIB $(SolutionDir)obj\$(ConfigurationName)\fstdlib.lib"
-				LinkIncremental="2"
-				ModuleDefinitionFile="ftp.def "
-				GenerateDebugInformation="true"
-				SubSystem="1"
-				TargetMachine="1"
-			/>
-			<Tool
-				Name="VCALinkTool"
-			/>
-			<Tool
-				Name="VCManifestTool"
-			/>
-			<Tool
-				Name="VCXDCMakeTool"
-			/>
-			<Tool
-				Name="VCBscMakeTool"
-			/>
-			<Tool
-				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
-				Name="VCPostBuildEventTool"
-				CommandLine=""
 			/>
 		</Configuration>
 		<Configuration
@@ -313,6 +150,90 @@
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				TargetMachine="17"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCManifestTool"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+				CommandLine="copy $(TargetDir)\ftp.dll ..\bin\Plugins\ftp"
+			/>
+		</Configuration>
+		<Configuration
+			Name="Release|Win32"
+			OutputDirectory="$(SolutionDir)obj\$(ConfigurationName)"
+			IntermediateDirectory="$(SolutionDir)obj\$(ConfigurationName)\fstd"
+			ConfigurationType="2"
+			CharacterSet="0"
+			WholeProgramOptimization="1"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="1"
+				FavorSizeOrSpeed="2"
+				AdditionalIncludeDirectories=""
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;FTP_EXPORTS"
+				StringPooling="true"
+				RuntimeLibrary="2"
+				BufferSecurityCheck="false"
+				EnableEnhancedInstructionSet="0"
+				UsePrecompiledHeader="2"
+				WarningLevel="3"
+				Detect64BitPortabilityProblems="true"
+				DebugInformationFormat="0"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLinkerTool"
+				AdditionalDependencies="Ws2_32.lib Winmm.lib"
+				LinkIncremental="1"
+				ModuleDefinitionFile="ftp.def"
+				GenerateDebugInformation="false"
+				SubSystem="2"
+				OptimizeReferences="2"
+				EnableCOMDATFolding="2"
+				TargetMachine="1"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -425,6 +346,86 @@
 			/>
 		</Configuration>
 		<Configuration
+			Name="test|Win32"
+			OutputDirectory="$(SolutionDir)obj\$(ConfigurationName)"
+			IntermediateDirectory="$(SolutionDir)obj\$(ConfigurationName)\fstd"
+			ConfigurationType="1"
+			CharacterSet="0"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="0"
+				AdditionalIncludeDirectories=""
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;FTP_EXPORTS;CONFIG_TEST"
+				MinimalRebuild="true"
+				ExceptionHandling="2"
+				BasicRuntimeChecks="3"
+				RuntimeLibrary="1"
+				UsePrecompiledHeader="2"
+				WarningLevel="3"
+				Detect64BitPortabilityProblems="false"
+				DebugInformationFormat="4"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLinkerTool"
+				AdditionalDependencies="Winmm.lib Ws2_32.lib"
+				LinkIncremental="2"
+				ModuleDefinitionFile="ftp.def "
+				GenerateDebugInformation="true"
+				SubSystem="1"
+				TargetMachine="1"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCManifestTool"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+				CommandLine=""
+			/>
+		</Configuration>
+		<Configuration
 			Name="test|x64"
 			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
@@ -510,6 +511,238 @@
 	</References>
 	<Files>
 		<Filter
+			Name="Header Files"
+			Filter="h;hpp;hxx;hm;inl;inc;xsd"
+			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
+			>
+			<File
+				RelativePath=".\config.h"
+				>
+			</File>
+			<File
+				RelativePath=".\dialogs.h"
+				>
+			</File>
+			<File
+				RelativePath=".\fileinfo.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ftp_Cfg.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ftp_Connect.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ftp_Ftp.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ftp_FtpAPI.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ftp_Int.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ftp_JM.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ftp_Lang.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ftp_var.h"
+				>
+			</File>
+			<File
+				RelativePath=".\listing.h"
+				>
+			</File>
+			<File
+				RelativePath=".\panelview.h"
+				>
+			</File>
+			<File
+				RelativePath=".\servertype.h"
+				>
+			</File>
+			<File
+				RelativePath=".\stdafx.h"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="utils"
+			>
+			<File
+				RelativePath=".\utils\cache.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\codecvt.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\codecvt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\datetime.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\filetime.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\logging.hpp"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\parserprimitive.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\regkey.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\regkey.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\socket.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\sregexp.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\strutils.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\unicode.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\uniconverts.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\uniconverts.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\utf16.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\utf16.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\utf8.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\utf8.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\winwrapper.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\winwrapper.h"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="Resource Files"
+			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
+			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
+			>
+			<File
+				RelativePath=".\ftp_Res.rc"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="farwrappers"
+			>
+			<File
+				RelativePath=".\farwrapper\colordialog.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\dialog.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\dialog.h"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\info.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\info.h"
+				>
+			</File>
+			<File
+				RelativePath=".\utils\log.h"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\menu.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\menu.h"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\message.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\message.h"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\panel.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\panel.h"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\screen.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\stddialogs.h"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\utils.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\farwrapper\utils.h"
+				>
+			</File>
+		</Filter>
+		<Filter
 			Name="Source Files"
 			Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
@@ -567,10 +800,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ftp_Event.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\ftp_FAR.cpp"
 				>
 			</File>
@@ -623,10 +852,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ftp_HPut.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\ftp_JM.cpp"
 				>
 			</File>
@@ -635,19 +860,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ftp_MakeDir.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_Mem.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\ftp_Mix.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_Plugin.cpp"
 				>
 			</File>
 			<File
@@ -663,11 +876,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ftp_sock.cpp"
+				RelativePath=".\ftp_Url.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\ftp_Url.cpp"
+				RelativePath=".\ftpfileview.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\hostview.cpp"
 				>
 			</File>
 			<File
@@ -675,26 +892,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\socket.h"
+				>
+			</File>
+			<File
 				RelativePath=".\stdafx.cpp"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="1"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="1"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="test|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -710,7 +915,23 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="1"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
 					Name="Release|x64"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="1"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="test|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -728,154 +949,6 @@
 			</File>
 			<File
 				RelativePath=".\test.cpp"
-				>
-			</File>
-		</Filter>
-		<Filter
-			Name="Header Files"
-			Filter="h;hpp;hxx;hm;inl;inc;xsd"
-			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
-			>
-			<File
-				RelativePath=".\config.h"
-				>
-			</File>
-			<File
-				RelativePath=".\fileinfo.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_Cfg.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_Connect.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_Ftp.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_FtpAPI.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_Int.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_JM.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_Lang.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_plugin.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_Plugins.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_pwd.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ftp_var.h"
-				>
-			</File>
-			<File
-				RelativePath=".\listing.h"
-				>
-			</File>
-			<File
-				RelativePath=".\servertype.h"
-				>
-			</File>
-			<File
-				RelativePath=".\stdafx.h"
-				>
-			</File>
-		</Filter>
-		<Filter
-			Name="utils"
-			>
-			<File
-				RelativePath=".\utils\datetime.h"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\filetime.h"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\parserprimitive.h"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\regkey.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\regkey.h"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\sregexp.h"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\strutils.h"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\unicode.h"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\uniconverts.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\uniconverts.h"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\utf16.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\utf16.h"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\utf8.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\utf8.h"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\winwrapper.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\utils\winwrapper.h"
-				>
-			</File>
-		</Filter>
-		<Filter
-			Name="Resource Files"
-			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
-			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
-			>
-			<File
-				RelativePath=".\ftp_Res.rc"
 				>
 			</File>
 		</Filter>

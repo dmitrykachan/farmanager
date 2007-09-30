@@ -19,9 +19,22 @@ public:
 	virtual entry			getEntry(const_iterator &itr, const const_iterator &itr_end) const;
 	virtual	std::wstring	parsePWD(const_iterator itr, const const_iterator itr_end) const
 	{
-		return L""; // TODO
-	};
+		itr = std::find(itr, itr_end, L'\"');
+		if(itr == itr_end)
+			return std::wstring(itr, itr_end);
 
+		++itr;
+		const_iterator i2 = itr;
+		do
+		{
+			i2 = std::find(itr, itr_end, L'\"');
+			if(i2 == itr_end)
+				return std::wstring(itr, itr_end);
+			if(i2+1 == itr_end || *(i2+1) != L'\"')
+				return std::wstring(itr, i2); // TODO unquote
+			i2 += 2;
+		} while(true);
+	};
 	virtual bool			isValidEntry(const const_iterator &itr, const const_iterator &itr_end) const;
 	virtual boost::shared_ptr<ServerType> clone() const = 0;
 };

@@ -1,10 +1,13 @@
 #include "stdafx.h"
-#include <all_far.h>
+
 #pragma hdrstop
 
 #include "ftp_Int.h"
 #include "utils/strutils.h"
+#include "utils/uniconverts.h"
 #include "servertype.h"
+
+#include "farwrapper/menu.h"
 
 const char quote = '\x1';
 
@@ -13,159 +16,91 @@ std::string ftpQuote(const std::string& str)
 	return quote + str + quote;
 }
 
-bool ParseDirLine( Connection *Connect,BOOL AllFiles,FTPFileInfo* lpFindFileData );
-
-//--------------------------------------------------------------------------------
-BOOL FtpKeepAlive(Connection *hConnect)
-  {
-     if ( !hConnect ) {
-       SetLastError(ERROR_INTERNET_CONNECTION_ABORTED);
-       return FALSE;
-     }
-
-     hConnect->ErrorCode = ERROR_SUCCESS;
-     if ( !hConnect->ProcessCommand("pwd") ) {
-       SetLastError( hConnect->ErrorCode );
-       return FALSE;
-     } else
-       return TRUE;
+std::string ftpQuote(const std::wstring& str)
+{
+	return quote + Unicode::toOem(str) + quote;
 }
 
-BOOL FtpIsResume( Connection *hConnect )
-  {
-     if (!hConnect) return FALSE;
- return ((Connection *)hConnect)->ResumeSupport;
-}
-
-BOOL FtpCmdLineAlive(Connection *hConnect)
-  {
- return hConnect &&
-        hConnect->connected &&
-        hConnect->cmd_peer != INVALID_SOCKET;
+bool FtpIsResume(Connection *hConnect)
+{
+	BOOST_ASSERT(hConnect);
+	return hConnect->resumeSupport_;
 }
 
 void FtpSetRetryCount( Connection *hConnect,int cn )
-  {
-Assert( hConnect && "FtpSetRetryCount" );
+{
+	BOOST_ASSERT(hConnect && "FtpSetRetryCount");
 
     hConnect->RetryCount = cn;
 }
 
-BOOL FtpSetBreakable( Connection *hConnect,int cn )
-  {
-    if ( !hConnect )
-      return FALSE;
+bool Connection::getBreakable()
+{
+	return breakable_;
+}
 
-    BOOL rc = hConnect->Breakable;
-    if ( cn != -1 ) {
-      Log(( "ESC: set brk %d->%d", hConnect->Breakable, cn ));
-      hConnect->Breakable = cn;
-    }
- return rc;
+void Connection::setBreakable(bool value)
+{
+	breakable_ = value;
 }
 
 int FtpGetRetryCount( Connection *hConnect )
-  {  Assert( hConnect && "FtpGetRetryCount" );
-
- return hConnect->RetryCount;
-}
-
-int FtpConnectMessage( Connection *hConnect,int Msg,CONSTSTR HostName,int btn /*= MNone__*/,int btn1 /*= MNone__*/,int btn2 /*= MNone__*/ )
-  {
- return hConnect ? hConnect->ConnectMessage(Msg,HostName,btn,btn1,btn2) : FALSE;
-}
-
-int FtpCmdBlock( Connection *hConnect,int block )
-  {  int rc = -1;
-
-     do{
-       if (!hConnect)
-         break;
-
-       rc = ((Connection *)hConnect)->CmdVisible == FALSE;
-
-       if (block != -1)
-         ((Connection *)hConnect)->CmdVisible = block == FALSE;
-
-     }while(0);
-
- return rc;
-}
-
-BOOL FtpFindFirstFile( Connection *hConnect, CONSTSTR lpszSearchFile,FTPFileInfo* lpFindFileData, BOOL *ResetCache )
 {
-	Assert( hConnect && "FtpFindFirstFile" );
-	std::string Command;
-	int    AllFiles = StrCmp(lpszSearchFile,"*")==0 ||
-		StrCmp(lpszSearchFile,"*.*")==0;
-	int    FromCache;
+	BOOST_ASSERT(hConnect && "FtpGetRetryCount");
 
-	if ( ResetCache && *ResetCache == TRUE ) {
-		hConnect->CacheReset();
-		FtpGetFtpDirectory(hConnect);
-		*ResetCache = FALSE;
-	}
+	return hConnect->RetryCount;
+}
 
-	if (AllFiles)
-		Command = "dir";
-	else {
-		if (*lpszSearchFile=='\\' || lpszSearchFile[0] && lpszSearchFile[1]==':')
-			lpszSearchFile = PointToName((char *)lpszSearchFile);
-		Command = "dir" + ftpQuote(lpszSearchFile);
-	}
+int FtpConnectMessage( Connection *hConnect,int Msg, const wchar_t* HostName,int btn /*= MNone__*/,int btn1 /*= MNone__*/,int btn2 /*= MNone__*/ )
+{
+	return hConnect ? hConnect->ConnectMessage(Msg,HostName,btn,btn1,btn2) : FALSE;
+}
 
-	SetLastError( ERROR_SUCCESS );
+int FtpCmdBlock(Connection *hConnect, int block)
+{
+	int rc = -1;
 
-	if ( !AllFiles || (FromCache=hConnect->CacheGet()) == 0 ) {
-		if ( AllFiles && !IS_SILENT(FP_LastOpMode) &&
+	if (!hConnect)
+		return -1;
+
+	rc = hConnect->CmdVisible == FALSE;
+
+	if (block != -1)
+		hConnect->CmdVisible = block == FALSE;
+	return rc;
+}
+
+bool FtpFindFirstFile(Connection *hConnect, const std::wstring &searchFile, FTPFileInfo* lpFindFileData, bool *ResetCache)
+{
+	BOOST_ASSERT(hConnect && "FtpFindFirstFile");
+	int    AllFiles = (searchFile == L"*" || searchFile == L"*.*");
+
+	if(!AllFiles)
+	{
+		std::wstring dir = getName(searchFile);
+		if (AllFiles && !IS_SILENT(FP_LastOpMode) &&
 			hConnect->CmdVisible &&
 			hConnect->CurrentState != fcsExpandList )
-			hConnect->ConnectMessage( MRequestingFolder,
-			hConnect->toOEM(hConnect->curdir_).c_str() );
+			hConnect->ConnectMessage( MRequestingFolder, hConnect->getCurrentDirectory());
 
-		if (!hConnect->ProcessCommand(Command)) {
-			SetLastError( hConnect->ErrorCode );
+		if(!hConnect->ls(dir))
+		{
+			SetLastError(hConnect->ErrorCode);
 			return NULL;
 		}
 	}
-
-	if ( AllFiles && !FromCache )
-		hConnect->CacheAdd();
-
-	return ParseDirLine(hConnect,AllFiles,lpFindFileData);
+	return 0;
 }
 
-
-BOOL FtpFindNextFile(Connection *hConnect,FTPFileInfo* lpFindFileData )
-  {
-    Assert( hConnect && "FtpFindNextFile" );
-
- return ParseDirLine( hConnect,TRUE,lpFindFileData );
-}
-
-std::wstring FtpGetCurrentDirectory(Connection *hConnect)
-{
-	if ( !hConnect )
-		return L"";
-
-	if ( !hConnect->curdir_.empty() )
-		if ( !FtpGetFtpDirectory(hConnect) )
-			return L"";
-
-	return hConnect->curdir_;
-}
 
 bool FtpSetCurrentDirectory(Connection *hConnect, const std::wstring& dir)
 {  
-	std::string command;
-
 	BOOST_ASSERT(hConnect && "FtpSetCurrentDirectory");
 
 	if(dir.empty())
 		return false;
 
-	command = "cd " + ftpQuote(Unicode::toOem(dir));
-	if(!hConnect->ProcessCommand(command))
+	if(hConnect->cd(dir))
 	{
 		FtpGetFtpDirectory(hConnect);
 		return true;
@@ -173,144 +108,137 @@ bool FtpSetCurrentDirectory(Connection *hConnect, const std::wstring& dir)
 	return false;
 }
 
-BOOL FtpRemoveDirectory(Connection *hConnect,CONSTSTR dir)
+bool FtpRemoveDirectory(Connection *hConnect, const std::wstring &dir)
 {
-	std::string command;
+	BOOST_ASSERT( hConnect && "FtpRemoveDirectory" );
 
-	Assert( hConnect && "FtpRemoveDirectory" );
-
-	if ( StrCmp(dir,".") == 0 ||
-		StrCmp(dir,"..") == 0 )
+	if(dir == L"." || dir == L".." || dir.empty())
 		return true;
 
-	hConnect->CacheReset();
+	// TODO hConnect->CacheReset();
 
 	//Dir
-	command = "rmdir " + ftpQuote(dir);
-	if ( hConnect->ProcessCommand(command))
+	if(hConnect->removedir(dir) != RPL_OK)
 		return true;
 
 	//Dir+slash
-	command = "rmdir " + ftpQuote(dir + '/');
-	if ( hConnect->ProcessCommand(command))
+	if(hConnect->removedir(dir + L'/') != RPL_OK)
 		return true;
 
 	//Full dir
-	command = "rmdir " + 
-		ftpQuote(hConnect->toOEM(hConnect->curdir_) + '/' + (dir + (dir[0] == '/')));
-	if(hConnect->ProcessCommand(command))
+	std::wstring fulldir = hConnect->getCurrentDirectory() + L'/';
+	fulldir.append(dir, dir[0] == L'/', dir.size());
+	if(hConnect->removedir(fulldir) != RPL_OK)
 		return true;
 
 	//Full dir+slash
-	// TODO QUOTE " "
-	command = "rmdir " + 
-		ftpQuote(hConnect->toOEM(hConnect->curdir_) + '/' + (dir + (dir[0] == '/')) + '/');
-	if(hConnect->ProcessCommand(command))
+	fulldir += L'/';
+	if(hConnect->removedir(fulldir) != RPL_OK)
 		return true;
 
-	return FALSE;
+	return false;
 }
 
 
 BOOL FtpRenameFile(Connection *Connect, const std::wstring &existing, const std::wstring &New)
 {
-	std::string command;
+	BOOST_ASSERT( Connect && "FtpRenameFile" );
 
-	Assert( Connect && "FtpRenameFile" );
-
-	Connect->CacheReset();
-	command = "ren " + ftpQuote(Connect->toOEM(existing)) + ' ' + ftpQuote(Connect->toOEM(New));
-
-	return Connect->ProcessCommand(command);
+	// TODO Connect->CacheReset();
+	return Connect->renamefile(existing, New) == RPL_OK;
 }
 
 
-BOOL FtpDeleteFile(Connection *hConnect,CONSTSTR lpszFileName)
+bool FtpDeleteFile(Connection *hConnect, const std::wstring& filename)
 {  
-	Assert( hConnect && "FtpDeleteFile" );
+	BOOST_ASSERT( hConnect && "FtpDeleteFile" );
 
-	hConnect->CacheReset();
+	// TODO hConnect->CacheReset();
 
-	return hConnect->ProcessCommand(std::string("del ") + ftpQuote(lpszFileName));
+	return hConnect->deleteFile(filename) != 0;
 }
 
 
-std::string octal(int n)
+std::wstring octal(int n)
 {
-	char buffer[16];
-	snprintf(buffer, sizeof(buffer), "%o", n);
+	wchar_t buffer[16];
+	_snwprintf(buffer, sizeof(buffer)/sizeof(*buffer), L"%o", n);
 	return buffer;
 }
 
-BOOL FtpChmod(Connection *hConnect,CONSTSTR lpszFileName,DWORD Mode)
+bool FtpChmod(Connection *hConnect, const std::wstring &filename, DWORD Mode)
 {  
-	Assert( hConnect && "FtpChmod" );
-	hConnect->CacheReset();
-	return hConnect->ProcessCommand(std::string("chmod ") + 
-		octal(Mode) + " " + ftpQuote(lpszFileName));
+	BOOST_ASSERT( hConnect && "FtpChmod" );
+	// TODO hConnect->CacheReset();
+	return hConnect->chmod(filename, octal(Mode)) == RPL_OK;
 }
 
-BOOL FtpGetFile( Connection *Connect,CONSTSTR lpszRemoteFile,CONSTSTR lpszNewFile,BOOL Reget,int AsciiMode )
-{  
-	PROC(( "FtpGetFile","[%s]->[%s] %s %s",lpszRemoteFile,lpszNewFile,Reget?"REGET":"NEW",AsciiMode?"ASCII":"BIN" ));
-	String full_name;
+bool FtpGetFile(Connection *Connect, const std::wstring& RemoteFile, const std::wstring& newFile, bool reget, int asciiMode)
+{
+	PROCP(L"[" << RemoteFile << L"]->[" << newFile << L"] " << (reget? L"REGET" : L"NEW") << (asciiMode? L"ASCII" : L"BIN"));
 	int  ExitCode;
+	std::wstring	remoteFile = RemoteFile;
 
-	Assert( Connect && "FtpGetFile" );
+	BOOST_ASSERT( Connect && "FtpGetFile" );
 
 	//mode
-	if ( AsciiMode && !Connect->ProcessCommand("ascii") ) {
-		Log(( "!ascii ascii:%d",AsciiMode ));
-		return FALSE;
+	if(asciiMode && Connect->setascii() != RPL_OK)
+	{
+		BOOST_LOG(INF, L"!ascii ascii:" << asciiMode);
+		return false;
 	} else
-		if ( !AsciiMode && !Connect->ProcessCommand("bin") ) {
-			Log(( "!bin ascii:%d",AsciiMode ));
-			return FALSE;
-		}
-
-		//Create directory
-		boost::filesystem::path path = lpszNewFile;
-		if(boost::filesystem::create_directories(path.branch_path()))
+		if(!asciiMode && Connect->setbinary()!= RPL_OK)
+		{
+			BOOST_LOG(INF, L"!bin ascii:" << asciiMode);
 			return false;
-
-		//Remote file
-		if ( *lpszRemoteFile != '/' ) {
-			full_name = Connect->toOEM(Connect->curdir_).c_str();
-			AddEndSlash( full_name, '/' );
-			full_name.Add( lpszRemoteFile );
-			lpszRemoteFile = full_name.c_str();
 		}
 
-		//Get file
-		Connect->IOCallback = TRUE;
-		if ( Reget && !Connect->ResumeSupport ) {
-			Connect->AddCmdLine( FMSG(MResumeRestart) );
-			Reget = FALSE;
-		}
-		std::string command = 
-			std::string(Reget? "reget " : "get ") + ftpQuote(lpszRemoteFile) + ' ';
-			ftpQuote(lpszNewFile);
-		ExitCode = Connect->ProcessCommand(command);
-		Connect->IOCallback = false;
+	//Create directory
+	boost::filesystem::wpath path = newFile;
+	if(boost::filesystem::create_directories(path.branch_path()))
+		return false;
 
-		return ExitCode;
+	//Remote file
+	if(!remoteFile.empty() && remoteFile[0] != L'/')
+	{
+		std::wstring full_name;
+		full_name = Connect->getCurrentDirectory();
+		AddEndSlash(full_name, '/');
+		full_name += remoteFile;
+		remoteFile = full_name + remoteFile;
+	}
+
+	//Get file
+	Connect->IOCallback = true;
+	if (reget && !Connect->resumeSupport_)
+	{
+		Connect->AddCmdLine(getMsg(MResumeRestart), ldRaw);
+		reget = false;
+	}
+	if(reget)
+		ExitCode = Connect->reget(remoteFile, newFile);
+	else
+		ExitCode = Connect->get(remoteFile, newFile);
+	Connect->IOCallback = false;
+
+	return ExitCode != 0;
 }
 
 __int64 FtpFileSize(Connection *Connect, const std::wstring &fnm)
-{  
-    if ( !Connect ) return -1;
+{
+	if(!Connect)
+		return -1;
 
-	std::string command = "size " + ftpQuote(Connect->toOEM(fnm));
-
-    if ( !Connect->ProcessCommand(command) )
+	if(!Connect->sizecmd(fnm) != RPL_OK)
 	{
-      Log(( "!size" ));
-      return -1;
-    } else {
+		BOOST_LOG(INF, L"!size");
+		return -1;
+	} else
+	{
 		std::string line = Connect->GetReply();
 		return Parser::parseUnsignedNumber(line.begin()+4, line.end(), 
-									std::numeric_limits<__int64>::max(), false); 
-    }
+			std::numeric_limits<__int64>::max(), false); 
+	}
 }
 
 bool FtpPutFile(Connection *Connect, const std::wstring &localFile, std::wstring remoteFile, bool Reput, int AsciiMode)
@@ -321,10 +249,11 @@ bool FtpPutFile(Connection *Connect, const std::wstring &localFile, std::wstring
 	BOOST_ASSERT(Connect && "FtpPutFile");
 	BOOST_ASSERT(!remoteFile.empty());
 
-	Connect->CacheReset();
-	if ( AsciiMode && !Connect->ProcessCommand("ascii") ||
-		!AsciiMode && !Connect->ProcessCommand("bin")) {
-			Log(( "!Set mode" ));
+	// TOOD Connect->CacheReset();
+	if ( AsciiMode && Connect->setascii() != RPL_OK ||
+		!AsciiMode && Connect->setbinary() != RPL_OK)
+	{
+			BOOST_LOG(INF, L"!Set mode");
 			return FALSE;
 	}
 
@@ -337,7 +266,7 @@ bool FtpPutFile(Connection *Connect, const std::wstring &localFile, std::wstring
 		remoteFile = getName(remoteFile);
 
 	if (remoteFile[0] != '/' )
-		remoteFile = Connect->curdir_ + L'/' + remoteFile;
+		remoteFile = Connect->getCurrentDirectory() + L'/' + remoteFile;
 
 	if(Reput)
 	{
@@ -352,37 +281,33 @@ bool FtpPutFile(Connection *Connect, const std::wstring &localFile, std::wstring
 	//Append
 	Connect->restart_point = Position;
 
-	std::string loc = Connect->toOEM(localFile);
-	std::string rem = Connect->toOEM(remoteFile);
-
-	std::string command = std::string(Position? "appe " : "put ") +
-		ftpQuote(loc) + ' ' + ftpQuote(rem);
-
-	Log(( "%s upload", Position ? "Try APPE" : "Use PUT" ));
-	ExitCode = Connect->ProcessCommand(command);
+	BOOST_LOG(INF, (Position ? L"Try APPE" : L"Use PUT") << L"upload");
+	if(Position)
+		ExitCode = Connect->appended(localFile, remoteFile);
+	else
+		ExitCode = Connect->put(localFile, remoteFile);
 
 	//Error APPE, try to resume using REST
-	if ( !ExitCode && Position && Connect->ResumeSupport ) {
-		Log(( "APPE fail, try REST upload" ));
+	if(ExitCode != RPL_OK && Position && Connect->resumeSupport_)
+	{
+		BOOST_LOG(INF, L"APPE fail, try REST upload");
 		Connect->restart_point = Position;
-		command = "put " + ftpQuote(loc) + ' ' + ftpQuote(rem);
-		ExitCode = Connect->ProcessCommand(command);
+		ExitCode = Connect->put(localFile, remoteFile);
 	}
 
 	Connect->IOCallback = FALSE;
 
-	return ExitCode;
+	return ExitCode != 0;
 }
 
-std::wstring FtpSystemInfo(Connection *Connect)
+void FtpSystemInfo(Connection *Connect)
 {  
-	Assert( Connect && "FtpSystemInfo" );
+	BOOST_ASSERT( Connect && "FtpSystemInfo" );
 
-	if(!Connect->SystemInfoFilled)
+	if(Connect->getSystemInfo().empty())
 	{
-		FP_Screen _scr;
-		Connect->SystemInfoFilled = TRUE;
-		if (Connect->ProcessCommand("syst"))
+		FARWrappers::Screen scr;
+		if(Connect->syst())
 		{
 			std::string tmp = Connect->GetReply();
 			size_t n;
@@ -392,105 +317,47 @@ std::wstring FtpSystemInfo(Connection *Connect)
 
 
 			if(tmp.size() > 3 && isdigit(tmp[0]) && isdigit(tmp[1]) && isdigit(tmp[2]))
-				Connect->systemInfo_ = Unicode::fromOem(tmp.c_str()+4);
+				Connect->setSystemInfo(Connect->FromOEM(std::string(tmp.begin()+4, tmp.end())));
 			else
-				Connect->systemInfo_ = Unicode::fromOem(tmp);
-		} else
-		{
-			Connect->systemInfo_ = L"";
+				Connect->setSystemInfo(Connect->FromOEM(tmp));
 		}
 	}
+}
 
-	return Connect->systemInfo_;
+static std::wstring unDupFF(const Connection *connect, std::string str)
+{
+	size_t n = str.find("\xFF\xFF");
+	while(n != std::string::npos)
+	{
+		str.replace(n, 2, 1, '\xFF');
+		n = str.find("\xFF\xFF", n);
+	}
+	return connect->FromOEM(str);
 }
 
 bool FtpGetFtpDirectory(Connection *Connect)
 {  
 	std::wstring	dir;
 
-	//Exec
-	{  
-		FP_Screen  _scr;
-		if (!Connect->ProcessCommand("pwd"))
-			return false;
-	}
+	FARWrappers::Screen scr;
+	if(!Connect->pwd())
+		return false;
 
-	// TODO FF
-	std::wstring s = Unicode::fromOem(Connect->GetReply());
+	std::wstring s = unDupFF(Connect, Connect->GetReply());
+	std::wstring::const_iterator itr = s.begin();
+	Parser::skipNumber(itr, s.end());
 
-	Connect->curdir_ = Connect->Host.serverType_->parsePWD(s.begin(), s.end());
-	if(Connect->curdir_ == L"")
-	{
-		// TODO wtf
-		std::wstring::const_iterator itr = Connect->curdir_.begin();
-		Parser::skipNumber(itr, Connect->curdir_.end());
-		Connect->curdir_.assign(itr, Connect->curdir_.end()); 
-
-		// TODO
-		//Set classic path
-		/* Unix:
-		- name enclosed with '"'
-		- if '"' is in name it doubles
-		*/
-/*
-		itr = std::find(s.begin(), s.end(), '\"');
-		if(itr != s.end())
-		{
-			++itr;
-			std::wstring s1 = L"";
-			std::wstring::const_iterator e = itr;
-			while(true)
-			{
-				e = std::find(e, s.end(), '\"');
-				if(e == s.end())
-				{
-					s1.append(itr, e);
-					break;
-				} else
-				{
-					if((e + 1) != s.end() && *(e+1) == L'\"')
-					{
-						s1.append(itr, e+1);
-						e += 2;
-						itr = e;
-					} else
-					{
-						s1.append(itr, e);
-						break;
-					}
-				}
-			}
-			Connect->curdir_ = s1;
-		} else
-*/
-			Connect->curdir_ = s;
-	}
-
-
-	//Remove NL\CR
-	size_t n = Connect->curdir_.find_first_of(L"\r\n");
-	if(n != std::wstring::npos)
-		Connect->curdir_.resize(n);
-	return true;
-}
-
-//------------------------------------------------------------------------
-void BadFormat( Connection *Connect,CONSTSTR Line,BOOL inParce )
-{
-    Connect->AddCmdLine( Line );
-    FtpConnectMessage( Connect, MNone__,
-                       inParce
-                         ? "Error parsing files list. Please read \"BugReport_*.txt\" and report to developer."
-                         : "Can not find listing parser. Please read \"BugReport_*.txt\" and report to developer.",
-                       -MOk );
+	Connect->curdir_ = Connect->getHost().serverType_->parsePWD(itr, s.end());
+	return !Connect->curdir_.empty();
 }
 
 boost::shared_ptr<ServerType> FTP::SelectServerType(boost::shared_ptr<ServerType> defType)
-{  
-	std::vector<FarMenuItem> MenuItems;
+{
+	FARWrappers::Menu menu(FMENU_AUTOHIGHLIGHT);
 
 	ServerList &list = ServerList::instance();
-	MenuItems.reserve(list.size());
+	menu.reserve(list.size());
+	menu.setTitle(getMsg(MTableTitle));
 
 	ServerList::const_iterator itr = list.begin();
 
@@ -507,98 +374,36 @@ boost::shared_ptr<ServerType> FTP::SelectServerType(boost::shared_ptr<ServerType
 
 	size_t maxNameLengh = std::max_element(list.begin(), list.end(), MaxNameSize())
 		->get()->getName().size();
-	
+
 	while(itr != list.end()) 
 	{
-		FarMenuItem item;
-		std::string name = Unicode::utf16ToUtf8((*itr)->getName());
+		std::wstring name = (*itr)->getName();
 		size_t nspaces = maxNameLengh - name.size();
-		if(nspaces != 0)
-		{
-			std::string spaces;
-			spaces.insert(spaces.begin(), nspaces, ' ');
-			name += spaces;
-		}
-		name += FAR_VERT_CHAR + Unicode::utf16ToUtf8((*itr)->getDescription());
-		Utils::safe_strcpy(item.Text, name.c_str());
-		item.Checked	= false;
-		item.Selected	= ((*itr)->getName() == defType->getName())? true : false;
-		item.Separator	= false;
-		MenuItems.push_back(item);
+		name += std::wstring(nspaces, L' ');
+		name += FAR_VERT_CHAR + (*itr)->getDescription();
+		menu.addItem(name);
 		++itr;
 	}
-
-	int rc = FP_Info->Menu(FP_Info->ModuleNumber, -1, -1, 0, FMENU_AUTOHIGHLIGHT,
-		FP_GetMsg(MTableTitle), NULL,NULL,NULL,NULL, &MenuItems[0], (int) MenuItems.size());
+	BOOST_ASSERT(list.find(defType->getName()) != list.end());
+	menu.select(list.find(defType->getName()) - list.begin());
+	int rc = menu.show();
 
 	return (rc == -1)? defType : list[rc];
 }
 
-bool ParseDirLine(Connection *Connect, BOOL AllFiles, FTPFileInfo* p)
-{  
-	PROC(( "ParseDirLine", "%p,%d", Connect, AllFiles ))
 
-	std::wstring::const_iterator itr = Connect->output_.begin();
-	std::wstring::const_iterator itr_end = Connect->output_.end();
-	ServerType::entry entry;
+const std::wstring& Connection::getCurrentDirectory() const
+{
+	BOOST_ASSERT(!curdir_.empty());
+	return curdir_;
+}
 
-	ServerTypePtr server = Connect->Host.serverType_;
-	if(ServerList::isAutodetect(server))
+bool Connection::keepAlive()
+{
+	if(cmdLineAlive())
 	{
-		server = ServerList::autodetect(Connect->systemInfo_);
+		pwd();
+		return true;
 	}
-
-	while(1)
-	{
-		if(itr == itr_end)
-			return true;
-
-		entry = server->getEntry(itr, itr_end);
-		if(entry.first == entry.second)
-			continue;
-
-		if(std::wstring(entry.first, entry.second).find(L": Permission denied") != std::wstring::npos)
-		{
-			SetLastError(ERROR_ACCESS_DENIED);
-			return false;
-		}
-
-		if(!server->isValidEntry(entry.first, entry.second))
-			continue;
-
-		Log(( "toParse: [%s]", Unicode::utf16ToUtf8(std::wstring(entry.first, entry.second)).c_str()));
-		FTPFileInfo fileinfo;
-		try
-		{
-			server->parseListingEntry(entry.first, entry.second, fileinfo);
-			// updateTime(fileinfo);
-		}
-		catch (std::exception &e)
-		{
-			Connect->AddCmdLine( 
-				std::wstring(L"ParserFAIL: (") + server->getName() + L") [" + 
-				std::wstring(entry.first, entry.second) + L"]:" + Unicode::utf8ToUtf16(e.what()), ldOut);
-			continue;
-		}
-
-		BOOST_ASSERT(fileinfo.getType() != FTPFileInfo::undefined);
-
-		std::wstring filename = fileinfo.getFileName();
-		if(filename.empty() || filename == L"." || (!AllFiles && filename == L"..")) // TODO
-			continue;
-
-			//Correct attrs TODO
-/*
-			if ( p->FileType == NET_DIRECTORY ||
-				p->FileType == NET_SYM_LINK_TO_DIR )
-				SET_FLAG( p->FindData.dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY );
-
-			if ( p->FileType == NET_SYM_LINK_TO_DIR ||
-				p->FileType == NET_SYM_LINK )
-				SET_FLAG( p->FindData.dwFileAttributes,FILE_ATTRIBUTE_REPARSE_POINT );
-*/
-	}
-
-	SetLastError(ERROR_NO_MORE_FILES);
 	return false;
 }

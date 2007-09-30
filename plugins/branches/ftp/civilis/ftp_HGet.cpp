@@ -1,75 +1,59 @@
 #include "stdafx.h"
-#include <all_far.h>
+
 #pragma hdrstop
 
 #include "ftp_Int.h"
+#include "farwrapper/dialog.h"
 
 int FTP::GetHostFiles( struct PluginPanelItem *PanelItem, size_t ItemsNumber,int Move, std::wstring& DestPath,int OpMode)
 {
-	PROC(( "FTP::GetHostFiles","%d [%s] %s %08X",ItemsNumber,DestPath.c_str(),Move?"MOVE":"COPY",OpMode ));
+	PROCP(ItemsNumber << L" [" << DestPath << L"] " << (Move? L"MOVE " : L"COPY ") << OpMode);
 
-	static FP_DECL_DIALOG( InitItems )
-		/*00*/		FDI_CONTROL	( DI_DOUBLEBOX, 3, 1,72,6, 0, NULL )
-		/*01*/		FDI_LABEL	( 5, 2,   NULL )
-		/*02*/		FDI_EDIT	(  5, 3,70 )
-		/*03*/		FDI_HLINE	( 3, 4 )
-		/*06*/		FDI_GDEFBUTTON( 0, 5,   FMSG(MCopy) )
-		/*07*/		FDI_GBUTTON	( 0, 5,   FMSG(MCancel) )
-		FP_END_DIALOG
+	FARWrappers::ItemList  il;
 
-	FarDialogItem    DialogItems[FP_DIALOG_SIZE(InitItems)];
-	FP_SizeItemList  il;
-
-	if ( !IS_SILENT(OpMode) )
+	if(!IS_SILENT(OpMode))
 	{
-		if (Move)
-		{
-			InitItems[0].Text = FMSG(MMoveHostTitle);
-			InitItems[1].Text = FMSG(MMoveHostTo);
-		} else
-		{
-			InitItems[0].Text = FMSG(MCopyHostTitle);
-			InitItems[1].Text = FMSG(MCopyHostTo);
-		}
-		FP_InitDialogItems( InitItems,DialogItems );
-		Utils::safe_strcpy(DialogItems[2].Data, Unicode::toOem(DestPath).c_str());
+		FARWrappers::Dialog dlg(L"FTPCmd");
+		dlg.addDoublebox( 3, 1,72,6,	Move? getMsg(MMoveHostTitle) : getMsg(MCopyHostTitle))->
+			addLabel	( 5, 2,			Move? getMsg(MMoveHostTo) : getMsg(MCopyHostTo))->
+			addEditor	( 5, 3,70,		&DestPath)->
+			addHLine	( 3, 4)->
+			addDefaultButton(0, 5, 1,	getMsg(MCopy))->
+			addButton	( 0, 5, -1,		getMsg(MCancel));
 
-		int AskCode = FDialog( 76,8,"FTPCmd",DialogItems,FP_DIALOG_SIZE(InitItems) );
-
-		if ( AskCode != 4 )
+		if(dlg.show(76, 8) == -1)
 			return -1;
-
-		DestPath = Unicode::fromOem(DialogItems[2].Data);
 	}
 
 	if (DestPath.empty() )
 		return -1;
 
-	if ( !ExpandList(PanelItem,ItemsNumber,&il,TRUE) )
-		return 0;
+	BOOST_ASSERT(0 && "TODO");
+//	if ( !ExpandList(PanelItem,ItemsNumber,&il,TRUE) )
+//		return 0;
 
 	int OverwriteAll = FALSE,
 		SkipAll      = FALSE,
 		Rename       = FALSE;
 	size_t      n;
 	const FTPHost* p;
-	FTPHost  h;
+//	FTPHost  h;
 	std::wstring  CheckKey;
 	std::wstring  DestName;
 
 	if (DestPath == L"..")
 	{
-		if (hostsPath_.empty())
+		if(panel_->getCurrentDirectory().empty())
 			return 0;
 		else
 		{
-			CheckKey = getPathBranch(hostsPath_);
+			CheckKey = getPathBranch(panel_->getCurrentDirectory());
 			Rename = true;
 		}
 	} else
 	{
-		CheckKey = hostsPath_;
-		if (DestPath.find_first_of(L":\\") == std::wstring::npos)
+		CheckKey = panel_->getCurrentDirectory();
+		if (DestPath.find_first_of(L":\\") == std::wstring::npos) 
 		{
 			Rename = true;
 		} else
@@ -96,21 +80,27 @@ int FTP::GetHostFiles( struct PluginPanelItem *PanelItem, size_t ItemsNumber,int
 	AddEndSlash( DestPath, '\\' );
 
 	//Rename
-	if (Rename) {
-		for( n=0; n < il.Count(); n++ ) {
-			p = findhost(il.List[n].UserData);
-			if ( !p ) continue;
+	if(Rename)
+	{
+		for( n=0; n < il.size(); n++ )
+		{
+			p = hostPanel_.findhost(il[n].UserData);
+			if(!p)
+				continue;
 
 			//Check for folders
-			if ( p->Folder ) {
-				SayMsg( FMSG(MCanNotMoveFolder) );
+			if ( p->Folder )
+			{
+				FARWrappers::message(MCanNotMoveFolder);
 				return TRUE;
 			}
 
+			FTPHost h;
 			h.Assign(p);
 // TODO			h.regPath_ = L"";
 
-			if(!h.Write(this, CheckKey))
+			BOOST_ASSERT(0 && "Todo or check (write)");
+			if(!h.Write(CheckKey))
 				return FALSE;
 
 			if ( Move && !p->Folder)
@@ -122,51 +112,54 @@ int FTP::GetHostFiles( struct PluginPanelItem *PanelItem, size_t ItemsNumber,int
 	}//Rename
 	else
 		//INI
-		for( n = 0; n < il.Count(); n++ ) {
+		for( n = 0; n < il.size(); n++ ) {
 
-			p = findhost(il.List[n].UserData);
+			p = hostPanel_.findhost(il[n].UserData);
 			if (!p) continue;
 
-			if ( p->Folder ) {
+			if ( p->Folder )
 				continue;
-			}
 
-			DestName = p->MkINIFile(hostsPath_, DestPath);
+			DestName = DestPath + L'\\' + p->getIniFilename();
 
 			DWORD DestAttr=GetFileAttributesW(DestName.c_str());
 
 			if ( !IS_SILENT(OpMode) &&
 				!OverwriteAll &&
-				DestAttr != 0xFFFFFFFF ) {
+				DestAttr != 0xFFFFFFFF )
+			{
 
 					if (SkipAll)
 						continue;
 
-					CONSTSTR MsgItems[] = {
-						FMSG( Move ? MMoveHostTitle:MCopyHostTitle ),
-						FMSG( IS_FLAG(DestAttr,FILE_ATTRIBUTE_READONLY) ? MAlreadyExistRO : MAlreadyExist ),
-						Unicode::toOem(DestName).c_str(),
-						FMSG( MAskOverwrite ),
-						/*0*/FMSG(MOverwrite),
-						/*1*/FMSG(MOverwriteAll),
-						/*2*/FMSG(MCopySkip),
-						/*3*/FMSG(MCopySkipAll),
-						/*4*/FMSG(MCopyCancel) };
+					const wchar_t* MsgItems[] =
+					{
+						getMsg( Move ? MMoveHostTitle:MCopyHostTitle ),
+						getMsg( is_flag(DestAttr,FILE_ATTRIBUTE_READONLY) ? MAlreadyExistRO : MAlreadyExist ),
+						DestName.c_str(),
+						getMsg( MAskOverwrite ),
+						/*0*/getMsg(MOverwrite),
+						/*1*/getMsg(MOverwriteAll),
+						/*2*/getMsg(MCopySkip),
+						/*3*/getMsg(MCopySkipAll),
+						/*4*/getMsg(MCopyCancel)
+					};
 
-						int MsgCode = FMessage( FMSG_WARNING,NULL,MsgItems,sizeof(MsgItems)/sizeof(MsgItems[0]),5 );
+					int MsgCode = FARWrappers::message(MsgItems, 5, FMSG_WARNING);
 
-						switch(MsgCode) {
-		  case 1:
-			  OverwriteAll=TRUE;
-			  break;
-		  case 3:
-			  SkipAll=TRUE;
-		  case 2:
-			  continue;
-		  case -1:
-		  case 4:
-			  return(	-1);
-						}
+					switch(MsgCode)
+					{
+						case 1:
+							OverwriteAll=TRUE;
+							break;
+						case 3:
+							SkipAll=TRUE;
+						case 2:
+							continue;
+						case -1:
+						case 4:
+							return(	-1);
+					}
 			}
 			int WriteFailed = FALSE;
 			if ( DestAttr!=0xFFFFFFFF ) {
@@ -189,26 +182,27 @@ int FTP::GetHostFiles( struct PluginPanelItem *PanelItem, size_t ItemsNumber,int
 			  }
 			}
 
-			if (WriteFailed) {
-				std::string &s = Unicode::toOem(DestName);
-				CONSTSTR MsgItems[] = {
-					FMSG(MError),
-					FMSG(MCannotCopyHost),
-					s.c_str(),
-					FMSG(MOk)
+			if (WriteFailed)
+			{
+				const wchar_t* MsgItems[] =
+				{
+					getMsg(MError),
+					getMsg(MCannotCopyHost),
+					DestName.c_str(),
+					getMsg(MOk)
 				};
-				FMessage( FMSG_WARNING|FMSG_DOWN|FMSG_ERRORTYPE,NULL,MsgItems,sizeof(MsgItems)/sizeof(MsgItems[0]),1 );
+				FARWrappers::message(MsgItems, 1, FMSG_WARNING|FMSG_DOWN|FMSG_ERRORTYPE);
 				return(0);
 			}
 		}//INI
 
 		if (Move)
-			for (n = il.Count()-1; n >= 0; n-- ) {
+			for (n = il.size()-1; n >= 0; n-- ) {
 
 				if (CheckForEsc(FALSE))
 					return -1;
 
-				p = findhost(il.List[n].UserData);
+				p = hostPanel_.findhost(il[n].UserData);
 				if ( p && p->Folder )
 				{
 					BOOST_ASSERT(0 && "TODO");

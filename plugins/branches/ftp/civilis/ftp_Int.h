@@ -1,23 +1,14 @@
 #ifndef __FAR_PLUGIN_FTP
 #define __FAR_PLUGIN_FTP
 
-#if defined(__DEBUG__) && defined(__BCWIN32__) && !defined(__JM__)
-  #define __JM__ 1
-#endif
-
 #if !defined(SD_BOTH)
   #define SD_RECEIVE      0x00
   #define SD_SEND         0x01
   #define SD_BOTH         0x02
 #endif
 
-#include "fstdlib.h"         //FAR plugin stdlib
-#include "ftp_Plugin.h"  //Plugin
+extern int					FP_LastOpMode;
 
-#include "servertype.h"
-
-
-#include "ftp_Plugins.h"   //plugins
 #include "ftp_Cfg.h"       //Config constants and Opt structure
 #include "ftp_JM.h"        //`JM` changes
 #include "ftp_var.h"       //class cmd
@@ -27,123 +18,59 @@
 
 
 //[ftp_FAR.cpp]
-extern FTP     *DECLSPEC OtherPlugin( FTP *p );
-extern size_t   DECLSPEC PluginPanelNumber( FTP *p );
-extern size_t   DECLSPEC PluginUsed();
+extern FTP     *WINAPI OtherPlugin( FTP *p );
+extern size_t   WINAPI PluginPanelNumber( FTP *p );
 
 //[ftp_Config.cpp]
-extern void     DECLSPEC WriteCfg( void );
-extern int      DECLSPEC Config( void );
+extern int      WINAPI Config( void );
 
 //[ftp_Dlg.cpp]
-extern BOOL     DECLSPEC AskSaveList( SaveListInfo* sli );
-extern bool     DECLSPEC GetLoginData(std::wstring &username, std::wstring &password, bool forceAsk);
+extern bool     WINAPI AskSaveList( SaveListInfo* sli );
+extern bool     WINAPI GetLoginData(std::wstring &username, std::wstring &password, bool forceAsk);
 
 //[ftp_Mix.cpp]
-extern void     DECLSPEC AddEndSlash( char *Path,char slash, size_t ssz );
-extern void     DECLSPEC AddEndSlash( String& p, char slash );
-extern void		DECLSPEC AddEndSlash(std::wstring& s, wchar_t slash);
-extern void     DECLSPEC DelEndSlash( char *Path,char slash );
-extern void     DECLSPEC DelEndSlash( String& Path,char slash );
-extern void     DECLSPEC DelEndSlash(std::wstring& s,char slash);
-extern void     DECLSPEC FixFTPSlash( char *Path);
-extern void     DECLSPEC FixFTPSlash( String& Path);
-extern void     DECLSPEC FixFTPSlash(std::wstring& Path);
-extern void     DECLSPEC FixLocalSlash( char *Path );
-extern void     DECLSPEC FixLocalSlash( String& Path );
-extern void     DECLSPEC FixLocalSlash(std::wstring &Path);
-extern char    *DECLSPEC TruncStr(char *Str,int MaxLength);
-extern const char    *DECLSPEC PointToName(const char *Path );
-extern std::wstring DECLSPEC getName(const std::wstring &path);
+extern void		WINAPI AddEndSlash(std::wstring& s, wchar_t slash);
+extern void     WINAPI DelEndSlash(std::wstring& s,char slash);
+extern void     WINAPI FixFTPSlash(std::wstring& Path);
+extern void     WINAPI FixLocalSlash(std::wstring &Path);
+extern std::wstring WINAPI getName(const std::wstring &path);
 
-extern BOOL     DECLSPEC CheckForEsc( BOOL isConnection,BOOL IgnoreSilent = FALSE );
-extern int      DECLSPEC CheckForKeyPressed( WORD *Codes,int NumCodes );
-extern int      DECLSPEC IsCaseMixed(const char *Str);
-extern void     DECLSPEC LocalLower(char *Str);
-extern BOOL     DECLSPEC IsDirExist( CONSTSTR nm );
-extern bool		DECLSPEC IsAbsolutePath(const std::wstring &nm);
+extern bool     CheckForEsc(bool isConnection, bool IgnoreSilent = false);
+extern int      WINAPI IsCaseMixed(const char *Str);
+extern void     WINAPI LocalLower(char *Str);
+extern bool		WINAPI IsAbsolutePath(const std::wstring &nm);
 
-#define TAddEndSlash( s,sl  ) AddEndSlash( s,sl,sizeof(s) )
+extern HANDLE   WINAPI Fopen(const wchar_t* nm, const wchar_t* mode /*R|W|A[+]*/, DWORD attr = FILE_ATTRIBUTE_NORMAL );
+extern __int64  WINAPI Fsize(const std::wstring& filename);
+extern __int64  WINAPI Fsize( HANDLE nm );
+extern BOOL     WINAPI Fmove( HANDLE file,__int64 restart_point );
+extern void     WINAPI Fclose( HANDLE file );
+extern int      WINAPI Fwrite( HANDLE File,LPCVOID Buff,size_t Size );
+extern int      WINAPI Fread( HANDLE File,LPVOID Buff,int Size );
+extern BOOL     WINAPI Ftrunc( HANDLE h,DWORD move = FILE_CURRENT );
 
-extern HANDLE   DECLSPEC Fopen( CONSTSTR nm,CONSTSTR mode /*R|W|A[+]*/, DWORD attr = FILE_ATTRIBUTE_NORMAL );
-extern __int64  DECLSPEC Fsize( CONSTSTR nm );
-extern __int64  DECLSPEC Fsize( HANDLE nm );
-extern BOOL     DECLSPEC Fmove( HANDLE file,__int64 restart_point );
-extern void     DECLSPEC Fclose( HANDLE file );
-extern int      DECLSPEC Fwrite( HANDLE File,LPCVOID Buff,size_t Size );
-extern int      DECLSPEC Fread( HANDLE File,LPVOID Buff,int Size );
-extern BOOL     DECLSPEC Ftrunc( HANDLE h,DWORD move = FILE_CURRENT );
+extern bool     WINAPI FRealFile(const wchar_t* nm, FAR_FIND_DATA* fd = NULL );
 
-extern BOOL     DECLSPEC FTestOpen( CONSTSTR nm );
-extern BOOL     DECLSPEC FTestFind( CONSTSTR nm,WIN32_FIND_DATA* ufd = NULL );
-extern BOOL     DECLSPEC FRealFile( CONSTSTR nm,WIN32_FIND_DATA* ufd = NULL );
-
-extern int      DECLSPEC FMessage( unsigned int Flags,CONSTSTR HelpTopic,CONSTSTR *Items,
-                                      int ItemsNumber,int ButtonsNumber );
-extern int		DECLSPEC FMessage(unsigned int Flags, CONSTSTR HelpTopic, const std::vector<std::string> Items, int ButtonsNumber);
-extern int      DECLSPEC FDialog( int X2,int Y2,CONSTSTR HelpTopic,struct FarDialogItem *Item,int ItemsNumber );
-extern int      DECLSPEC FDialogEx( int X2,int Y2,CONSTSTR HelpTopic,struct FarDialogItem *Item,int ItemsNumber,
-                                       DWORD Flags = 0, FARWINDOWPROC DlgProc = (FARWINDOWPROC)MAX_WORD,long Param = 0 );
-
-extern void     DECLSPEC IdleMessage( CONSTSTR str,int color );
-extern size_t   DECLSPEC StrSlashCount( CONSTSTR m );      //Rets number af any slash chars in string
-extern void     DECLSPEC Size2Str( char *buff,DWORD size );
-extern DWORD    DECLSPEC Str2Size( char *str );
-extern void     DECLSPEC QuoteStr( char *str );
-extern void     DECLSPEC QuoteStr( String& str );
-extern void     DECLSPEC QuoteStr(std::wstring &str);
+extern void     IdleMessage(const wchar_t* str, int color, bool error = false);
+extern std::wstring WINAPI Size2Str(__int64 sz);
+extern __int64  WINAPI Str2Size(std::wstring str);
+extern void     WINAPI QuoteStr(std::wstring &str);
 
 //[ftp_JM.cpp]
-extern CONSTSTR DECLSPEC GetSocketErrorSTR( int err );
-extern CONSTSTR DECLSPEC GetSocketErrorSTR( void );
-extern char    *DECLSPEC PDigit( char *buff,__int64 val,size_t sz /*-1*/ );          // Converts digit to string.
-extern char    *DECLSPEC FDigit( char *buff,__int64 Value,size_t BuffSize /*-1*/ );  // Output digit to string. Delimits thousands.
+extern const std::wstring GetSocketErrorSTR(int err);
+extern const std::wstring GetSocketErrorSTR();
 
-extern int      DECLSPEC AskYesNoMessage( CONSTSTR LngMsgNum );
-extern BOOL     DECLSPEC AskYesNo( CONSTSTR LngMsgNum );
-extern void     DECLSPEC SayMsg( CONSTSTR LngMsgNum );
-extern void     DECLSPEC LogCmd( CONSTSTR src,CMDOutputDir out,DWORD Size = MAX_DWORD );
-extern bool     DECLSPEC IsCmdLogFile( void );
-extern std::wstring DECLSPEC GetCmdLogFile();
+extern void     WINAPI LogCmd(const wchar_t* src,CMDOutputDir out,DWORD Size = UINT_MAX );
+extern bool     WINAPI IsCmdLogFile( void );
+extern std::wstring WINAPI GetCmdLogFile();
 
-//extern char    *DECLSPEC FixFileNameChars( char *fnm,BOOL slashes = FALSE );
-std::wstring	DECLSPEC FixFileNameChars(std::wstring s, BOOL slashes = FALSE);
+std::wstring	WINAPI FixFileNameChars(std::wstring s, BOOL slashes = FALSE);
 
-extern void     DECLSPEC OperateHidden( CONSTSTR fnm, BOOL set );
+extern void     WINAPI OperateHidden(const std::wstring& fnm, bool set);
 
 //[ftp_sock.cpp]
-extern void     DECLSPEC scClose( SOCKET& sock,int how = SD_BOTH );
-extern BOOL     DECLSPEC scValid( SOCKET sock );
-extern SOCKET   DECLSPEC scCreate( short addr_type = AF_INET );
-extern SOCKET   DECLSPEC scAccept( SOCKET *peer, struct sockaddr FAR* addr, int* addrlen );
+extern void     WINAPI scClose( SOCKET& sock,int how = SD_BOTH );
 
-//[ftp_FAR.cpp]
-FAR_EXTERN void   FAR_DECLSPEC SetStartupInfo( const PluginStartupInfo *Info);
-FAR_EXTERN void   FAR_DECLSPEC GetPluginInfo( PluginInfo *Info);
-FAR_EXTERN int    FAR_DECLSPEC Configure(int ItemNumber);
-FAR_EXTERN HANDLE FAR_DECLSPEC OpenPlugin(int OpenFrom,INT_PTR Item);
-FAR_EXTERN void   FAR_DECLSPEC ClosePlugin(HANDLE hPlugin);
-FAR_EXTERN int    FAR_DECLSPEC GetFindData(HANDLE hPlugin,PluginPanelItem **pPanelItem,int *pItemsNumber,int OpMode);
-FAR_EXTERN void   FAR_DECLSPEC FreeFindData(HANDLE hPlugin,PluginPanelItem *PanelItem,int ItemsNumber);
-FAR_EXTERN void   FAR_DECLSPEC GetOpenPluginInfo(HANDLE hPlugin,OpenPluginInfo *Info);
-FAR_EXTERN int    FAR_DECLSPEC SetDirectory(HANDLE hPlugin,CONSTSTR Dir,int OpMode);
-FAR_EXTERN int    FAR_DECLSPEC GetFiles(HANDLE hPlugin,PluginPanelItem *PanelItem,int ItemsNumber,int Move,char *DestPath,int OpMode);
-FAR_EXTERN int    FAR_DECLSPEC PutFiles(HANDLE hPlugin,PluginPanelItem *PanelItem,int ItemsNumber,int Move,int OpMode);
-FAR_EXTERN int    FAR_DECLSPEC DeleteFiles(HANDLE hPlugin,PluginPanelItem *PanelItem,int ItemsNumber,int OpMode);
-FAR_EXTERN int    FAR_DECLSPEC MakeDirectory(HANDLE hPlugin,char *Name,int OpMode);
-FAR_EXTERN int    FAR_DECLSPEC ProcessKey(HANDLE hPlugin,int Key,unsigned int ControlState);
-FAR_EXTERN int    FAR_DECLSPEC ProcessEvent(HANDLE hPlugin,int Event,void *Param);
-FAR_EXTERN int    FAR_DECLSPEC Compare( HANDLE hPlugin,const PluginPanelItem *i,const PluginPanelItem *i1,unsigned int Mode );
-
-#if defined( __DEBUG__ )
-void ShowMemInfo( void );
-void LogPanelItems( struct PluginPanelItem *PanelItem, size_t ItemsNumber );
-#else
-inline void ShowMemInfo( void ) {}
-#define LogPanelItems( PanelItem,ItemsNumber )
-#endif
-
-//------------------------------------------------------------------------
 struct FHandle {
   HANDLE Handle;
  public:
@@ -169,10 +96,12 @@ public:
 
 	enum
 	{
-		PluginCount = 2
+		PluginCount = 3 // three plugins can be being running in several cases
+					// for example 2 panels is open and a user whatns reopen panel.
 	};
 
 	void readCfg();
+	void WriteCfg();
 	void InvalidateAll();
 	void addWait(time_t tm);
 
@@ -190,16 +119,19 @@ private:
 	boost::array<FTP*, PluginCount> FTPPanels_;
 };
 
-extern BOOL           SocketStartup;
-extern int            SocketInitializeError;
-extern FTP           *LastUsedPlugin;
-extern char           DialogEditBuffer[];
 
 extern	FTPPluginManager g_manager;
 
 extern std::wstring getPathBranch(const std::wstring &s);
 extern std::wstring getPathLast(const std::wstring &s);
 
+inline bool IS_SILENT(int v)
+{
+	return (v & (OPM_FIND|OPM_VIEW|OPM_EDIT)) != 0;
+}
+
+#define FAR_VERT_CHAR                        L'\xB3' //³
+#define FAR_SBMENU_CHAR                      '\x10' //
 
 namespace
 {

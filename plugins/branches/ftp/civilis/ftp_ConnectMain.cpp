@@ -1,251 +1,143 @@
 #include "stdafx.h"
-#include <all_far.h>
+
 #pragma hdrstop
 
 #include "ftp_Int.h"
 
+CommandsList Connection::commandsList_;
+
 void Connection::lostpeer()
 {
-	if(connected)
+	if(isConnected())
 	{
 		AbortAllRequest(FALSE);
-		cout = NULL;
-		connected = 0;
+		setConnected(false);
 	}
-	pswitch(1);
-	if (connected)
-	{
-		AbortAllRequest(FALSE);
-		cout = NULL;
-		connected = 0;
-	}
-	proxflag = 0;
-	pswitch(0);
 }
 
-/*
- * Command parser.
- */
-int Connection::ProcessCommand( CONSTSTR LineToProcess )
+static void parseCommandLine(const std::wstring &line, std::vector<std::wstring> &v)
+{
+	v.clear();
+	v.reserve(5);
+
+	std::wstring::const_iterator itr;
+
+	std::wstring token;
+
+	itr = line.begin();
+	enum
+	{
+		Normal, InQuote, Screen
+	} state = Normal;
+	bool inQuote = false;
+	while(itr != line.end())
+	{
+		token = L"";
+		Parser::skipSpaces(itr, line.end());
+
+		while(itr != line.end())
+		{
+			if(state != InQuote)
+			{
+				if(std::isspace(*itr, defaultLocale_))
+				{
+					++itr;
+					break;
+				} else
+					switch(*itr)
+				{
+					case L'\\':
+						if(state == Screen)
+						{
+							token += *itr;
+							state = Normal;
+						}
+						else
+							state = Screen;
+						break;
+					case quoteMark:
+						state = InQuote;
+						break;
+					case L' ': case L'\t':
+						break;
+					default:
+						token += *itr;
+						break;
+				}
+			} else
+			{
+				if(*itr == quoteMark)
+					state = Normal;
+				else
+					token += *itr;
+			}
+			++itr;
+		}
+		if(!token.empty())
+			v.push_back(token);
+	}
+
+}
+
+#ifdef CONFIG_TEST
+BOOST_AUTO_TEST_CASE(TestParseCommandLine)
+{
+	std::vector<std::wstring> vec;
+	parseCommandLine(L"", vec);
+	BOOST_CHECK(vec.empty());
+
+	parseCommandLine(L"  abc\t ", vec);
+	BOOST_CHECK(vec.size() == 1 && vec[0] == L"abc");
+
+	parseCommandLine(L"  abc\t def \\+-\\\\", vec);
+	BOOST_CHECK(vec.size() == 3 && vec[0] == L"abc" && vec[1] == L"def" && vec[2] == L"+-\\");
+
+	parseCommandLine(L"  abc\t def \x1\\+-\\\\\x1 ", vec);
+	BOOST_CHECK(vec.size() == 3 && vec[0] == L"abc" && vec[1] == L"def" && vec[2] == L"\\+-\\\\");	
+}
+#endif
+
+
+int Connection::ProcessCommand(const std::wstring &line)
 {  
-	PROC(( "ProcessCommand","%s",LineToProcess ))
-	struct cmd *c;
-	BOOL rc = FALSE;
+	bool rc = FALSE;
 
 	do
 	{
 		ResetOutput();
-		line_ = LineToProcess;
-		makeargv();
+		std::vector<std::wstring> vec;
+		parseCommandLine(line, vec);
 
-		if ( margc == 0 ) 
+		if(vec.empty()) 
 		{
-			Log(( "!margc" ));
 			SetLastError( ERROR_INVALID_PARAMETER );
 			break;
 		}
 
-		c = getcmd( margv[0] );
-		if ( c == (cmd*)-1 || c == 0 ) {
-			Log(( "!cmd" ));
+		Command cmd;
+		if(!commandsList_.find(vec[0], cmd))
+		{
+			BOOST_LOG(INF, L"!cmd");
 			SetLastError( ERROR_INVALID_PARAMETER );
 			break;
 		}
 
-		if ( margc < c->c_args+1 ) {
-			Log(( "No enough parameters" ));
-			SetLastError( ERROR_INVALID_PARAMETER );
-			break;
-		}
-
-		if (c->c_conn && !connected) {
-			Log(( "!connected: conn %d iscon: %d",c->c_conn,connected ));
-			SetLastError(ERROR_INTERNET_CONNECTION_ABORTED);
+		if(cmd.getMustConnect() && !isConnected())
+		{
+			BOOST_LOG(INF, L"!connected");
+			//TODO SetLastError(ERROR_INTERNET_CONNECTION_ABORTED);
 			break;
 		}
 
 		brk_flag  = FALSE;
-		code      = 0;
+//		code      = 0;
 		ErrorCode = 0;
-		ExecCmdTab(c, margc, margv);
-		rc = GetExitCode();
+		rc = cmd.execute(*this, vec);
 
 	}while( 0 );
+
 	brk_flag = FALSE;
 
-	Log(( "rc=%d",rc ));
+	BOOST_LOG(INF, L"rc=" <<rc);
 	return rc;
-}
-
-
-struct cmd *Connection::getcmd(register char *name)
-{
-        register char *p, *q;
-        register struct cmd *c, *found;
-        register int nmatches, longest;
-
-        longest = 0;
-        nmatches = 0;
-        found = 0;
-
-        for (c = cmdtabdata; (p = c->c_name)!=NULL; c++) {
-          for (q = name; *q == *p++; q++)
-            if (*q == 0)            /* exact match? */
-              return (c);
-
-            if (!*q) {                      /* the name was a prefix */
-              if (q - name > longest) {
-                longest = (int)(q - name);
-                nmatches = 1;
-                found = c;
-              } else
-              if (q - name == longest)
-                nmatches++;
-            }
-        }
-
-        if (nmatches > 1)
-          return (struct cmd *)-1;
-
- return found;
-}
-
-/*
- * Slice a string up into argc/argv.
- */
-
-
-void Connection::makeargv()
-{
-        char **argp;
-        margc = 0;
-        argp = margv;
-        stringbase_ = line_.begin();  /* scan from first of buffer */
-        argbuf.Alloc(line_.size()+100);
-        argbase = argbuf.c_str();           /* store from first of buffer */
-        slrflag = 0;
-  while ((*argp++ = slurpstring())!=0)
-                margc++;
-}
-
-/*
- * Parse string into argbuf;
- * implemented with FSM to
- * handle quoting and strings
- */
-char *Connection::slurpstring()
-{
-        int got_one = 0;
-		std::string::const_iterator sb = stringbase_;
-        char *ap = argbase;
-        char *tmp = argbase;            /* will return this if token found */
-
-        if (*sb == '!' || *sb == '$') { /* recognize ! as a token for shell */
-                switch (slrflag) {      /* and $ as token for macro invoke */
-                        case 0:
-                                slrflag++;
-                                stringbase_++;
-                                return ((*sb == '!') ? "!" : "$");
-                                /* NOTREACHED */
-                        case 1:
-                                slrflag++;
-                                altarg_ = stringbase_;
-                                break;
-                        default:
-                                break;
-                }
-        }
-
-S0:
-        switch (*sb) {
-
-        case '\0':
-                goto OUT1;
-
-        case ' ':
-        case '\t':
-                sb++; goto S0;
-
-        default:
-                switch (slrflag) {
-                        case 0:
-                                slrflag++;
-                                break;
-                        case 1:
-                                slrflag++;
-                                altarg_ = sb;
-                                break;
-                        default:
-                                break;
-                }
-                goto S1;
-        }
-
-S1:
-        switch (*sb) {
-
-        case ' ':
-        case '\t':
-        case '\0':
-                goto OUT1;      /* end of token */
-
-        case '\\':
-                sb++; goto S2;  /* slurp next character */
-
-        case '\x1':
-                sb++; goto S3;  /* slurp quoted string */
-
-        default:
-                *ap++ = *sb++;  /* add character to token */
-                got_one = 1;
-                goto S1;
-        }
-
-S2:
-        switch (*sb) {
-
-        case '\0':
-                goto OUT1;
-
-        default:
-                *ap++ = *sb++;
-                got_one = 1;
-                goto S1;
-        }
-
-S3:
-        switch (*sb) {
-
-        case '\0':
-                goto OUT1;
-
-        case '\x1':
-                sb++; goto S1;
-
-        default:
-                *ap++ = *sb++;
-                got_one = 1;
-                goto S3;
-        }
-
-OUT1:
-        if (got_one)
-                *ap++ = '\0';
-        argbase = ap;                   /* update storage pointer */
-        stringbase_ = sb;                /* update scan pointer */
-        if (got_one) {
-                return(tmp);
-        }
-        switch (slrflag) {
-                case 0:
-                        slrflag++;
-                        break;
-                case 1:
-                        slrflag++;
-                        altarg_ = line_.end();// (char *) 0; // TODO ???????????????????????????
-                        break;
-                default:
-                        break;
-        }
-        return((char *)0);
 }

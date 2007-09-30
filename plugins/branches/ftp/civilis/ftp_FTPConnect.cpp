@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include <all_far.h>
+
 #pragma hdrstop
 
 #include "ftp_Int.h"
@@ -7,181 +7,146 @@
 BOOL FTP::DoFtpConnect( int blocked )
 {  
 	std::wstring  hst, usr, pwd, port;
-	size_t inx;
-	BOOL  askPwd = Host.AskLogin;
+	BOOL  askPwd = chost_.AskLogin;
 
-	hConnect = NULL;
 	SetLastError( ERROR_SUCCESS );
 
-	if (Host.Host_.empty())
+	if (chost_.url_.Host_.empty())
 		return FALSE;
 
 	CurrentState = fcsConnecting;
 
-	//Create`n`Init connection
-	hConnect = new Connection;
-	if (!hConnect) {
-		CurrentState = fcsNormal;
-		return FALSE;
-	}
-
-	hConnect->InitData( &Host,blocked );
-	hConnect->InitCmdBuff();
-	hConnect->InitIOBuff();
+	getConnection().InitData(&chost_, blocked);
+	getConnection().InitCmdBuff();
+	getConnection().InitIOBuff();
+	getConnection().LoginComplete = true;
 
 	do{
-		hConnect->Host.ExtCmdView = Host.ExtCmdView;
+		getConnection().getHost().ExtCmdView = chost_.ExtCmdView;
 
-		hst = Host.hostname_;
-		usr = Host.username_;
-		pwd = Host.password_;
+		hst = chost_.url_.Host_;
+		usr = chost_.url_.username_;
+		pwd = chost_.url_.password_;
 
-		if ( !hConnect->LoginComplete )
-			if ( !GetLoginData(usr, pwd, Host.AskLogin || askPwd) )
+		if ( !getConnection().LoginComplete )
+			if ( !GetLoginData(usr, pwd, chost_.AskLogin || askPwd) )
 				break;
 
 		//Firewall
-		if (Host.UseFirewall && !g_manager.opt.firewall.empty())
+		if(chost_.UseFirewall && !g_manager.opt.firewall.empty())
 		{
 			usr += L"@" + hst;
 			hst += g_manager.opt.firewall;
 		}
 
-		// Find port
-		inx = hst.find(L':');
-
-		if(inx != std::wstring::npos)
-		{
-			BOOST_ASSERT("TEST port");
-			port.assign(hst.begin() + inx + 1, hst.end());
-			hst.resize(inx);
-		} else
-			port = L"0";
-
 		//Connect
-		Log(( "Connecting" ));
-		if ( hConnect->Init(Unicode::toOem(hst).c_str(), 
-							Unicode::toOem(port).c_str(), 
-							Unicode::toOem(usr).c_str(), 
-							Unicode::toOem(pwd).c_str()) )
+		BOOST_LOG(INF, L"Connecting");
+		if(getConnection().Init(hst, chost_.url_.port_, usr, pwd, this))
 		{
-			Log(( "Connecting succ %d",hConnect->GetResultCode() ));
-			if ( hConnect->GetResultCode() > 420 ) {
-				Log(( "Connect error from server [%d]",hConnect->GetResultCode() ));
+			FtpSystemInfo(&getConnection());
+
+			if(!FtpGetFtpDirectory(&getConnection()))
+			{
+				BOOST_LOG(INF, L"!Connect - get dir");
 				return FALSE;
 			}
 
-			FtpSystemInfo(hConnect);
-
-			if ( !FtpGetFtpDirectory(hConnect) ) {
-				Log(( "!Connect - get dir" ));
-				return FALSE;
-			}
-
-			hConnect->CheckResume();
+			getConnection().CheckResume();
 
 			CurrentState = fcsFTP;
 			return TRUE;
 		}
-		Log(( "!Init" ));
+		BOOST_LOG(INF, L"!Init");
 
-		if ( !hConnect->LoginComplete &&
-			g_manager.opt.AskLoginFail && hConnect->GetResultCode() == 530 ) {
-				Log(( "Reask password" ));
-				hConnect->Host.ExtCmdView = TRUE;
-				hConnect->ConnectMessage( MNone__, Unicode::toOem(hst).c_str(), MNone__);
+		if (!getConnection().LoginComplete &&
+			g_manager.opt.AskLoginFail/*TODO && hConnect->GetResultCode() == NotLoggedIn*/) {
+				BOOST_LOG(INF, L"Reask password");
+				getConnection().getHost().ExtCmdView = TRUE;
+				getConnection().ConnectMessage( MNone__, hst, MNone__);
 				askPwd = TRUE;
 				continue;
 		}
 
 		//!Connected
-		SetLastError( hConnect->ErrorCode );
+		SetLastError(getConnection().ErrorCode);
 
 		//!Init
-		if ( hConnect->SocketError != INVALID_SOCKET )
-			hConnect->ConnectMessage( MWSANotInit,GetSocketErrorSTR(hConnect->SocketError),-MOk );
-		else
+//TODO		if ( hConnect->SocketError != INVALID_SOCKET )
+//			hConnect->ConnectMessage(MWSANotInit, GetSocketErrorSTR(hConnect->SocketError), false, MOk);
+//		else
 			//!Cancel, but error
-			if ( hConnect->ErrorCode != ERROR_CANCELLED )
-				hConnect->ConnectMessageW( MCannotConnectTo,Host.Host_,-MOk );
+			if (getConnection().ErrorCode != ERROR_CANCELLED)
+				getConnection().ConnectMessage(MCannotConnectTo, chost_.url_.Host_, true, MOk );
 
 		break;
 	}while(1);
 
 	CurrentState = fcsNormal;
-	delete hConnect;
-	hConnect = NULL;
-
 	return FALSE;
 }
 
+#define TOUNICODE_(x) L##x
+#define TOUNICODE(x) TOUNICODE_(x)
+
 int FTP::Connect()
-  {  PROC(("FTP::Connect",NULL))
-     ConnectionState  cst;
-     FP_Screen        _scr;
+{
+	PROC;
+	ConnectionState  cst;
+	FARWrappers::Screen scr;
 
-     LogCmd( "-------- CONNECTING (plugin: " __DATE__ ", " __TIME__ ") --------",ldInt );
+	LogCmd(L"-------- CONNECTING (plugin: " TOUNICODE(__DATE__) L", " TOUNICODE(__TIME__) L") --------",ldInt );
 
-     do{
-//Close old
-      if (hConnect) {
-        Log(( "old connection %p",hConnect ));
-        hConnect->GetState( &cst );
-        Log(( "del connection %p",hConnect ));
-        delete hConnect;
-        hConnect = NULL;
-        Log(( "del connection done" ));
-      }
+	//Close old
+	if (getConnection().isConnected())
+		getConnection().disconnect();
 
-//Connect
-      if ( g_manager.opt.ShowIdle && IS_SILENT(FP_LastOpMode) ) {
-        Log(( "Say connecting" ));
-        SetLastError( ERROR_SUCCESS );
-        IdleMessage( FP_GetMsg(MConnecting),g_manager.opt.ProcessColor );
-      }
+	//Connect
+	if(g_manager.opt.ShowIdle && IS_SILENT(FP_LastOpMode))
+	{
+		BOOST_LOG(INF, L"Say connecting");
+		SetLastError( ERROR_SUCCESS );
+		IdleMessage( getMsg(MConnecting),g_manager.opt.ProcessColor );
+	}
 
-      if ( !DoFtpConnect( cst.Inited ? cst.Blocked : (-1) ) ||
-           !hConnect ) {
-        Log(( "!Connected" ));
-        break;
-      }
+	try
+	{
+		DoFtpConnect( cst.Inited ? cst.Blocked : (-1));
+		if ( cst.Inited ) {
+			//Restore old connection values or set defaults
+			BOOST_LOG(INF, L"Restore connection datas");
+			getConnection().SetState( &cst );
+		} else {
+			//Init new connection values
+			BOOST_LOG(INF, L"Set connection defaults");
+			getConnection().getHost().PassiveMode = chost_.PassiveMode;
+		}
 
-      if ( cst.Inited ) {
-      //Restore old connection values or set defaults
-        Log(( "Restore connection datas" ));
-        hConnect->SetState( &cst );
-      } else {
-      //Init new connection values
-        Log(( "Set connection defaults" ));
-        // TODO hConnect->SetTable( TableNameToValue(Host.HostTable) );
-        hConnect->Host.PassiveMode = Host.PassiveMode;
-      }
+		//Set start FTP mode
+		ShowHosts			= false;
+		panel_				= &FtpFilePanel_;
+		SwitchingToFTP		= true;
+		FARWrappers::getInfo().Control(ANOTHER_PANEL, FCTL_REDRAWPANEL, NULL);
 
-//Set start FTP mode
-      ShowHosts			= false;
-      SwitchingToFTP	= true;
-      selectFile_		= L"";
-      FP_Info->Control( this,FCTL_REDRAWANOTHERPANEL,NULL );
+		//Set base directory
+		if(!chost_.url_.directory_.empty())
+		{
+			FtpSetCurrentDirectory(&getConnection(), chost_.url_.directory_);
+		}
 
-//Set base directory
-      if(hConnect && !Host.directory_.empty())
-	  {
-		  FtpSetCurrentDirectory(hConnect, Host.directory_);
-      }
-
-      IdleMessage( NULL,0 );
-      return TRUE;
-    }while(0);
-
-    if ( hConnect ) {
-      hConnect->ConnectMessageW( MCannotConnectTo, Host.Host_, -MOk );
-      delete hConnect;
-      hConnect = NULL;
-    }
-    Host.Init();
-    IdleMessage( NULL,0 );
-
- return FALSE;
+		IdleMessage( NULL,0 );
+	}
+	catch (ConnectionError &e)
+	{
+		BOOST_LOG(ERR, L"!Connected");
+		getConnection().AddCmdLine(e.what(), ldRaw);
+		getConnection().ConnectMessage(MCannotConnectTo, chost_.url_.Host_, true, MOk );
+		chost_.Init();
+		IdleMessage( NULL,0 );
+		BackToHosts();
+		
+		return false;
+	}
+	return true;
 }
 
 BOOL FTP::FullConnect()
@@ -190,17 +155,17 @@ BOOL FTP::FullConnect()
 	{
 		if ( !ShowHosts ) 
 		{
-			BOOL isSaved = FP_Screen::isSaved() != 0;
+			bool isSaved = FARWrappers::Screen::isSaved();
 
-			FP_Screen::FullRestore();
-			FP_Info->Control( this,FCTL_SETVIEWMODE,&StartViewMode );
-			FP_Info->Control( this,FCTL_UPDATEPANEL,NULL );
+			FARWrappers::Screen::fullRestore();
+			FARWrappers::getInfo().Control( this,FCTL_SETVIEWMODE,&startViewMode_ );
+			FARWrappers::getInfo().Control( this,FCTL_UPDATEPANEL,NULL );
 
 			PanelRedrawInfo ri;
 			ri.CurrentItem = ri.TopPanelItem = 0;
-			FP_Info->Control(this,FCTL_REDRAWPANEL,&ri);
-			if ( isSaved )
-				FP_Screen::Save();
+			FARWrappers::getInfo().Control(this,FCTL_REDRAWPANEL,&ri);
+			if(isSaved)
+				FARWrappers::Screen::save();
 
 			SwitchingToFTP = FALSE;
 			return TRUE;

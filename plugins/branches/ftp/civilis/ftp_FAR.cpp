@@ -1,76 +1,71 @@
 #include "stdafx.h"
-#include <all_far.h>
+
 #pragma hdrstop
 
+#ifdef _DEBUG
+#define new DEBUG_NEW
+#endif
+
 #include "ftp_Int.h"
-#include <mem.inc>
 
-const char*		DECLSPEC FP_GetPluginName( void )			{ return "Ftp.dll"; }
-const wchar_t*	DECLSPEC FP_GetPluginNameW( void )			{ return L"Ftp.dll"; }
+#include "panelview.h"
+#include "farwrapper/menu.h"
+#include "utils/uniconverts.h"
+#include "farwrapper/message.h"
 
-CONSTSTR DECLSPEC FP_GetPluginLogName( void )      { return "farftp.log"; }
-BOOL     DECLSPEC FP_PluginStartup( DWORD Reason ) { return TRUE; }
-
+int		FP_LastOpMode    = 0;
 
 FTPPluginManager g_manager;
 
-
-//FTP          *FTPPanels[3] = { 0 };
-FTP          *LastUsedPlugin = NULL;
-BOOL          SocketStartup  = FALSE;
 int           SocketInitializeError = 0;
+
+typedef void (_cdecl *AbortProc)(void);
+
 AbortProc     ExitProc;
-char          DialogEditBuffer[ DIALOG_EDIT_SIZE ];
 
-boost::array<std::string, 1+FTP_MAXBACKUPS>	DiskStrings;
-boost::array<const char*, 1+FTP_MAXBACKUPS> DiskMenuStrings;
-int           DiskMenuNumbers[ 1+FTP_MAXBACKUPS ];
-
-FTP *DECLSPEC OtherPlugin( FTP *p )
+FTP *WINAPI OtherPlugin( FTP *p )
 {
 	if ( !p )
 		return p;
 
 	size_t n = g_manager.getPlugin(p);
+	BOOST_ASSERT(n == 0 || n == 1);
 	return g_manager.getPlugin(1-n);
 }
 
-size_t DECLSPEC PluginPanelNumber( FTP *p )
+size_t WINAPI PluginPanelNumber( FTP *p )
 {
 	return g_manager.getPlugin(p)+1;
 }
 
-size_t DECLSPEC PluginUsed()
+
+class FPOpMode
 {
-	return PluginPanelNumber( LastUsedPlugin );
-}
+private:
+	int		opMode_;
+public:
+	FPOpMode( int mode ) { opMode_ = FP_LastOpMode; FP_LastOpMode = mode; }
+	~FPOpMode()          { FP_LastOpMode = opMode_; }
+};
 
-//------------------------------------------------------------------------
-void RTL_CALLBACK CloseUp( void )
-  {  int n;
 
-     if ( FTP::BackupCount ) {
-       Log(( "CloseUp.FreeBackups" ));
-       for( n = 0; n < FTP::BackupCount; n++ )
-         delete FTP::Backups[n];
-       FTP::BackupCount = NULL;
-     }
 
-     if ( SocketStartup ) {
-       Log(( "CloseUp.CloseWSA" ));
-       WSACleanup();
-     }
+void _cdecl CloseUp()
+{
+	FTP::backups_.eraseAll();
 
-     if ( ExitProc )
-       ExitProc();
+	Connection::cleanupWSA();
+
+	if(ExitProc)
+		ExitProc();
 }
 
 void FTPPluginManager::addWait(time_t tm)
 {
 	for(size_t n = 0; n < FTPPanels_.size(); n++)
-		if(FTPPanels_[n] && FTPPanels_[n]->hConnect &&
-			FTPPanels_[n]->hConnect->IOCallback)
-			FTPPanels_[n]->hConnect->TrafficInfo->Waiting(tm);
+		if(FTPPanels_[n] && 
+			FTPPanels_[n]->getConnection().IOCallback)
+			FTPPanels_[n]->getConnection().TrafficInfo->Waiting(tm);
 }
 
 
@@ -100,40 +95,41 @@ FTP* FTPPluginManager::getPlugin(size_t n)
 	return FTPPanels_[n];
 }
 
+
 void FTPPluginManager::removePlugin(FTP *ftp)
 {
 	size_t i = getPlugin(ftp);
 
 	// TODO WTF: move 2.
 
-	CONSTSTR rejectReason;
-	if(ftp->isBackup())
+	const wchar_t* rejectReason;
+	if(FTP::backups_.find(ftp))
 	{
 		ftp->SetBackupMode();
 		return;
 	}
 
-	CONSTSTR itms[] =
+	const wchar_t* itms[] =
 	{
-		FMSG(MRejectTitle),
-		FMSG(MRejectCanNot),
+		getMsg(MRejectTitle),
+		getMsg(MRejectCanNot),
 		NULL,
-		FMSG(MRejectAsk1),
-		FMSG(MRejectAsk2),
-		FMSG(MRejectIgnore), FMSG(MRejectSite)
+		getMsg(MRejectAsk1),
+		getMsg(MRejectAsk2),
+		getMsg(MRejectIgnore), getMsg(MRejectSite)
 	};
 
 	do{
 		if ( (rejectReason = ftp->CloseQuery()) == NULL ) break;
 
 		itms[2] = rejectReason;
-		if(FMessage( FMSG_LEFTALIGN|FMSG_WARNING,"CloseQueryReject",itms,ARRAY_SIZE(itms),2) != 1)
+		if(FARWrappers::message(itms, 2, FMSG_LEFTALIGN|FMSG_WARNING, L"CloseQueryReject") != 1)
 			break;
 
-		ftp->AddToBackup();
-		if(!ftp->isBackup())
+		FTP::backups_.add(ftp);
+		if(!FTP::backups_.find(ftp))
 		{
-			SayMsg(FMSG(MRejectFail));
+			FARWrappers::message(MRejectFail);
 			break;
 		}
 
@@ -141,95 +137,117 @@ void FTPPluginManager::removePlugin(FTP *ftp)
 	}while(0);
 	
 	delete ftp;
+	FTPPanels_[i] = 0;
 }
 
-//------------------------------------------------------------------------
-FAR_EXTERN void FAR_DECLSPEC ExitFAR( void )
-  {
-     //FP_Info = NULL; FP_GetMsg( "temp" );
-     CallAtExit();
-}
 
-FAR_EXTERN void FAR_DECLSPEC SetStartupInfo(const struct PluginStartupInfo *Info)
+static AbortProc CTAbortProc = NULL;
+
+AbortProc WINAPI AtExit( AbortProc p )
 {
-	LastUsedPlugin = NULL;
-	FP_SetStartupInfo(Info, L"FTP_debug");
+	AbortProc old = CTAbortProc;
+	CTAbortProc = p;
+	return old;
+}
 
+extern "C"
+{
+void WINAPI ExitFARW( void )
+{
+	if(CTAbortProc)
+	{
+		CTAbortProc();
+		CTAbortProc = NULL;
+	}
+}
+
+void WINAPI SetStartupInfoW(const struct PluginStartupInfo *Info)
+{
+	PROCP(Info);
+
+	FARWrappers::setStandartMessages(MYes, MNo, MOk, MAttention);
+	FARWrappers::setStartupInfo(*Info);
 	ExitProc = AtExit( CloseUp );
 
-	memset(DiskMenuNumbers, 0, sizeof(DiskMenuNumbers) );
-	g_manager.openRegKey(g_PluginRootKey);
+	g_manager.openRegKey(std::wstring(Info->RootKey) + L'\\' + L"ftp_debug");
 	g_manager.readCfg();
-	LogCmd( "FTP plugin loaded", ldInt);
+	LogCmd(L"FTP plugin loaded", ldInt);
 }
 
-FAR_EXTERN void FAR_DECLSPEC GetPluginInfo(struct PluginInfo *Info)
+void WINAPI GetPluginInfoW(struct PluginInfo *Info)
 {  
-	LastUsedPlugin = NULL;
-	PROC(("GetPluginInfo","%p",Info))
+	PROCP(Info);
 
-	static CONSTSTR PluginMenuStrings[1];
-	static CONSTSTR PluginCfgStrings[1];
-	static char     MenuString[ FAR_MAX_PATHSIZE ];
-	static char     CfgString[ FAR_MAX_PATHSIZE ];
+	static const wchar_t* PluginMenuStrings[1];
+	static const wchar_t* PluginCfgStrings[1];
 
-	SNprintf( MenuString,     sizeof(MenuString),     "%s", FP_GetMsg(MFtpMenu) );
-	DiskStrings[0] = FP_GetMsg(MFtpDiskMenu);
-	SNprintf( CfgString,      sizeof(CfgString),      "%s", FP_GetMsg(MFtpMenu) );
-
-	FTPHost* p;
-	int      n;
-	size_t	uLen = 0,
-			hLen = 0;
-	std::string	str;
-	FTP*     ftp;
-
-	for( n = 0; n < FTP::BackupCount; n++ ) 
+	if(g_manager.opt.AddToDisksMenu)
 	{
-		ftp = FTP::Backups[n];
-		if ( !ftp->FTPMode() )
-			continue;
-		p = &ftp->Host;
-		uLen = std::max(uLen, p->username_.size());
-		hLen = std::max(hLen, p->hostname_.size());
-	}
+		static std::vector<std::wstring> DiskStrings;
 
-	for( n = 0; n < FTP::BackupCount; n++ ) {
-		ftp = FTP::Backups[n];
-		str = Unicode::toOem(ftp->GetCurPath());
-		std::string disk = "FTP: ";
-		if ( ftp->FTPMode() )
+		DiskStrings.clear();
+		DiskStrings.reserve(1 + FTP::backups_.size());
+		DiskStrings.push_back(getMsg(MFtpDiskMenu));
+
+		FTPHost* p;
+		size_t	uLen = 0, hLen = 0;
+		std::wstring	str;
+
+		Backup::const_iterator itr = FTP::backups_.begin();
+		while(itr != FTP::backups_.end())
 		{
-			p = &ftp->Host;
-			disk += Unicode::toOem(p->username_) + std::string(uLen+1-p->username_.size(), ' ') +
-					Unicode::toOem(p->hostname_) + std::string(hLen+1-p->hostname_.size(), ' '); // FTP: %-*s %-*s %s"
+			if((*itr)->FTPMode())
+			{
+				p = &(*itr)->chost_;
+				uLen = std::max(uLen, p->url_.username_.size());
+				hLen = std::max(hLen, p->url_.fullhostname_.size());
+			}
+			++itr;
 		}
-		DiskStrings[1+n] = disk + str;
+
+		itr = FTP::backups_.begin();
+		int i = 0;
+		while(itr != FTP::backups_.end())
+		{
+			str = (*itr)->panel_->getCurrentDirectory();
+			std::wstring disk = L"FTP: ";
+			if((*itr)->FTPMode())
+			{
+				p = &(*itr)->chost_;
+				disk += p->url_.username_ + std::wstring(uLen+1-p->url_.username_.size(), L' ') +
+					p->url_.fullhostname_ + std::wstring(hLen+1-p->url_.fullhostname_.size(), L' '); // FTP: %-*s %-*s %s"
+			}
+			DiskStrings.push_back(disk + boost::lexical_cast<std::wstring>(++i) + str);
+			++itr;
+		}
+
+		static std::vector<int>				DiskMenuNumbers;
+		DiskMenuNumbers.clear();
+		DiskMenuNumbers.reserve(DiskStrings.size());
+		DiskMenuNumbers.push_back(g_manager.opt.DisksMenuDigit);
+		DiskMenuNumbers.insert(DiskMenuNumbers.end(), DiskStrings.size()-1, 0);
+		
+		static std::vector<const wchar_t*> DiskMenuStrings;
+		DiskMenuStrings.clear();
+		DiskMenuStrings.reserve(DiskStrings.size());
+		for(size_t i = 0; i < DiskStrings.size(); ++i)
+			DiskMenuStrings.push_back(DiskStrings[i].c_str());
+
+		Info->DiskMenuStrings           = &DiskMenuStrings[0];
+		Info->DiskMenuNumbers           = &DiskMenuNumbers[0];
+		Info->DiskMenuStringsNumber     = static_cast<int>(DiskMenuStrings.size());
+	} else
+	{
+		Info->DiskMenuStrings           = 0;
+		Info->DiskMenuNumbers           = 0;
+		Info->DiskMenuStringsNumber     = 0;
 	}
 
-	DiskMenuNumbers[0]   = g_manager.opt.DisksMenuDigit;
-	PluginMenuStrings[0] = MenuString;
-	PluginCfgStrings[0]  = CfgString;
+	PluginMenuStrings[0] = getMsg(MFtpMenu);
+	PluginCfgStrings[0]  = getMsg(MFtpMenu);
 
 	Info->StructSize                = sizeof(*Info);
 	Info->Flags                     = 0;
-
-
-	//
-
-	
-	for(size_t i = 0; i < DiskMenuStrings.size(); ++i)
-	{
-		DiskMenuStrings[i] = DiskStrings[i].c_str();
-	}
-
-	
-	Info->DiskMenuStrings           = &DiskMenuStrings[0];
-	
-
-
-	Info->DiskMenuNumbers           = DiskMenuNumbers;
-	Info->DiskMenuStringsNumber     = g_manager.opt.AddToDisksMenu ? (1+FTP::BackupCount) : 0;
 
 	Info->PluginMenuStrings         = PluginMenuStrings;
 	Info->PluginMenuStringsNumber   = g_manager.opt.AddToPluginsMenu ? (sizeof(PluginMenuStrings)/sizeof(PluginMenuStrings[0])):0;
@@ -237,41 +255,34 @@ FAR_EXTERN void FAR_DECLSPEC GetPluginInfo(struct PluginInfo *Info)
 	Info->PluginConfigStrings       = PluginCfgStrings;
 	Info->PluginConfigStringsNumber = sizeof(PluginCfgStrings)/sizeof(PluginCfgStrings[0]);
 
-	Info->CommandPrefix             = Unicode::toOem(FTP_CMDPREFIX).c_str();
+	Info->CommandPrefix             = FTP_CMDPREFIX;
 }
 
-FAR_EXTERN int FAR_DECLSPEC Configure(int ItemNumber)
-  {  LastUsedPlugin = NULL;
-     PROC(("Configure","%d",ItemNumber))
+int WINAPI ConfigureW(int ItemNumber)
+{
+	PROCP(ItemNumber);
 
-     switch(ItemNumber) {
-       case 0: if ( !Config() )
-                 return FALSE;
-     }
-
-     //Update panels
-
-  return TRUE;
+	BOOST_ASSERT(ItemNumber == 0);
+	return Config();
 }
 
-FAR_EXTERN HANDLE FAR_DECLSPEC OpenPlugin(int OpenFrom,INT_PTR Item)
+HANDLE WINAPI OpenPluginW(int OpenFrom,INT_PTR Item)
 {  
-	LastUsedPlugin = NULL;
-	PROC(("OpenPlugin","%d,%d",OpenFrom,Item))
+	PROCP(OpenFrom << L"," << static_cast<int>(Item));
 	FTP *Ftp;
 
-	if ( Item == 0 || Item > FTP::BackupCount )
+	if(Item == 0 || Item > static_cast<int>(FTP::backups_.size()))
 		Ftp = new FTP;
 	else
 	{
-		Ftp = FTP::Backups[ Item-1 ];
+		Ftp = FTP::backups_.get(Item-1);
 		Ftp->SetActiveMode();
 	}
 
 	g_manager.addPlugin(Ftp);
 
 	Ftp->Call();
-	Log(( "FTP handle: %p",Ftp ));
+	BOOST_LOG(INF, L"FTP handle: " << Ftp);
 	do{
 		if (OpenFrom==OPEN_SHORTCUT)
 		{
@@ -281,12 +292,12 @@ FAR_EXTERN HANDLE FAR_DECLSPEC OpenPlugin(int OpenFrom,INT_PTR Item)
 		} else
 			if (OpenFrom==OPEN_COMMANDLINE)
 			{
-				if (!Ftp->ProcessCommandLine((char *)Item))
+				if (!Ftp->ProcessCommandLine(reinterpret_cast<wchar_t*>(Item)))
 					break;
 			}
 
-			Ftp->End();
-			return (HANDLE)Ftp;
+		Ftp->End();
+		return (HANDLE)Ftp;
 	}while(0);
 
 	g_manager.removePlugin(Ftp);
@@ -294,87 +305,102 @@ FAR_EXTERN HANDLE FAR_DECLSPEC OpenPlugin(int OpenFrom,INT_PTR Item)
 	return INVALID_HANDLE_VALUE;
 }
 
-FAR_EXTERN void FAR_DECLSPEC ClosePlugin(HANDLE hPlugin)
+void WINAPI ClosePluginW(HANDLE hPlugin)
 {
+	PROCP(hPlugin);
 	FTP *p = (FTP*)hPlugin;
 
-	PROC(("ClosePlugin","%p",hPlugin));
-	LastUsedPlugin = p;
 	g_manager.removePlugin(p);
 }
 
-FAR_EXTERN int FAR_DECLSPEC GetFindData(HANDLE hPlugin,struct PluginPanelItem **pPanelItem,int *pItemsNumber,int OpMode)
+int WINAPI GetFindDataW(HANDLE hPlugin,struct PluginPanelItem **pPanelItem,int *pItemsNumber,int OpMode)
 {
+	PROCP(hPlugin);
 	FPOpMode _op(OpMode);
 	FTP*     p = (FTP*)hPlugin;
 
 	p->Call();
-	int rc = p->GetFindData(pPanelItem,pItemsNumber,OpMode);
+	int rc = p->panel_->GetFindData(pPanelItem, pItemsNumber, OpMode);
 	p->End(rc);
 
 	return rc;
 }
 
-FAR_EXTERN void FAR_DECLSPEC FreeFindData(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber)
-  {  FTP*     p = (FTP*)hPlugin;
+void WINAPI FreeFindDataW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber)
+{
+	FTP*     p = (FTP*)hPlugin;
 
-    p->Call();
-      p->FreeFindData(PanelItem,ItemsNumber);
-    p->End();
+	p->Call();
+	p->panel_->FreeFindData(PanelItem,ItemsNumber);
+	p->End();
 }
 
-FAR_EXTERN void FAR_DECLSPEC GetOpenPluginInfo(HANDLE hPlugin,struct OpenPluginInfo *Info)
-  {  FTP*     p = (FTP*)hPlugin;
+void WINAPI GetOpenPluginInfoW(HANDLE hPlugin,struct OpenPluginInfo *Info)
+{
+	FTP*     p = (FTP*)hPlugin;
 
-   p->Call();
-     p->GetOpenPluginInfo(Info);
-   p->End();
+	p->Call();
+	p->GetOpenPluginInfo(Info);
+	p->End();
 }
 
-FAR_EXTERN int FAR_DECLSPEC SetDirectory(HANDLE hPlugin,CONSTSTR Dir,int OpMode)
-{  FPOpMode _op(OpMode);
-   FTP*     p = (FTP*)hPlugin;
 
-   p->Call();
-   int rc = p->SetDirectoryFAR(Unicode::fromOem(Dir),OpMode);
-   p->End(rc);
-
- return rc;
+int WINAPI GetMinFarVersionW(void)
+{
+	return MAKEFARVERSION(1,80,267);
 }
 
-FAR_EXTERN int FAR_DECLSPEC GetFiles(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,char *DestPath,int OpMode)
-{  FPOpMode _op(OpMode);
-   FTP*     p = (FTP*)hPlugin;
-   if ( !p || !DestPath || !DestPath[0] )
-     return FALSE;
 
-   p->Call();
-   int rc = p->GetFiles(PanelItem,ItemsNumber,Move, Unicode::fromOem(DestPath),OpMode);
-   p->End(rc);
-  return rc;
+int WINAPI SetDirectoryW(HANDLE hPlugin, const wchar_t* Dir,int OpMode)
+	{
+	FPOpMode _op(OpMode);
+	FTP*     p = (FTP*)hPlugin;
+
+	p->Call();
+	int rc = p->panel_->SetDirectory(Dir, OpMode);
+	p->End(rc);
+
+	return rc;
 }
 
-FAR_EXTERN int FAR_DECLSPEC PutFiles(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,int OpMode)
-  {  FPOpMode _op(OpMode);
-     FTP*     p = (FTP*)hPlugin;
+int WINAPI GetFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,const wchar_t *DestPath,int OpMode)
+{
+	FPOpMode _op(OpMode);
+	FTP*     p = (FTP*)hPlugin;
+	if ( !p || !DestPath || !DestPath[0] )
+		return FALSE;
 
-   p->Call();
-     int rc = p->PutFiles(PanelItem,ItemsNumber,Move,OpMode);
-   p->End(rc);
-  return rc;
+	p->Call();
+	PanelItem->Description = 0;
+	int rc = p->panel_->GetFiles(
+		FARWrappers::ItemList(PanelItem, ItemsNumber), Move, std::wstring(DestPath), OpMode);
+	p->End(rc);
+	return rc;
 }
 
-FAR_EXTERN int FAR_DECLSPEC DeleteFiles(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int OpMode)
-  {  FPOpMode _op(OpMode);
-     FTP*     p = (FTP*)hPlugin;
+int WINAPI PutFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,int OpMode)
+{
+	FPOpMode _op(OpMode);
+	FTP*     p = (FTP*)hPlugin;
 
-   p->Call();
-     int rc = p->DeleteFiles(PanelItem,ItemsNumber,OpMode);
-   p->End(rc);
- return rc;
+	p->Call();
+	int rc = p->panel_->PutFiles(PanelItem,ItemsNumber,Move,OpMode);
+	p->End(rc);
+	return rc;
 }
 
-FAR_EXTERN int FAR_DECLSPEC MakeDirectory(HANDLE hPlugin, char* name,int OpMode)
+int WINAPI DeleteFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int OpMode)
+{
+	FPOpMode _op(OpMode);
+	FTP*     p = (FTP*)hPlugin;
+
+	p->Call();
+	int rc = p->panel_->DeleteFiles(PanelItem, ItemsNumber, OpMode);
+	p->End(rc);
+	return rc;
+}
+
+int WINAPI MakeDirectoryW(HANDLE hPlugin, char* name,int OpMode)
 {  
 	FPOpMode _op(OpMode);
 
@@ -385,14 +411,15 @@ FAR_EXTERN int FAR_DECLSPEC MakeDirectory(HANDLE hPlugin, char* name,int OpMode)
 
 	p->Call();
 	std::wstring s = Unicode::fromOem(name);
-	int rc = p->MakeDirectory(s,OpMode);
+	int rc = p->panel_->MakeDirectory(s, OpMode);
 	p->End(rc);
 
 	return rc;
 }
 
-FAR_EXTERN int FAR_DECLSPEC ProcessKey(HANDLE hPlugin,int Key,unsigned int ControlState)
+int WINAPI ProcessKeyW(HANDLE hPlugin,int Key,unsigned int ControlState)
 {  
+	PROCP(hPlugin << L", " << std::hex << Key << L", " << ControlState);
 	FTP*     p = (FTP*)hPlugin;
 	p->Call();
     int rc = p->ProcessKey(Key,ControlState);
@@ -401,69 +428,45 @@ FAR_EXTERN int FAR_DECLSPEC ProcessKey(HANDLE hPlugin,int Key,unsigned int Contr
 	return rc;
 }
 
-FAR_EXTERN int FAR_DECLSPEC ProcessEvent(HANDLE hPlugin,int Event,void *Param)
-  {  FTP*     p = (FTP*)hPlugin;
-     LastUsedPlugin = p;
+int WINAPI ProcessEventW(HANDLE hPlugin,int Event,void *Param)
+{
+	FTP*     p = (FTP*)hPlugin;
 
-#if defined(__FILELOG__)
-   static CONSTSTR evts[] = { "CHANGEVIEWMODE", "REDRAW", "IDLE", "CLOSE", "BREAK", "COMMAND" };
-     PROC(( "FAR.ProcessEvent","%p,%s[%08X]",
-            hPlugin,
-            (Event < ARRAY_SIZE(evts)) ? evts[Event] : Message("<unk>%d",Event),Param))
-#endif
+	static const wchar_t* evts[] = {L"CHANGEVIEWMODE", L"REDRAW", L"IDLE", L"CLOSE", L"BREAK", L"COMMAND" };
+	PROCP(hPlugin << L", " << ((Event < ARRAY_SIZE(evts)) ? evts[Event] : L"<unk>") << 
+		L"[" << Param << L"]" );
 
-   p->Call();
-     int rc = p->ProcessEvent(Event,Param);
-   p->End(rc);
- return rc;
+	p->Call();
+		int rc = p->panel_->ProcessEvent(Event,Param);
+	p->End(rc);
+	return rc;
 }
 
-FAR_EXTERN int FAR_DECLSPEC Compare( HANDLE hPlugin,const PluginPanelItem *i,const PluginPanelItem *i1,unsigned int Mode )
-  {
-     if ( Mode == SM_UNSORTED )
-       return -2;
+int WINAPI CompareW( HANDLE hPlugin,const PluginPanelItem *i,const PluginPanelItem *i1,unsigned int Mode )
+{
+	FTP*     p = (FTP*)hPlugin;
+	return p->panel_->Compare(i, i1, Mode);
+}
 
-//	 BOOST_ASSERT(0 && "TODO");
+} // extern c
 
-	 FTP*     ftp = (FTP*)hPlugin;
+BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID ptr )
+{
+	if(reason == DLL_PROCESS_ATTACH)
+	{
+		BOOST_LOG_INIT((L"[" >> boost::logging::level >> L"],"
+			>> boost::logging::time >> L" "
+			>> boost::logging::filename >> L"("
+			>> boost::logging::line >> L"),"
+			>> boost::logging::trace
+			>> boost::logging::eol), // log format
+			INF);                      // log level
 
-     const FTPHost* p  = ftp->findhost(i->UserData),
-             *p1 = ftp->findhost(i1->UserData);
-     int      n;
+		BOOST_LOG_ADD_OUTPUT_STREAM(new boost::logging::wdebugstream);
+	}
 
-     if ( !i || !i1 || !p || !p1 )
-       return -2;
+	if(reason == DLL_PROCESS_DETACH)
+		ExitFARW();
 
-     switch( Mode ) 
-	 {
-       case   SM_EXT: n = !boost::algorithm::iequals(p->directory_, p1->directory_);           break;
-       case SM_DESCR: n = !boost::algorithm::iequals(p->hostDescription_,p1->hostDescription_); break;
-	   case SM_OWNER: n = !boost::algorithm::iequals(p->username_, p1->username_);           break;
-
-       case SM_MTIME:
-       case SM_CTIME:
-       case SM_ATIME: n = (int)CompareFileTime( &p1->LastWrite, &p->LastWrite );
-                   break;
-
-             default: n = p->Host_ != p1->Host_;
-                   break;
-     }
-
-    do{
-     if (n) break;
-
-     n = p->Host_ != p1->Host_;
-     if (n) break;
-
-	 n = !boost::algorithm::iequals(p->username_, p1->username_);
-     if (n) break;
-
-	 n = !boost::iequals(p->hostDescription_, p1->hostDescription_);
-     if (n) break;
-   }while( 0 );
-
-   if (n)
-     return (n>0)?1:(-1);
-    else
-     return 0;
+	return true;
 }

@@ -27,6 +27,37 @@ namespace WinAPI
 
 	void			setConsoleTitle(const std::wstring& title);
 	std::wstring	getConsoleTitle();
+
+	int				getConsoleWidth();
+	int				getConsoleHeight();
+
+	std::wstring	getStringError();
+	std::wstring	getStringError(DWORD error);
+
+	int checkForKeyPressed(const WORD* codes, int size);
+
+	template<size_t n>
+	int checkForKeyPressed(const WORD (&codes)[n])
+	{
+		return checkForKeyPressed(codes, n);
+	}
+
+	class  Stopwatch: boost::noncopyable
+	{
+	private:
+		DWORD	startTime_;
+		size_t	timeout_;
+	public:
+		Stopwatch(size_t timeout = 0);
+		size_t	getPeriod() const;
+		bool	isTimeout() const;
+		size_t	getSecond() const;
+		void	reset();
+		void	setTimeout(size_t timeout);
+		
+	};
+
+
 }
 
 #endif

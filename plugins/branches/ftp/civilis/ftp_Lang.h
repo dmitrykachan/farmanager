@@ -178,8 +178,8 @@ enum {
   MWaiting,                        //"Waiting for data "
   MSeconds,                        //" sec"
   MScaning,                        //"Scanning folder..."
-  MAutoRetryText,                  //"(R)etry in"
-  MRetryText,                      //"{Enter - retry; ESC - cancel}"
+  MAutoRetryText,                  //"Retry in"
+  MRetryText,                      //"ENTER - (R)etry; ESC - (C)ancel"
 
   MWSAEINTR,                       //"WSAEINTR: The (blocking) call was canceled thr"
   MWSAEBADF,                       //"WSAEBADF"
@@ -432,7 +432,7 @@ enum {
   MAskDir3,                        //"Try to change to nearest place?"
 
   MDownloadOnServer,               //"Move inside server"
-  mNoNe
+  MLast
 };
 
 #endif

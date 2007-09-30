@@ -174,8 +174,8 @@
 "Waiting for data "
 " sec"
 "Scanning folder..."
-"(R)etry in"
-"{Enter - retry; ESC - cancel}"
+"Retry in"
+"Enter - (R)etry; ESC - (C)ancel"
 
 "WSAEINTR: The (blocking) call was canceled through WSACancelBlockingCall"
 "WSAEBADF"
@@ -424,3 +424,4 @@
 "Try to change to nearest place?"
 
 "Mo&ve inside server"
+""
