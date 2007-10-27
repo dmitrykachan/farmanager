@@ -1,0 +1,72 @@
+[!] Remark
+[+] New
+[-] Bugfix
+[*] Change
+
+September 17, 2003
+	* Support FAR API change regarding the ".." panel item.
+	* Moved from the VC 7 compiler to VC 7.1.
+
+February 26, 2003 - version RightClick 2.0 beta 6
+	* Moved from VC6 compiler to VC7.
+	+ Prefix command lines can contain %EnvVariables%.
+	- Fixed some problems with paths containing national letters.
+	- Fixed FAR window blinking when GUI menu is used.
+	- Lng files corrected.
+March 18, 2002 - version RightClick 2.0 beta 5
+	- NT sendto menu is now showed.
+	- Windows 2000 Copy/Paste bug fixed.
+	+ Text menu can be shown at the mouse cursor like GUI menu.
+	+ Depending on Shift and Alt corresponding delete method is used.
+	+ Plugin configuration is called by Alt-Shift-F9 from any menu.
+	- Russian .hlf mistakes fixed.
+
+March 05, 2002 - version RightClick 2.0 beta 4
+	+ Shows the menu for drives passed in command line and in the tree.
+	+ Help topic for "My Computer".
+	! Compiled for new FarMenuItemEx structure (FAR build 1238).
+	- Left and Backspace keys worked wrong in submenus.
+	- English .hlf mistakes fixed.
+
+February 01, 2002 - version RightClick 2.0 beta 3
+	- Fixed paste bug in Windows 2000.
+	+ Prefixes now work with full paths.
+	! Menu keys: Esc - closes menu, Left,Back,PgUp - go to previous
+	  level.
+	+ Hotkeys to execute cut/copy/paste: Ctrl-X, Ctrl-C, Ctrl-V.
+	+ Hotkey to execute properties command: Ctrl-Alt-Enter.
+	+ Now works in temporary panel.
+	+ New option that turns off any messages.
+	+ Additional information in text menu is now more customizable.
+	+ GUI menu position options.
+	+ Prefixes: rclk, rclk_txt, rclk_gui, rclk_cmd, rclk_item.
+	+ Disabled menu items are implemented through FAR.
+	+ New hotkey: Ctrl-Apps shows the menu to choose between GUI and Text.
+	+ New option to clear the panel selection.
+	* Helptext is displayed only when it differs from the item text.
+	- Fixed bug when paste command was disabled in Explorer after
+	  cut/copy using RightClick.
+	- Hotkey works independently of FAR language now.
+	- Unicode helptext is displayed correctly now.
+
+December 4, 2001 - version RightClick 2.0 beta 2
+	+ Now context menu can be shown for any item from the
+	  "My computer" explorer branch, e.g. drives.
+	+ New keys in menu: Ctrl-PgUp/PgDn, Right/Left, Backspace, Space.
+	+ Menu position saved when returning from submenus.
+	+ New option to show menu helptext.
+	+ New option to delete files using FAR.
+	+ Now works in Tree panel.
+	* Hotkeys changed: Apps invokes text menu, Shift-Apps - GUI menu.
+	- Fixed bug when GUI menu sometimes didn't close.
+	- Fixed bug when "Send to" didn't show correctly in Windows ME.
+	- Fixed minor memory leaks.
+	- Fixed some typos in text files.
+
+August 9, 2001 - version RightClick 2.0 beta 1
+	+ GUI menu and some other features that has been borrowed from EMenu.
+
+May, 2001 - first alpha version RightClick 0.6 AKA 1.0
+	+ Basic functionality.
+
+September, 2000 - I'm beginning RightClick
