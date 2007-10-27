@@ -1,5 +1,0 @@
-EXPORTS 
-   GetPluginInfo
-   OpenPlugin
-   SetStartupInfo
-   Configure

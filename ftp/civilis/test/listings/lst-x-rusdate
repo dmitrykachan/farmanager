@@ -1,0 +1,16 @@
+total 15160
+drwxr-xr-x   12 ovm      users          1024 Апр 11 10:21 .
+drwxrwxr-x   57 root     sys            1024 Дек 17 11:25 ..
+-rw-------    1 ovm      users          8265 Апр 11 10:24 .bash_history
+drwxr-xr-x    2 ovm      users          1024 Окт 11  2002 bin
+drwx------    2 ovm      users            96 Дек  5 14:21 .cedit
+-rw-r--r--    1 ovm      users           630 Мая 24  2001 .login
+-rw-r--r--    1 ovm      users             6 Апр 11 10:21 login.log
+drwxr-xr-x    2 ovm      users            96 Апр 11 10:19 .mc
+-rw-r--r--    1 ovm      users           980 Апр 11 10:19 .profile
+-rw-r--r--    1 ovm      users            15 Окт  7  2002 rollback.sql
+-rw-r--r--    1 ovm      users          2677 Апр  3 12:38 sqexplain.out
+drwxr-xr-x    2 ovm      users            96 Окт  7  2002 src
+drwx------    2 ovm      users            96 Окт  8  2002 .ssh
+-rw-r--r--    1 ovm      users             0 Авг 23  2002 .UpgradeVer8.0.0
+-rw-r--r--    1 ovm      users            51 Мая 24  2001 .vtlrc

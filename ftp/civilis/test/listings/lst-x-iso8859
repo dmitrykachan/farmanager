@@ -1,0 +1,17 @@
+drwxrwxr-x  11 applmgr    dba           2048 ¸Î½Ï 19 09:30 .
+drwxr-xr-x  22 root       root          1024 ¸Î½Ï 19 12:28 ..
+drwxr-xr-x  49 applmgr    dba           2048 ¸Î»Ï 23  2001 appl
+drwxr-xr-x   4 applmgr    dba             96 ¼°ÀÂ 31  2001 commonAPPR
+drwxr-xr-x   4 applmgr    dba             96 ¼°ÀÂ 31  2001 commonTRNG
+drwxr-xr-x   3 applmgr    dba             96 ¸Î»Ï 23  2001 doc
+drwxr-x---   3 oracle     dba           2048 Áµ½Â 22 08:50 export
+drwxr-xr-x   4 applmgr    dba             96 ¸Î»Ï 23  2001 html
+drwxr-xr-x   2 applmgr    dba             96 ¼°ÀÂ 30  2001 l2
+drwxr-xr-x   2 root       root            96 ¼°ÀÂ 27  2001 lost+found
+-rw-r--r--   1 applmgr    dba           3502 ¸Î½Ï 19 09:31 mbox
+-rw-r--r--   1 applmgr    dba            814 ¼°ÀÂ 27  2001 .cshrc
+-rw-r--r--   1 applmgr    dba            347 ¼°ÀÂ 27  2001 .exrc
+-rw-r--r--   1 applmgr    dba            341 ¼°ÀÂ 27  2001 .login
+-rw-r--r--   1 applmgr    dba            911 ¼°ÀÂ 30  2001 .profile
+-rw-------   1 applmgr    dba           3004 Áµ½Â 22 11:17 .sh_history
+drwxr-xr-x   2 applmgr    dba             96 Ï½² 20  2003 backup
