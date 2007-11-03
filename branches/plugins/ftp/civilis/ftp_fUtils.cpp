@@ -1,11 +1,7 @@
 #include "stdafx.h"
 
-#pragma hdrstop
-
 #include "ftp_Int.h"
 #include "utils/uniconverts.h"
-
-std::map<unsigned int, std::wstring> g_stringmap;
 
 void FTP::LongBeepEnd(bool DoNotBeep)
 {
@@ -26,10 +22,7 @@ void FTP::LongBeepCreate( void )
 
 void FTP::SaveUsedDirNFile()
 {  
-	chost_.url_.directory_ = getConnection().getCurrentDirectory();
-
-	//Save current file to restore
-	selectFile_ = getCurrentFile(); // TODO selFile_
+	// TODO remove
 }
 
 void FTP::FTP_FixPaths(const std::wstring &base, FARWrappers::ItemList &items, BOOL FromPlugin )
@@ -51,9 +44,10 @@ void FTP::FTP_FixPaths(const std::wstring &base, FARWrappers::ItemList &items, B
 	}
 }
 
-int FTP::ExpandList(FARWrappers::ItemList &panelItem, FARWrappers::ItemList* il, bool FromPlugin, ExpandListCB cb, LPVOID Param)
+int FTP::ExpandList(FARWrappers::ItemList &panelItem, FARWrappers::ItemList* il, bool FromPlugin, LPVOID Param)
 {
-	bool pSaved  = !chost_.url_.directory_.empty() && !selectFile_.empty(); // TODO selFile_
+	BOOST_ASSERT(!chost_.url_.directory_.empty());
+	bool pSaved  = !selectFile_.empty(); // TODO selFile_
 	int  rc;
 
 	{
@@ -72,7 +66,7 @@ int FTP::ExpandList(FARWrappers::ItemList &panelItem, FARWrappers::ItemList* il,
 		if(!pSaved)
 			SaveUsedDirNFile();
 
-		rc = ExpandListINT(panelItem, il, 0, FromPlugin, cb, Param);
+		rc = ExpandListINT(panelItem, il, 0, FromPlugin, Param);
 
 		if(getConnection().isConnected())
 		{
@@ -90,8 +84,7 @@ int FTP::ExpandList(FARWrappers::ItemList &panelItem, FARWrappers::ItemList* il,
 		{
 			if (!chost_.url_.directory_.empty())
 			{
-				std::wstring path = panel_->getCurrentDirectory();
-				if(boost::algorithm::iequals(path, chost_.url_.directory_) == false)
+				if(boost::algorithm::iequals(panel_->getCurrentDirectory(), chost_.url_.directory_) == false)
 					FtpFilePanel_.SetDirectory(chost_.url_.directory_, FP_LastOpMode);
 			}
 		} else
@@ -123,7 +116,6 @@ void copy(FAR_FIND_DATA& f, const WIN32_FIND_DATAW &w)
 	f.nFileSize			= static_cast<__int64>(w.nFileSizeLow) + (static_cast<__int64>(w.nFileSizeHigh) << 32);
 	f.nPackSize			= 0;
 }
-
 
 bool FTP::FTP_GetFindData(FARWrappers::ItemList &items, bool FromPlugin)
 {
@@ -170,15 +162,18 @@ bool FTP::FTP_GetFindData(FARWrappers::ItemList &items, bool FromPlugin)
 	return true;
 }
 
-int FTP::ExpandListINT(FARWrappers::ItemList &panelItems, FARWrappers::ItemList* il, TotalFiles* totalFiles, bool FromPlugin, ExpandListCB cb, LPVOID Param)
+int FTP::ExpandListINT(FARWrappers::ItemList &panelItems, FARWrappers::ItemList* illlll, TotalFiles* totalFiles, bool FromPlugin, LPVOID Param)
 {  
 	int              res;
 	FARWrappers::ItemList dirPanelItems;
 	std::wstring		m;
 	std::wstring		curname;
-	size_t				n,num;
+	size_t				n;
 	__int64          lSz,lCn;
 	std::wstring		curp;
+
+	// TODO
+	std::wstring	IncludeMask, ExcludeMask;
 
 	if(panelItems.size() == 0)
 		return true;
@@ -207,20 +202,14 @@ int FTP::ExpandListINT(FARWrappers::ItemList &panelItems, FARWrappers::ItemList*
 			if(FARWrappers::patternCmp(ExcludeMask.c_str(), m.c_str())) 
 				continue;
 
-			if (cb && !cb(this, panelItems[n],Param))
-				return false;
-
-			if(il)
+			if(totalFiles)
 			{
-				if(totalFiles)
-				{
-					totalFiles->size_ += panelItems[n].FindData.nFileSize;
-					++totalFiles->files_;
-				}
-
-				//Add
-				il->add(panelItems[n]);
+				totalFiles->size_ += panelItems[n].FindData.nFileSize;
+				++totalFiles->files_;
 			}
+
+			//Add
+			illlll->add(panelItems[n]);
 			continue;
 		}
 
@@ -243,41 +232,34 @@ int FTP::ExpandListINT(FARWrappers::ItemList &panelItems, FARWrappers::ItemList*
 		}
 
 		//Get subdir list
-		if(!cb) 
-		{
-			std::wstring str;
-			if(totalFiles)
-				str = boost::lexical_cast<std::wstring>(totalFiles->size_) + L"b in " +
-					  boost::lexical_cast<std::wstring>(totalFiles->files_) + L": " + curname;
-			else
-				str = curname;
-			FtpConnectMessage(&getConnection(), MScaning, str.c_str());
-		} else
-			FtpConnectMessage(&getConnection(), MScaning, getName(curname).c_str());
-
-		if(il)
-		{
-			num = il->size();
-			il->add(panelItems[n]);
-		} else
-			num = -1;
+//TODO 		if(!cb) 
+// 		{
+// 			std::wstring str;
+// 			if(totalFiles)
+// 				str = boost::lexical_cast<std::wstring>(totalFiles->size_) + L"b in " +
+// 					  boost::lexical_cast<std::wstring>(totalFiles->files_) + L": " + curname;
+// 			else
+// 				str = curname;
+// 			getConnection().ConnectMessage(MScaning, str.c_str());
+// 		} else
+// 			getConnection().ConnectMessage(MScaning, getName(curname).c_str());
 
 		if(FTP_GetFindData(dirPanelItems, FromPlugin))
 		{
 			FTP_FixPaths(curname, dirPanelItems, FromPlugin);
-			if(num != -1 && totalFiles)
+			if(illlll->size() > 0 && totalFiles)
 			{
 				lSz = totalFiles->size_;
 				lCn = totalFiles->files_;
 			}
 			BOOST_ASSERT(0 && "TODO");
-			res = ExpandListINT(dirPanelItems, il, totalFiles, FromPlugin, cb, Param);
-			if(num != -1 && res && totalFiles)
+			res = ExpandListINT(dirPanelItems, illlll, totalFiles, FromPlugin, Param);
+			if(illlll->size() > 0 && res && totalFiles)
 			{
 				lSz = totalFiles->size_;
 				lCn = totalFiles->files_;
-				il->at(num).FindData.nFileSize = lSz;
-				il->at(num).Reserved[1]  = (DWORD)lCn; // TODO FindData.dwReserved0
+				illlll->at(illlll->size()).FindData.nFileSize = lSz;
+				illlll->at(illlll->size()).Reserved[1]  = (DWORD)lCn; // TODO FindData.dwReserved0
 			}
 		} else
 			return false;
@@ -287,8 +269,6 @@ int FTP::ExpandListINT(FARWrappers::ItemList &panelItems, FARWrappers::ItemList*
 		if (!FTP_SetDirectory(L"..", FromPlugin ))
 			return false;
 
-		if (cb && !cb(this, panelItems[n],Param) )
-			return false;
 	}
 
 	return true;
@@ -300,12 +280,11 @@ void FTP::Invalidate(bool clearSelection)
 	FARWrappers::getInfo().Control(this, FCTL_REDRAWPANEL, NULL);
 }
 
-//---------------------------------------------------------------------------------
-void FTP::BackToHosts( void )
+void FTP::BackToHosts()
 {  
 	int num = g_manager.getRegKey().get(L"LastHostsMode", 2);
 
-// TODO	selectFile_       = Host.regKey_;
+	selectFile_		= getCurrentHost()->getIniFilename();
     SwitchingToFTP	= false;
     RereadRequired	= true;
     ShowHosts		= true;

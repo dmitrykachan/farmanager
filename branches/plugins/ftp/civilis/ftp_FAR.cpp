@@ -12,6 +12,7 @@
 #include "farwrapper/menu.h"
 #include "utils/uniconverts.h"
 #include "farwrapper/message.h"
+#include "progress.h"
 
 int		FP_LastOpMode    = 0;
 
@@ -60,11 +61,10 @@ void _cdecl CloseUp()
 		ExitProc();
 }
 
-void FTPPluginManager::addWait(time_t tm)
+void FTPPluginManager::addWait(size_t tm)
 {
 	for(size_t n = 0; n < FTPPanels_.size(); n++)
-		if(FTPPanels_[n] && 
-			FTPPanels_[n]->getConnection().IOCallback)
+		if(FTPPanels_[n] && FTPPanels_[n]->getConnection().IOCallback)
 			FTPPanels_[n]->getConnection().TrafficInfo->Waiting(tm);
 }
 
@@ -320,6 +320,7 @@ int WINAPI GetFindDataW(HANDLE hPlugin,struct PluginPanelItem **pPanelItem,int *
 	FTP*     p = (FTP*)hPlugin;
 
 	p->Call();
+	FARWrappers::Screen src;
 	int rc = p->panel_->GetFindData(pPanelItem, pItemsNumber, OpMode);
 	p->End(rc);
 
@@ -372,8 +373,7 @@ int WINAPI GetFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsN
 
 	p->Call();
 	PanelItem->Description = 0;
-	int rc = p->panel_->GetFiles(
-		FARWrappers::ItemList(PanelItem, ItemsNumber), Move, std::wstring(DestPath), OpMode);
+	int rc = p->panel_->GetFiles(PanelItem, ItemsNumber, Move, std::wstring(DestPath), OpMode);
 	p->End(rc);
 	return rc;
 }
@@ -460,7 +460,7 @@ BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID ptr )
 			>> boost::logging::line >> L"),"
 			>> boost::logging::trace
 			>> boost::logging::eol), // log format
-			INF);                      // log level
+			WRN);                      // log level
 
 		BOOST_LOG_ADD_OUTPUT_STREAM(new boost::logging::wdebugstream);
 	}

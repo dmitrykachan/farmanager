@@ -229,7 +229,6 @@ namespace Listing
 	bool parseVxWorksListing(FTPFileInfo &fileinfo, 
 		std::wstring::const_iterator itr, 
 		const std::wstring::const_iterator &itr_end);
-	std::wstring parseListing(const std::wstring &listing);
 }
 
 

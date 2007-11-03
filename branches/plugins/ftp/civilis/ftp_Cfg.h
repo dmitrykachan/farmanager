@@ -85,8 +85,6 @@ enum CMDOutputDir {
 };
 
 class FTP;
-//ExpandList callback
-typedef BOOL (*ExpandListCB)(const FTP* ftp, PluginPanelItem &item, LPVOID Param);
 
 //Save list options
 enum sliTypes {

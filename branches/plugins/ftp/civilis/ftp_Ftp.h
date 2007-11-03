@@ -2,6 +2,7 @@
 #define __FAR_PLUGIN_FTP_FTP
 
 #include "panelview.h"
+#include "ftpfileview.h"
 
 struct FTPUrl
 {
@@ -16,17 +17,17 @@ struct FTPUrl
 
 struct FTPCopyInfo
 {
-	BOOL      asciiMode;
-	BOOL      ShowProcessList;
-	BOOL      AddToQueque;
-	overCode  MsgCode;
-	std::wstring    DestPath;
-	std::wstring    SrcPath;   //Used only on queue processing
-	BOOL      Download;
-	BOOL      UploadLowCase;
-	BOOL      FTPRename;
+	bool	asciiMode;
+	bool	showProcessList;
+	bool	addToQueque;
+	overCode msgCode;
+	std::wstring    destPath;
+	std::wstring    srcPath;   //Used only on queue processing
+	bool	download;
+	bool	uploadLowCase;
+	bool	FTPRename;
 
-	FTPCopyInfo( void );
+	FTPCopyInfo();
 };
 
 struct QueueExecOptions
@@ -74,14 +75,10 @@ private:
     int         SwitchingToFTP;
     int				startViewMode_;
     int         RereadRequired;
-	std::wstring IncludeMask;
-	std::wstring ExcludeMask;
     int         ActiveColumnMode;
     BOOL        NeedToSetActiveMode;
     FTPUrl*     UrlsList, *UrlsTail;
     int         QuequeSize;
-    overCode    LastMsgCode,
-                OverrideMsgCode;
 
 	HostView	hostPanel_;
 	FTPFileView	FtpFilePanel_;
@@ -99,7 +96,7 @@ public:
 
 	bool getPanelInfo(PanelInfo &pi) const
 	{
-		return FARWrappers::getInfo().Control((HANDLE)this, FCTL_GETPANELINFO, &pi) != 0;
+		return FARWrappers::getInfo().Control(const_cast<FTP*>(this), FCTL_GETPANELINFO, &pi) != 0;
 	}
 
 	const HostView* getHostPanel() const
@@ -139,11 +136,9 @@ public:
 	{
 		return FtpFilePanel_.getConnection();
 	}
+	int       Connect();
 
 private:
-
-    int       Connect();
-    int       DeleteFilesINT(FARWrappers::ItemList &panelItems, int OpMode);
     int       GetFreeKeyNumber();
     void      GetFullFileName(char *FullName,char *Name);
 	int       GetHostFiles(struct PluginPanelItem *PanelItem, size_t ItemsNumber,int Move, std::wstring& DestPath,int OpMode);
@@ -161,7 +156,6 @@ private:
 							std::wstring& host, std::wstring& directory, std::wstring& username);
 
 	bool      FTP_SetDirectory(const std::wstring &dir, bool FromPlugin);
-	int       GetFilesInterface(FARWrappers::ItemList &items, int Move, std::wstring& DestPath,int OpMode);
     int       PutFilesINT(struct PluginPanelItem *PanelItem, size_t ItemsNumber,int Move,int OpMode);
     bool      ExecCmdLineFTP(const std::wstring& str, bool Prefix);
 	bool      ExecCmdLineANY(const std::wstring& str, bool Prefix);
@@ -169,17 +163,14 @@ private:
 	bool		DoCommand(const std::wstring& str, int type, DWORD flags);
     BOOL      DoFtpConnect( int blocked );
 
-	int       ExpandListINT(FARWrappers::ItemList &panelItems, FARWrappers::ItemList* il, TotalFiles* totalFiles, bool FromPlugin, ExpandListCB cb = NULL, LPVOID Param = NULL);
-    int       ExpandList(FARWrappers::ItemList &panelItem, FARWrappers::ItemList* il, bool FromPlugin, ExpandListCB cb = NULL, LPVOID Param = NULL );
-    bool      CopyAskDialog(bool Move, bool Download, FTPCopyInfo* ci);
+	int       ExpandListINT(FARWrappers::ItemList &panelItems, FARWrappers::ItemList* il, TotalFiles* totalFiles, bool FromPlugin, LPVOID Param = NULL);
+    int       ExpandList(FARWrappers::ItemList &panelItem, FARWrappers::ItemList* il, bool FromPlugin, LPVOID Param = NULL );
     BOOL      ShowFilesList(FARWrappers::ItemList* il );
-    overCode  AskOverwrite(int title, BOOL Download, FAR_FIND_DATA* dest, FAR_FIND_DATA* src,overCode last);
     void      SaveList(FARWrappers::ItemList* il );
     void      InsertToQueue( void );
     const wchar_t*  InsertCurrentToQueue( void );
     const wchar_t*  InsertAnotherToQueue( void );
 
-    int       _FtpGetFile(const std::wstring& remoteFile, const std::wstring& newFile, bool reget, int asciiMode);
 	int       _FtpPutFile(const std::wstring &localFile, const std::wstring &remoteFile, bool Reput, int AsciiMode);
   public:
     FTP();
@@ -187,9 +178,6 @@ private:
 
 	BOOL      FullConnect();
 
-	int       DeleteFiles(FARWrappers::ItemList &panelItems, int OpMode);
-	int       GetFiles(FARWrappers::ItemList &items, int Move, std::wstring& DestPath,int OpMode);
-    int       GetFindData(PluginPanelItem **pPanelItem,int *pItemsNumber,int OpMode);
     void      GetOpenPluginInfo(struct OpenPluginInfo *Info);
     int       ProcessCommandLine(wchar_t *CommandLine);
     int       ProcessKey(int Key,unsigned int ControlState);
@@ -199,7 +187,7 @@ private:
 	void      SaveUsedDirNFile();
 
     void      Invalidate(bool clearSelection = false);
-	void      BackToHosts( void );
+	void      BackToHosts();
 
     void      LongBeepEnd(bool DoNotBeep = false);
     void      LongBeepCreate( void );
@@ -218,9 +206,9 @@ private:
     void      DeleteUrlItem( FTPUrl* p, FTPUrl* prev );
     bool      EditUrlItem( FTPUrl* p );
 
-	void      AddToQueque(FAR_FIND_DATA* FileName, const std::wstring& path, bool Download);
+	void      AddToQueque(FTPFileInfo& fileName, const std::wstring& path, bool Download);
     void      AddToQueque(FTPUrl* p,int pos = -1);
-    void      ListToQueque(FARWrappers::ItemList* il,FTPCopyInfo* ci );
+    void      ListToQueque(const FileList& il, const FTPCopyInfo& ci);
     void      ClearQueue( void );
 
     void      SetupQOpt( QueueExecOptions* op );
@@ -228,6 +216,9 @@ private:
     void      QuequeMenu( void );
     void      ExecuteQueue( QueueExecOptions* op );
     void      ExecuteQueueINT( QueueExecOptions* op );
+	bool      CopyAskDialog(bool Move, bool Download, FTPCopyInfo* ci);
+	overCode  AskOverwrite(int title, BOOL Download, FTPFileInfo* dest, const FTPFileInfo* src,overCode last);
+
 
     void Call( void );
     void End( int rc = -156 );

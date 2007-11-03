@@ -3,6 +3,7 @@
 #pragma hdrstop
 
 #include "ftp_Int.h"
+#include "progress.h"
 
 void SetupFileTimeNDescription( int OpMode,Connection *hConnect, std::wstring nm)
 {
@@ -31,7 +32,7 @@ int FTP::_FtpPutFile(const std::wstring &localFile, const std::wstring &remoteFi
 {
 	int rc;
 
-	FtpSetRetryCount(&getConnection(), 0 );
+	getConnection().setRetryCount(0);
 	do
 	{
 		SetLastError( ERROR_SUCCESS );
@@ -44,11 +45,11 @@ int FTP::_FtpPutFile(const std::wstring &localFile, const std::wstring &remoteFi
 			return IS_SILENT(FP_LastOpMode) ? (-1) : FALSE;
 		}
 
-		int num = FtpGetRetryCount(&getConnection());
+		int num = getConnection().getRetryCount();
 		if ( g_manager.opt.RetryCount > 0 && num >= g_manager.opt.RetryCount )
 			return FALSE;
 
-		FtpSetRetryCount(&getConnection(), num+1 );
+		getConnection().setRetryCount(num+1);
 
 		if (!getConnection().ConnectMessageTimeout(MCannotUpload, remoteFile, MRetry))
 			return FALSE;
@@ -76,9 +77,6 @@ int FTP::PutFiles( struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,in
 	if ( rc == FALSE || rc == -1 )
 		LongBeepEnd( TRUE );
 
-	IncludeMask = L"";
-	ExcludeMask = L"";
-
 	BOOST_LOG(INF, L"rc" << rc);
 	return rc;
 }
@@ -98,43 +96,39 @@ int FTP::PutFilesINT( struct PluginPanelItem *PanelItem, size_t ItemsNumber, int
 
 	if (!ItemsNumber) return 0;
 
-	ci.DestPath  = getConnection().getCurrentDirectory();
+	ci.destPath  = getConnection().getCurrentDirectory();
 
 	ci.asciiMode       = chost_.AsciiMode;
-	ci.AddToQueque     = FALSE;
-	ci.MsgCode         = is_flag(OpMode,OPM_FIND) ? ocOverAll : OverrideMsgCode;
-	ci.ShowProcessList = FALSE;
-	ci.Download        = FALSE;
-	ci.UploadLowCase   = g_manager.opt.UploadLowCase;
+	ci.addToQueque     = FALSE;
+	ci.msgCode         = is_flag(OpMode,OPM_FIND) ? ocOverAll : ocNone;
+	ci.showProcessList = FALSE;
+	ci.download        = FALSE;
+	ci.uploadLowCase   = g_manager.opt.UploadLowCase;
 
-	if ( g_manager.opt.ShowUploadDialog &&
-		!IS_SILENT(OpMode))
+	if(g_manager.opt.ShowUploadDialog && !IS_SILENT(OpMode))
 	{
-
-			if ( !CopyAskDialog(Move, false,&ci) )
-				return FALSE;
-
-			LastMsgCode = ci.MsgCode;
+		if(!CopyAskDialog(Move, false,&ci))
+			return false;
 	}
 
-	AddEndSlash( ci.DestPath,'/' );
+	AddEndSlash( ci.destPath,'/' );
 
 	BOOST_ASSERT(0 && "TODO");
 //	if ( !ExpandList(PanelItem,ItemsNumber,&il,FALSE) )
 //		return FALSE;
 
-	if ( ci.ShowProcessList && !ShowFilesList(&il) )
+	if ( ci.showProcessList && !ShowFilesList(&il) )
 		return FALSE;
 
-	if ( ci.AddToQueque ) {
+	if ( ci.addToQueque ) {
 		BOOST_LOG(INF, L"Files added to queue " << il.size());
-		ListToQueque( &il,&ci );
+//TODO		ListToQueque( &il,&ci );
 		return TRUE;
 	}
 
 	longBeep_.reset();
 
-	getConnection().TrafficInfo->Init(&getConnection(), MStatusUpload, OpMode, &il );
+//TODO	getConnection().TrafficInfo->Init(&getConnection(), MStatusUpload, OpMode, &il );
 
 	for(size_t I = 0; I < il.size(); I++ )
 	{
@@ -157,18 +151,17 @@ int FTP::PutFilesINT( struct PluginPanelItem *PanelItem, size_t ItemsNumber, int
 			continue;
 		}
 
-		if ( ci.UploadLowCase && !is_flag(SrcAttr,FILE_ATTRIBUTE_DIRECTORY) )
+		if(ci.uploadLowCase && !is_flag(SrcAttr, FILE_ATTRIBUTE_DIRECTORY))
 		{
 			std::wstring name = getName(curName);
-//			if ( !IsCaseMixed(Name))
-//	TODO!!!			LocalLower(Name);
+			boost::to_lower(name);
+			// TODO update curName
 		}
 
-		DestName = ci.DestPath.c_str() + curName;
+		DestName = ci.destPath + curName;
 
 		if ( is_flag(SrcAttr,FILE_ATTRIBUTE_DIRECTORY) )
 		{
-
 //TODO			if ( FTPCreateDirectory(curName, OpMode))
 				if ( I < ItemsNumber && g_manager.opt.UpdateDescriptions )
 					PanelItem[I].Flags|=PPIF_PROCESSDESCR;
@@ -181,7 +174,7 @@ int FTP::PutFilesINT( struct PluginPanelItem *PanelItem, size_t ItemsNumber, int
 		__int64 sz;
 
 		//Check file exist
-		FtpSetRetryCount(&getConnection(), 0);
+		getConnection().setRetryCount(0);
 
 		do{
 			SetLastError( ERROR_SUCCESS );
@@ -222,11 +215,11 @@ int FTP::PutFilesINT( struct PluginPanelItem *PanelItem, size_t ItemsNumber, int
 						if ( GetLastError() == ERROR_CANCELLED )
 							return IS_SILENT(FP_LastOpMode) ? (-1) : FALSE;
 
-						int num = FtpGetRetryCount(&getConnection());
+						int num = getConnection().getRetryCount();
 						if ( g_manager.opt.RetryCount > 0 && num >= g_manager.opt.RetryCount )
 							return FALSE;
 
-						FtpSetRetryCount(&getConnection(), num+1);
+						getConnection().setRetryCount(num+1);
 
 						if (!getConnection().ConnectMessageTimeout( MCannotUpload,DestName.c_str(), MRetry ) )
 							return FALSE;
@@ -239,24 +232,23 @@ int FTP::PutFilesINT( struct PluginPanelItem *PanelItem, size_t ItemsNumber, int
 		}while(1);
 
 		//Init transfer
-		getConnection().TrafficInfo->InitFile(&il[I], FTP_FILENAME(&il[I]), DestName);
+//TODO		getConnection().TrafficInfo->InitFile(&il[I], FTP_FILENAME(&il[I]), DestName);
 
 		//Ask over
-		switch( ci.MsgCode ) {
+		switch( ci.msgCode ) {
 	  case      ocOver:
 	  case      ocSkip:
-	  case    ocResume: ci.MsgCode = ocNone;
+	  case    ocResume: ci.msgCode = ocNone;
 		  break;
 		}
 		if ( DestAttr != UINT_MAX ) {
 // TODO			ci.MsgCode  = AskOverwrite( MUploadTitle, FALSE, &FindData.getFindData(), &il[I].FindData, ci.MsgCode );
-// 			LastMsgCode = ci.MsgCode;
-			switch( ci.MsgCode ) {
+			switch( ci.msgCode ) {
 		case   ocOverAll:
 		case      ocOver: break;
 
 		case      ocSkip:
-		case   ocSkipAll: getConnection().TrafficInfo->Skip();
+		case   ocSkipAll: getConnection().TrafficInfo->skip();
 			continue;
 		case    ocResume:
 		case ocResumeAll:
@@ -269,7 +261,7 @@ int FTP::PutFilesINT( struct PluginPanelItem *PanelItem, size_t ItemsNumber, int
 		//Upload
 		if ( (rc=_FtpPutFile(FTP_FILENAME(&il[I]),
 			DestName.c_str(),
-			DestAttr == UINT_MAX ? FALSE : (ci.MsgCode == ocResume || ci.MsgCode == ocResumeAll),
+			DestAttr == UINT_MAX ? FALSE : (ci.msgCode == ocResume || ci.msgCode == ocResumeAll),
 			ci.asciiMode)) == TRUE )
 		{
 				/*! FAR has a bug, so PanelItem stored in internal structure.

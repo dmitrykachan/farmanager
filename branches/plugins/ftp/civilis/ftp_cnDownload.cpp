@@ -2,51 +2,53 @@
 #pragma hdrstop
 
 #include "ftp_Int.h"
+#include "progress.h"
 
-void Connection::recvrequest(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, char *mode )
+int Connection::recvrequest(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, wchar_t *mode )
 {  
 	//??SaveConsoleTitle _title;
 
-	recvrequestINT(cmd, local, remote, mode);
+	int res = recvrequestINT(cmd, local, remote, mode);
 	IdleMessage(NULL, 0);
+	return res;
 }
 
-void Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, char *mode )
+int Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, wchar_t *mode )
 {
 	int              oldtype = 0,
 		is_retr;
 	FHandle          fout;
-	int              ocode, oecode;
+	int              oecode;
 	BOOL             oldBrk = getBreakable();
 	FTPCurrentStates oState = CurrentState;
 
-	if ( type == TYPE_A )
+	if(type == TYPE_A)
 		restart_point = 0;
 
 	if(local != L"-")
 	{
-		fout.Handle = Fopen(local.c_str(), WinAPI::fromOEM(mode).c_str(), g_manager.opt.SetHiddenOnAbort ? FILE_ATTRIBUTE_HIDDEN : FILE_ATTRIBUTE_NORMAL );
+		fout.Handle = Fopen(local.c_str(), mode, g_manager.opt.SetHiddenOnAbort ? FILE_ATTRIBUTE_HIDDEN : FILE_ATTRIBUTE_NORMAL );
 		BOOST_LOG(INF, L"recv file [" << getHost().IOBuffSize << L"] \"" << local << L"\"=" << fout.Handle);
-		if ( !fout.Handle )
+		if(!fout.Handle)
 		{
-			ErrorCode = GetLastError();
 			BOOST_LOG(ERR, L"!Fopen [" << mode << L"] " << WinAPI::getStringError());
-			if ( !ConnectMessage( MErrorOpenFile, local, true, MRetry) )
-				ErrorCode = ERROR_CANCELLED;
+			if (!ConnectMessage( MErrorOpenFile, local, true, MRetry))
+				return RPL_CANCEL;
 			//goto abort;
-			return;
+			return RPL_ERROR;
 		}
 
-		if ( restart_point != -1 ) {
-			if ( !Fmove( fout.Handle,restart_point ) )
+		if(restart_point != -1)
+		{
+			if(!Fmove(fout.Handle, restart_point))
 			{
 				ErrorCode = GetLastError();
 				if ( !ConnectMessage( MErrorPosition, local, true, MRetry) )
-					ErrorCode = ERROR_CANCELLED;
-				return;
+					return RPL_CANCEL;
+				return RPL_ERROR;
 			}
 		}
-		TrafficInfo->Resume( restart_point == -1 ? 0 : restart_point );
+		TrafficInfo->resume(restart_point == -1 ? 0 : restart_point);
 	}
 
 	is_retr = g_manager.opt.cmdRetr == cmd;
@@ -57,10 +59,11 @@ void Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &loc
 	if(!initDataConnection(data_addr, port))
 	{
 		BOOST_LOG(INF, L"!initconn");
-		return;
+		return RPL_ERROR;
 	}
 
-	if (!is_retr) {
+	if (!is_retr)
+	{
 		if ( type != TYPE_A ) {
 			oldtype = type;
 			setascii();
@@ -75,10 +78,11 @@ void Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &loc
 			} else
 				if ( restart_point != -1 )
 				{
-					if(command(g_manager.opt.cmdRest_ + L" " + boost::lexical_cast<std::wstring>(restart_point)) != RPL_CONTINUE)
+					int result = command(g_manager.opt.cmdRest_ + L" " + boost::lexical_cast<std::wstring>(restart_point));
+					if(!isComplete(result))
 					{
 						BOOST_LOG(INF, L"!restart SIZE");
-						return;
+						return result;
 					}
 				}
 		}
@@ -94,7 +98,8 @@ void Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &loc
 
 		if(!remote.empty())
 		{
-			if(!isPrelim(command(cmd + L" " + remote)))
+			int result = command(cmd + L" " + remote);
+			if(!isPrelim(result))
 			{
 				if (oldtype)
 					SetType(oldtype);
@@ -102,14 +107,14 @@ void Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &loc
 				fout.Close();
 				if(Fsize(local))
 					DeleteFileW(local.c_str());
-				return;
+				return result;
 			}
 		} else
 			if(!isPrelim(command(cmd)))
 			{
 				if (oldtype)
 					SetType(oldtype);
-				return;
+				return RPL_ERROR;
 			}
 
 			if(!getHost().PassiveMode )
@@ -133,6 +138,8 @@ void Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &loc
 
 				// TODO		if ( fout.Handle )
 				//			FTPNotify().Notify( &ni );
+				WinAPI::Stopwatch timer;
+				BOOST_LOG(ERR, L"start downloading");
 
 				while( 1 )
 				{
@@ -157,8 +164,9 @@ void Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &loc
 						}
 
 						//Call user CB
-						if ( IOCallback ) {
-							if ( !TrafficInfo->Callback(len) )
+						if(IOCallback)
+						{
+							if(!TrafficInfo->refresh(len))
 							{
 								BOOST_LOG(INF, L"gf: canceled by CB");
 								ErrorCode = ERROR_CANCELLED;
@@ -183,8 +191,10 @@ void Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &loc
 							}
 				}
 
-				if ( IOCallback )
-					TrafficInfo->Callback(0);
+				BOOST_LOG(ERR, L"end downloading. Downloading time is " << timer.getPeriod() << L". Data size is " << output_.size() << L"reserved size is " << output_.capacity());
+
+				if(IOCallback)
+					TrafficInfo->refresh(0);
 
 				break;
 			}
@@ -211,7 +221,7 @@ void Connection::recvrequestINT(const std::wstring& cmd, const std::wstring &loc
 //				ni.Success  = TRUE;
 				//TODO	  FTPNotify().Notify( &ni );
 			}
-			return;
+			return RPL_OK;
 
 abort:
 			setBreakable(oldBrk);
@@ -241,7 +251,7 @@ abort:
 				//TODO	  FTPNotify().Notify( &ni );
 			}
 
-			return;
+			return RPL_ERROR;
 }
 
 /* abort using RFC959 recommended ffIP,SYNC sequence  */

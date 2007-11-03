@@ -12,16 +12,21 @@ const char cffWILL  = '\xfb';	// 251
 const char cffIP	= '\xf4';	// 244
 const char cffDM	= '\xf2';	// 242
 
+enum FTP_RESULT
+{
+	FTP_RESULT_CODE_PRELIM		= 1,
+	FTP_RESULT_CODE_COMPLETE	= 2,
+	FTP_RESULT_CODE_CONTINUE	= 3,
+	FTP_RESULT_CODE_TRANSIENT	= 4,
+	FTP_RESULT_CODE_BADCOMMAND	= 5,
+};
+
 enum RPL_RESULT
 {
 	RPL_OK			= 0, 
-	RPL_PRELIM		= 1,
-	RPL_COMPLETE	= 2,
-	RPL_CONTINUE	= 3,
-	RPL_TRANSIENT	= 4,
-	RPL_BADPASS		= 5,
 	RPL_ERROR		= -1,
-	RPL_TRANSFERERROR = -2
+	RPL_TRANSFERERROR = -2,
+	RPL_CANCEL		= -3
 };
 
 enum ReplyCodes

@@ -48,14 +48,15 @@ bool FTP::CopyAskDialog(bool Move, bool Download, FTPCopyInfo* ci)
 {
 	FARWrappers::Dialog dlg(L"FTPCmd");
 
-	IncludeMask = L"*";
-	ExcludeMask = L"";
-	ci->ShowProcessList = ci->AddToQueque = ci->FTPRename = 0;
+	std::wstring IncludeMask = L"*";
+	std::wstring ExcludeMask = L"";
+
+	ci->showProcessList = ci->addToQueque = ci->FTPRename = false;
 
 	int dummy = 0; // TODO
 
 	boost::array<int, 4> msg = {{0}};
-	switch(ci->MsgCode)
+	switch(ci->msgCode)
 	{
 	case ocOverAll:
 		msg[1] = true;
@@ -71,8 +72,8 @@ bool FTP::CopyAskDialog(bool Move, bool Download, FTPCopyInfo* ci)
 	}
 
 	dlg.addDoublebox	( 3, 1,72,17,						Move ? getMsg(MRenameTitle) : getMsg(MDownloadTitle))->
-		addLabel		( 5, 2,								ci->Download? getMsg(MDownloadTo) : getMsg(MUploadTo))->
-		addEditor		( 5, 3,70, &ci->DestPath, 0,		ci->Download? FTP_GETHISTORY : FTP_PUTHISTORY)->
+		addLabel		( 5, 2,								ci->download? getMsg(MDownloadTo) : getMsg(MUploadTo))->
+		addEditor		( 5, 3,70, &ci->destPath, 0,		ci->download? FTP_GETHISTORY : FTP_PUTHISTORY)->
 
 		addLabel		( 5, 4,								getMsg(MInclude))->
 		addEditor		( 5, 5,70,	&IncludeMask, 0,		FTP_INCHISTORY)->
@@ -83,40 +84,38 @@ bool FTP::CopyAskDialog(bool Move, bool Download, FTPCopyInfo* ci)
 
 		addCheckbox		( 5, 9,		&ci->asciiMode,			getMsg(MDownloadAscii))->
 		addCheckbox		( 5,10,		&dummy,					getMsg(MDoNotScan), 0, DIF_DISABLE)->
-		addCheckbox		( 5,11,		&ci->ShowProcessList,	getMsg(MSelectFromList))->
-		addCheckbox		( 5,12,		&ci->AddToQueque,		getMsg(MAddQueue), 0, Move? DIF_DISABLE : 0)->
-		addCheckbox		( 5,13,		&ci->UploadLowCase,		getMsg(MConfigUploadLowCase), 0, Download? DIF_DISABLE : 0)->
+		addCheckbox		( 5,11,		&ci->showProcessList,	getMsg(MSelectFromList))->
+		addCheckbox		( 5,12,		&ci->addToQueque,		getMsg(MAddQueue), 0, Move? DIF_DISABLE : 0)->
+		addCheckbox		( 5,13,		&ci->uploadLowCase,		getMsg(MConfigUploadLowCase), 0, Download? DIF_DISABLE : 0)->
 		addCheckbox		( 5,14,		&ci->FTPRename,			getMsg(MDownloadOnServer), (!Download || !Move)? DIF_DISABLE : 0)->
 
 		addLabel		(40, 9,								getMsg(MDefOverwrite))->
 		addRadioButtonStart(41,10,	&msg[0],				getMsg(MOverAsk))->
 		addRadioButton	(41,11,		&msg[1],				getMsg(MOverOver))->
 		addRadioButton	(41,12,		&msg[2],				getMsg(MOverSkip))->
-		addRadioButton	(41,13,		&msg[3],				getMsg(MOverResume), 0, (!getConnection().resumeSupport_ && Download)? DIF_DISABLE : 0) ->
+		addRadioButton	(41,13,		&msg[3],				getMsg(MOverResume), 0, (!FtpFilePanel_.getConnection().isResumeSupport() && Download)? DIF_DISABLE : 0) ->
 		addHLine		( 3,15)->
 
-		addDefaultButton( 0,16,		0,			ci->Download? (Move ? getMsg(MRenameTitle) : getMsg(MDownload)) 
+		addDefaultButton( 0,16,		0,			ci->download? (Move ? getMsg(MRenameTitle) : getMsg(MDownload)) 
 															: getMsg(MUpload), DIF_CENTERGROUP)->
 		addButton		(0, 16,		0,						getMsg(MDownloadCancel), DIF_CENTERGROUP);
-
-
 
 	if(dlg.show(76, 19) == -1)
 		return false;
 
 	longBeep_.reset();
 
-	if(ci->DestPath.empty())
+	if(ci->destPath.empty())
 		return false;
 
 	boost::trim(IncludeMask);
 	boost::trim(ExcludeMask);
 
-	ci->MsgCode = msg[1]? ocOverAll : (msg[2]? ocSkipAll : (msg[3]? ocResumeAll: ci->MsgCode));
+	ci->msgCode = msg[1]? ocOverAll : (msg[2]? ocSkipAll : (msg[3]? ocResumeAll: ci->msgCode));
 
-	if(ci->DestPath.size() >= 4 &&
-		boost::istarts_with(ci->DestPath, L"FTP:"))
-		ci->DestPath.erase(0, FTP_CMDPREFIX_SIZE+1);
+	if(ci->destPath.size() >= 4 &&
+		boost::istarts_with(ci->destPath, L"FTP:"))
+		ci->destPath.erase(0, FTP_CMDPREFIX_SIZE+1);
 
 	return true;
 }

@@ -131,37 +131,44 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 
 	Utils::safe_wcscpy(InfoLines[6].Text, getMsg(MResmResume));
 	if(getConnection().isConnected())
-		Utils::safe_wcscpy(InfoLines[6].Data, getMsg(FtpIsResume(&getConnection())? MResmSupport:MResmNotSupport));
+		Utils::safe_wcscpy(InfoLines[6].Data, getMsg(getConnection().isResumeSupport()? MResmSupport:MResmNotSupport));
 	else
 		Utils::safe_wcscpy(InfoLines[6].Data, getMsg(MResmNotConnected));
 
 	pi->InfoLines       = InfoLines;
 	pi->InfoLinesNumber = 7;
 
-	std::vector<wchar_t> descrFilesString(
-		g_manager.opt.DescriptionNames.begin(), 
-		g_manager.opt.DescriptionNames.end());
-	descrFilesString.push_back(0);
-
-	static std::vector<const wchar_t*> descriptionFiles;
-	descriptionFiles.clear();
-	std::vector<wchar_t>::iterator itr = descrFilesString.begin();
-	while(itr != descrFilesString.end())
+	if(!g_manager.opt.ReadDescriptions)
 	{
-		Parser::skipSpaces(itr, descrFilesString.end());
-		if(*itr == 0)
-			break;
-		descriptionFiles.push_back(&(*itr));
-		itr = std::find(itr, descrFilesString.end(), L',');
-		if(itr != descrFilesString.end())
-			*itr = 0;
-	}
+		pi->DescrFilesNumber = 0;
+		pi->DescrFiles = 0;
+	} else
+	{
+		std::vector<wchar_t> descrFilesString(
+			g_manager.opt.DescriptionNames.begin(), 
+			g_manager.opt.DescriptionNames.end());
+		descrFilesString.push_back(0);
 
-	pi->DescrFiles = &descriptionFiles[0];
-	if (!g_manager.opt.ReadDescriptions)
-		pi->DescrFilesNumber=0;
-	else
+		static std::vector<const wchar_t*> descriptionFiles;
+		descriptionFiles.clear();
+		std::vector<wchar_t>::iterator itr = descrFilesString.begin();
+		while(itr != descrFilesString.end())
+		{
+			Parser::skipSpaces(itr, descrFilesString.end());
+			if(itr == descrFilesString.end())
+				break;
+			descriptionFiles.push_back(&(*itr));
+			itr = std::find(itr, descrFilesString.end(), L',');
+			if(itr != descrFilesString.end())
+			{
+				*itr = 0;
+				++itr;
+			}
+		}
+
+		pi->DescrFiles = &descriptionFiles[0];
 		pi->DescrFilesNumber = static_cast<int>(descriptionFiles.size());
+	}
 
 	//---------------- SHORTCUT
 	static std::wstring ShortcutData;

@@ -30,6 +30,21 @@ inline void safe_wcscpy(wchar_t (&dest)[size], const std::wstring& src)
 	safe_wcscpy(dest, src.c_str());
 }
 
+template<typename T>
+T last(std::basic_string<T> con)
+{
+	return *(con.end()-1);
 }
+
+template<typename T>
+T first(std::basic_string<T> con)
+{
+	return *con.begin();
+}
+
+}
+
+using Utils::last;
+using Utils::first;
 
 #endif

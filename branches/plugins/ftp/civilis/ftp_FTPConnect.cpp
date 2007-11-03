@@ -45,7 +45,7 @@ BOOL FTP::DoFtpConnect( int blocked )
 		{
 			FtpSystemInfo(&getConnection());
 
-			if(!FtpGetFtpDirectory(&getConnection()))
+			if(!FtpFilePanel_.ftpGetCurrentDirectory())
 			{
 				BOOST_LOG(INF, L"!Connect - get dir");
 				return FALSE;
@@ -130,7 +130,7 @@ int FTP::Connect()
 		//Set base directory
 		if(!chost_.url_.directory_.empty())
 		{
-			FtpSetCurrentDirectory(&getConnection(), chost_.url_.directory_);
+			FtpFilePanel_.ftpSetCurrentDirectory(chost_.url_.directory_);
 		}
 
 		IdleMessage( NULL,0 );

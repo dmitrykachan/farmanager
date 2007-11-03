@@ -26,6 +26,14 @@ DialogItem Dialog::addCheckbox(int x, int y, int *value, const std::wstring& lab
 	return DialogItem(this, items_.size()-1);
 }
 
+DialogItem Dialog::addCheckbox(int x, int y, bool *value, const std::wstring& label, int id, DWORD flag)
+{
+	FarDialogItem& item  = addItem(DI_CHECKBOX, x, y, 0, 0, flag, ItemInfo(label, value, id));
+	item.Selected = *value;
+
+	return DialogItem(this, items_.size()-1);
+}
+
 DialogItem Dialog::addCombobox()
 {
 	return DialogItem(this, items_.size()-1);

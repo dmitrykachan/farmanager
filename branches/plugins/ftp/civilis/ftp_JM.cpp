@@ -19,33 +19,22 @@ const int NBUTTONSADDON = 10;
 
 const wchar_t* horizontalLine = L"\x1";
 
-std::wstring WINAPI FixFileNameChars(std::wstring s, BOOL slashes)
+std::wstring WINAPI FixFileNameChars(std::wstring s, bool  slashes)
 {  
 	if(g_manager.opt.InvalidSymbols.empty()) 
 		return s;
-	std::wstring inv = g_manager.opt.InvalidSymbols;
-	std::wstring::const_iterator itr = inv.begin();
-	while(itr != inv.end())
+	std::wstring::const_iterator old_itr = g_manager.opt.InvalidSymbols.begin();
+	std::wstring::const_iterator new_itr = g_manager.opt.CorrectedSymbols.begin();
+
+	while(old_itr != g_manager.opt.InvalidSymbols.end())
 	{
-		size_t i = s.find_first_of(*itr);
-		if(i != std::wstring::npos)
-		{
-			s[i] = g_manager.opt.CorrectedSymbols[itr-inv.begin()];
-		}
-		++itr;
+		std::replace(s.begin(), s.end(), *old_itr, *new_itr);
+		++old_itr;
 	}
 	if(slashes)
 	{
-		std::wstring::iterator i = s.begin();
-		while(i != s.end())
-		{
-			if(*i == L'\\')
-				*i = L'_';
-			else
-				if(*i == L':')
-					*i = L'!';
-			++i;
-		}
+		std::replace(s.begin(), s.end(), L'\\', L'_');
+		std::replace(s.begin(), s.end(), L':', L'!');
 	}
 	return s;
 }
@@ -297,8 +286,8 @@ void Connection::InitCmdBuff()
 	if(!cmdBuff_.empty())
 		CloseCmdBuff();
 
-	CmdVisible   = TRUE;
-	RetryCount   = 0;
+	CmdVisible		= TRUE;
+	retryCount_		= 0;
 	//Command lines + status command
 	cmdMsg_.reserve(g_manager.opt.CmdCount + NBUTTONSADDON);
 }
@@ -484,7 +473,8 @@ int Connection::ConnectMessage(std::wstring message, bool messageTime,
 			}
 		}
 	}
-	
+
+	FARWrappers::Screen scr;
 	return FARWrappers::message(cmdMsg_, buttonCount, (error? FMSG_WARNING : 0) | FMSG_LEFTALIGN);	
 }
 
@@ -568,8 +558,8 @@ int Connection::ConnectMessage(std::wstring msg, std::wstring subtitle, bool err
 			!CmdVisible                                           ||  //Window disabled
 			(IS_SILENT(FP_LastOpMode) && !g_manager.opt.ShowSilentProgress) )
 		{ //show silent processing disabled
-			if(!subtitle.empty())
-				IdleMessage(subtitle.c_str(), g_manager.opt.ProcessColor );
+			if(!msg.empty())
+				IdleMessage(msg.c_str(), g_manager.opt.ProcessColor );
 			return false;
 		}
 
@@ -611,7 +601,7 @@ void WINAPI OperateHidden(const std::wstring& fnm, bool set)
 	BOOST_LOG(INF, (set ? L"Set" : L"Clr") << L" hidden");
 
 	DWORD dw = GetFileAttributesW(fnm.c_str());
-	if(dw == UINT_MAX)
+	if(dw == INVALID_FILE_ATTRIBUTES)
 		return;
 
 	set_flag(dw, FILE_ATTRIBUTE_HIDDEN, set);

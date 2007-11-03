@@ -2,8 +2,8 @@
 #pragma hdrstop
 
 #include "ftp_Int.h"
+#include "progress.h"
 
-//--------------------------------------------------------------------------------
 void Connection::sendrequest(const std::wstring &cmd, const std::wstring &local, const std::wstring &remote)
 {  //??SaveConsoleTitle _title;
 
@@ -72,7 +72,7 @@ void Connection::sendrequestINT(const std::wstring &cmd, const std::wstring &loc
 		{
 			unsigned __int64 v = ((__int64)ffi.nFileSizeHigh) * MAXDWORD + ffi.nFileSizeLow;
 			BOOST_LOG(INF, L"ALLO " << v);
-			if(command(g_manager.opt.cmdAllo + boost::lexical_cast<std::wstring>(v)) != RPL_COMPLETE)
+			if(isComplete(command(g_manager.opt.cmdAllo + boost::lexical_cast<std::wstring>(v))))
 			{
 				BOOST_LOG(INF, "!allo");
 				return;
@@ -88,7 +88,8 @@ void Connection::sendrequestINT(const std::wstring &cmd, const std::wstring &loc
 		} else {
 			BOOST_LOG(INF, L"restart_point " << restart_point);
 
-			if ( !Fmove( fin.Handle, restart_point ) ) {
+			if (!Fmove(fin.Handle, restart_point))
+			{
 				ErrorCode = GetLastError();
 				BOOST_LOG(INF, L"!setfilepointer: " << restart_point);
 				if ( !ConnectMessage( MErrorPosition, local, true, MRetry ) )
@@ -96,11 +97,11 @@ void Connection::sendrequestINT(const std::wstring &cmd, const std::wstring &loc
 				return;
 			}
 
-			if ( cmd[0] != g_manager.opt.cmdAppe[0] &&
-				command(g_manager.opt.cmdRest_ + L" " + boost::lexical_cast<std::wstring>(restart_point)) != RPL_CONTINUE)
+			if(cmd[0] != g_manager.opt.cmdAppe[0] &&
+				!isComplete(command(g_manager.opt.cmdRest_ + L" " + boost::lexical_cast<std::wstring>(restart_point))))
 				return;
 
-			TrafficInfo->Resume( restart_point );
+			TrafficInfo->resume( restart_point );
 		}
 	}
 
@@ -173,7 +174,7 @@ void Connection::sendrequestINT(const std::wstring &cmd, const std::wstring &loc
 // 				}
 				BOOST_LOG(INF, L"sent " << d);
 
-				if (IOCallback && !TrafficInfo->Callback( (int)d ) ) {
+				if (IOCallback && !TrafficInfo->refresh( (int)d ) ) {
 //					BOOST_LOG(INF, L"pf(" << code << L"," << GetSocketErrorSTR() << L" ): canceled");
 					ErrorCode = ERROR_CANCELLED;
 					goto abort;
@@ -184,7 +185,7 @@ void Connection::sendrequestINT(const std::wstring &cmd, const std::wstring &loc
 			//Sleep(1);
 
 		}//-- READ
-		if ( IOCallback ) TrafficInfo->Callback(0);
+		if ( IOCallback ) TrafficInfo->refresh(0);
 		BOOST_LOG(INF, L"done");
 
 				 } /*fsz != 0*/
@@ -198,7 +199,8 @@ void Connection::sendrequestINT(const std::wstring &cmd, const std::wstring &loc
 	{
 		data_peer_.close();
 
-		if ( getreply(false) > RPL_COMPLETE ) {
+		if(!isComplete(getreply(false)))
+		{
 			ErrorCode = ERROR_WRITE_FAULT;
 		}
 	} else

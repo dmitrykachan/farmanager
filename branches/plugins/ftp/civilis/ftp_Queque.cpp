@@ -82,13 +82,13 @@ const wchar_t* FTP::InsertCurrentToQueue( void )
 	if ( !rc )
 		return GetLastError() == ERROR_CANCELLED ? NULL : getMsg(MErrExpandList);
 
-	ci.Download = TRUE;
+	ci.download = true;
 	if ( api.PanelType != PTYPE_FILEPANEL || api.Plugin )
-		ci.DestPath = L"";
+		ci.destPath = L"";
 	else
-		ci.DestPath = api.lpwszCurDir;
+		ci.destPath = api.lpwszCurDir;
 
-	ListToQueque( &il, &ci );
+//TODO	ListToQueque( &il, &ci );
 
 	return NULL;
 }
@@ -119,10 +119,10 @@ const wchar_t* FTP::InsertAnotherToQueue( void )
 	if ( !rc )
 		return GetLastError() == ERROR_CANCELLED ? NULL : getMsg(MErrExpandList);
 
-	ci.Download = FALSE;
-	ci.DestPath = panel_->getCurrentDirectory();
+	ci.download = FALSE;
+	ci.destPath = panel_->getCurrentDirectory();
 
-	ListToQueque( &il, &ci );
+//TODO	ListToQueque( &il, &ci );
 
 	return NULL;
 }
@@ -293,7 +293,7 @@ void FTP::AddToQueque(FTPUrl* item, int pos)
      QuequeSize++;
 }
 
-void FTP::AddToQueque(FAR_FIND_DATA* FileName, const std::wstring& path, bool Download)
+void FTP::AddToQueque(FTPFileInfo& fileName, const std::wstring& path, bool Download)
 {
 	FTPUrl* p = new FTPUrl;
 
@@ -363,21 +363,19 @@ void FTP::AddToQueque(FAR_FIND_DATA* FileName, const std::wstring& path, bool Do
 */
 }
 
-void FTP::ListToQueque(FARWrappers::ItemList* il, FTPCopyInfo* ci)
+void FTP::ListToQueque(const FileList& filelist, const FTPCopyInfo& ci)
 {
-	for(size_t n = 0; n < il->size(); n++ )
+	for(size_t n = 0; n < filelist.size(); n++ )
 	{
-		FAR_FIND_DATA* p = &il->at(n).FindData;
-
 		//Skip dirs
-		if(is_flag( p->dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY))
+		if(filelist[n]->getType() == FTPFileInfo::directory)
 			continue;
 
 		//Skip deselected in list
-		if (il->at(n).Reserved[0] == UINT_MAX )
-			continue;
+		// TODO if (il->at(n).Reserved[0] == UINT_MAX )
+		//	continue;
 
-		AddToQueque(p, ci->DestPath, ci->Download);
+		AddToQueque(*filelist[n], ci.destPath, ci.download);
 	}
 }
 
@@ -391,9 +389,7 @@ void FTP::ExecuteQueue( QueueExecOptions* op )
 
 	oDir = panel_->getCurrentDirectory();
 
-	OverrideMsgCode = ocNone;
 	ExecuteQueueINT(op);
-	OverrideMsgCode = ocNone;
 
 	//Restore plugin state
 	if ( op->RestoreState )
@@ -521,7 +517,7 @@ void FTP::ExecuteQueueINT( QueueExecOptions* op )
 			hConnect->TrafficInfo->Init( hConnect, MStatusDownload, 0, NULL );
 			hConnect->TrafficInfo->InitFile( fsz, ci.SrcPath.c_str(), Unicode::utf16ToUtf8(ci.DestPath).c_str() );
 
-			if ( FRealFile(Unicode::utf16ToUtf8(ci.DestPath).c_str(),&fd) ) {
+			if ( FRealFile(ci.DestPath.c_str(),&fd) ) {
 				if ( fsz != -1 ) {
 					ffd = fd;
 					ffd.nFileSizeHigh = (DWORD)( fsz / ((__int64)UINT_MAX) );

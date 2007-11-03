@@ -11,28 +11,43 @@ class FTP;
 class PanelView: boost::noncopyable
 {
 public:
-	virtual int GetFiles(
-		FARWrappers::ItemList &panelItems, int Move, 
+	enum Result
+	{
+		Succeeded = 1, Failed = 0, Canceled = -1
+	};
+
+	enum CompareResult
+	{
+		Less = -1, Equal = 0, More = 1, UseInternal = -2
+	};
+
+	enum PutResult
+	{
+		SucceededPut = Succeeded, FailedPut = Failed, CanceledPut = Canceled, NotMove = 2
+	};
+
+	virtual Result GetFiles(
+		PluginPanelItem *PanelItem, int ItemsNumber, int Move, 
 		const std::wstring &destPath, int OpMode) = 0;
 	
-	virtual int PutFiles(
+	virtual PutResult PutFiles(
 		PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode) = 0;
 
-	virtual int Compare(
+	virtual CompareResult Compare(
 		const PluginPanelItem *i1, const PluginPanelItem *i2, unsigned int Mode) = 0;
 
 	virtual bool DeleteFiles(
 		const PluginPanelItem *PanelItem, int ItemsNumber, int OpMode) = 0;
 
-	virtual int MakeDirectory(std::wstring &name, int OpMode) = 0;
+	virtual Result MakeDirectory(std::wstring &name, int OpMode) = 0;
 
-	virtual int ProcessEvent(int Event, void *Param) = 0;
+	virtual bool ProcessEvent(int Event, void *Param) = 0;
 	
-	virtual int ProcessKey(int Key, unsigned int ControlState) = 0;
+	virtual bool ProcessKey(int Key, unsigned int ControlState) = 0;
 
-	virtual int SetDirectory(const std::wstring &Dir, int OpMode) = 0;
+	virtual bool SetDirectory(const std::wstring &Dir, int OpMode) = 0;
 
-	virtual int GetFindData(PluginPanelItem **pPanelItem, int *pItemsNumber, int OpMode) = 0;
+	virtual bool GetFindData(PluginPanelItem **pPanelItem, int *pItemsNumber, int OpMode) = 0;
 
 	virtual void FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber) = 0;
 
@@ -51,17 +66,17 @@ public:
 		plugin_ = plugin;
 	}
 
-	virtual int GetFiles(FARWrappers::ItemList &panelItems, int Move, 
+	virtual Result		GetFiles(PluginPanelItem *PanelItem, int ItemsNumber, int Move, 
 							const std::wstring &destPath, int OpMode);
-	virtual int PutFiles(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode);
-	virtual int Compare(const PluginPanelItem *i1, const PluginPanelItem *i2, unsigned int Mode);
-	virtual bool DeleteFiles(const PluginPanelItem *PanelItem, int ItemsNumber, int OpMode);
-	virtual int MakeDirectory(std::wstring &name, int OpMode);
-	virtual int ProcessEvent(int Event, void *Param);
-	virtual int ProcessKey(int Key, unsigned int ControlState);
-	virtual int SetDirectory(const std::wstring &Dir, int OpMode);
-	virtual int GetFindData(PluginPanelItem **pPanelItem,int *pItemsNumber, int OpMode);
-	virtual void FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber);
+	virtual PutResult	PutFiles(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode);
+	virtual CompareResult Compare(const PluginPanelItem *i1, const PluginPanelItem *i2, unsigned int Mode);
+	virtual bool		DeleteFiles(const PluginPanelItem *PanelItem, int ItemsNumber, int OpMode);
+	virtual Result		MakeDirectory(std::wstring &name, int OpMode);
+	virtual bool		ProcessEvent(int Event, void *Param);
+	virtual bool		ProcessKey(int Key, unsigned int ControlState);
+	virtual bool		SetDirectory(const std::wstring &Dir, int OpMode);
+	virtual bool		GetFindData(PluginPanelItem **pPanelItem,int *pItemsNumber, int OpMode);
+	virtual void		FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber);
 	virtual const std::wstring getCurrentDirectory() const;
 	virtual void setCurrentDirectory(const std::wstring& dir);
 
@@ -93,6 +108,7 @@ private:
 	void	readFolder(const std::wstring& dir, HostList &hostList);
 	bool	walk(const PluginPanelItem* panelItems, int itemsNumber, const std::wstring &path, WalkListCallBack callback, void* param);
 	bool	walk(FTPHost& host, const std::wstring &path, WalkListCallBack callback, void* param);
+	void	selectPanelItem(const std::wstring &item) const;
 	static CallbackStatus deleteCallback(bool enter, FTPHost &host, const std::wstring& path, void* param);
 
 	FTP*			plugin_;
@@ -102,82 +118,6 @@ private:
 	FARWrappers::ItemList						itemList_;
 	boost::scoped_array<wchar_t*>				columndata_;
 
-};
-
-
-class FTPFileView: public PanelView
-{
-public:
-	FTPFileView()
-		: plugin_(0) {}
-
-	void setPlugin(FTP* plugin)
-	{
-		plugin_ = plugin;
-	}
-
-	virtual int		GetFiles(FARWrappers::ItemList &panelItems, int Move, 
-		const std::wstring &destPath, int OpMode);
-	virtual int		PutFiles(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode);
-	virtual int		Compare(const PluginPanelItem *i1, const PluginPanelItem *i2, unsigned int Mode);
-	virtual bool	DeleteFiles(const PluginPanelItem *PanelItem, int ItemsNumber, int OpMode);
-	virtual int		MakeDirectory(std::wstring &name, int OpMode);
-	virtual int		ProcessEvent(int Event, void *Param);
-	virtual int		ProcessKey(int Key, unsigned int ControlState);
-	virtual int		SetDirectory(const std::wstring &dir, int OpMode);
-	virtual int		GetFindData(PluginPanelItem **pPanelItem,int *pItemsNumber, int OpMode);
-	virtual void	FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber);
-	virtual const std::wstring getCurrentDirectory() const;
-	virtual void	setCurrentDirectory(const std::wstring& dir);
-
-	Connection& getConnection()
-	{
-		return connection_;
-	}
-
-	const Connection& getConnection() const
-	{
-		return connection_;
-	}
-
-private:
-	typedef std::vector<boost::shared_ptr<FTPFileInfo> > FileList;
-	typedef boost::shared_ptr<FileList> FileListPtr;
-	typedef std::pair<FileListPtr, std::wstring> FileListCacheItem;
-	typedef boost::array<FileListCacheItem, 16> FileListCacheArray;
-
-	static const size_t				permissionError = UINT_MAX;
-	enum
-	{
-		FTP_COL_MODE,
-		FTP_COL_LINK,
-		FTP_COL_MAX
-	};
-
-	FTP*							plugin_;
-	boost::shared_ptr<FileList>		filelist_;
-	Connection						connection_;
-	FARWrappers::ItemList			itemList_;
-	boost::scoped_array<wchar_t*>	columndata_;
-	std::wstring					selFile_;
-
-	Utils::CacheFixedArray<std::wstring, FileListPtr, 16> filelistCache_;
-
-	bool			parseFtpDirOutput(FileListPtr &filelist);
-	size_t			parseFtpDirOutputInt(ServerTypePtr server, FileListPtr &filelist);
-	void			copyNamesToClipboard();
-	void			setAttributes();
-	void			saveURL();
-	const FTPFileInfo& getCurrentFile() const;
-	const FTPFileInfo& findfile(size_t id) const;
-	FTPFileInfo&	findfile(size_t id);
-
-
-	const FTPHost&	getHost() const;
-	FTPHost&		getHost();
-	void			selectPanelItem(const std::wstring &item) const;
-	bool			reread();
-	bool			createDirectory(const std::wstring &dir, int OpMode);
 };
 
 

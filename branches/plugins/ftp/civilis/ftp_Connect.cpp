@@ -3,6 +3,8 @@
 
 #include "ftp_Int.h"
 #include "utils/uniconverts.h"
+#include "progress.h"
+
 
 void CommandsList::init()
 {
@@ -59,6 +61,8 @@ Connection::Connection()
     CurrentState	= fcsNormal;
     breakable_		= true;
 	connected_		= false;
+	retryCount_		= 0;
+	TrafficInfo->setConnection(this);
 }
 
 Connection::~Connection()
@@ -79,11 +83,10 @@ void Connection::GetState( ConnectionState* p )
 {
      p->Inited     = TRUE;
      p->Blocked    = CmdVisible;
-     p->RetryCount = RetryCount;
+     p->RetryCount = getRetryCount();
      p->Passive    = getHost().PassiveMode;
-     p->Object     = TrafficInfo->Object;
-
-     TrafficInfo->Object = NULL;
+//TODO     p->Object     = TrafficInfo->Object;
+//     TrafficInfo->Object = NULL;
 }
 
 void Connection::SetState( ConnectionState* p )
@@ -92,10 +95,9 @@ void Connection::SetState( ConnectionState* p )
       return;
 
     CmdVisible				= p->Blocked;
-    RetryCount				= p->RetryCount;
+    setRetryCount(p->RetryCount);
     getHost().PassiveMode	= p->Passive;
-    TrafficInfo->Object		= p->Object;
-    TrafficInfo->SetConnection( this );
+	TrafficInfo->setConnection(this);
 }
 
 void Connection::InitData( FTPHost* p,int blocked /*=TRUE,FALSE,-1*/ )
@@ -122,7 +124,6 @@ void Connection::ResetOutput()
 std::wstring Connection::FromOEM(const std::string &str) const
 {
 	return WinAPI::toWide(str, getHost().codePage_);
-
 }
 
 std::string Connection::toOEM(const std::wstring &str) const

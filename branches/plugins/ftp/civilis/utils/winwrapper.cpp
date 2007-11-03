@@ -253,4 +253,20 @@ namespace WinAPI
 		timeout_ = timeout;
 	}
 
+	std::wstring getMonthAbbreviature(int month, LCID loc)
+	{
+		BOOST_ASSERT(month >=0 && month <= 11);
+		wchar_t mon[16];
+		GetLocaleInfoW(loc, LOCALE_SABBREVMONTHNAME1 + month, mon, sizeof(mon)/sizeof(*mon));
+		return mon;
+	}
+
+	std::wstring getMonth(int month, LCID loc)
+	{
+		BOOST_ASSERT(month >=0 && month <= 11);
+		wchar_t mon[16];
+		GetLocaleInfoW(loc, LOCALE_SMONTHNAME1 + month, mon, sizeof(mon)/sizeof(*mon));
+		return mon;
+	}
+
 }

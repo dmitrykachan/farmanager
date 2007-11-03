@@ -7,6 +7,39 @@
 #define BOOST_AUTO_TEST_MAIN
 #include <boost/test/included/unit_test_framework.hpp>
 
+#include "ftp_Int.h"
+
+extern	FTPPluginManager g_manager;
+
+class Sturtup
+{
+public:
+	Sturtup()
+	{
+		PluginStartupInfo info;
+		memset(&info, 0, sizeof(info));
+
+		info.GetMsg = getMsg;
+		info.Message = message;
+		FARWrappers::setStartupInfo(info);	
+
+		g_manager.openRegKey(L"Software\\Far18\\Plugins\\FTP_debug");
+	}
+	
+	static const wchar_t* WINAPI getMsg(INT_PTR PluginNumber, int MsgId)
+	{
+		static std::wstring s = L"Message: " + boost::lexical_cast<std::wstring>(MsgId);
+		return s.c_str();
+	}
+
+	static int WINAPI message(INT_PTR PluginNumber, DWORD Flags, const wchar_t *HelpTopic,
+		const wchar_t * const *Items, int ItemsNumber, int ButtonsNumber)
+	{
+		return true;
+	};
+
+
+} startup;
 
 ::boost::unit_test::test_suite*
 init_unit_test_suite( int, char* [] )
@@ -33,6 +66,18 @@ std::wostream& operator << (std::wostream& os, const std::vector<FTPFileInfo> &l
 
 	std::copy(list.begin(), list.end(), std::ostream_iterator<FTPFileInfo, wchar_t>(os, L"\n"));
 	return os;
+}
+
+static bool updateTime(FTPFileInfo& fileinfo)
+{
+	WinAPI::FileTime ft = fileinfo.getLastWriteTime();
+	if(ft.empty())
+		return false;
+	if(fileinfo.getCreationTime().empty())
+		fileinfo.setCreationTime(ft);
+	if(fileinfo.getLastAccessTime().empty())
+		fileinfo.setLastAccessTime(ft);
+	return true;
 }
 
 BOOST_AUTO_TEST_CASE(listing_test)
@@ -82,7 +127,33 @@ BOOST_AUTO_TEST_CASE(listing_test)
 				ServerList::const_iterator ser = servers.find(parser);
 				BOOST_CHECK_MESSAGE(ser != servers.end(), "unknown server name");
 
-				parseListing(indir, *ser, filesinfo);
+				std::wstring::iterator itr = indir.begin();
+				ServerType::entry entry;
+
+				filesinfo.clear();
+
+				while(true)
+				{
+					if(itr == indir.end())
+						break;
+					FTPFileInfo info;
+					try
+					{
+						entry = (*ser)->getEntry(itr, indir.end());
+						if(entry.first == entry.second)
+							continue;
+
+						(*ser)->parseListingEntry(entry.first, entry.second, info);
+						updateTime(info);
+						filesinfo.push_back(info);
+					}
+					catch (std::exception &)
+					{
+						BOOST_ASSERT(0);
+					}
+
+				}
+
 
 				std::wistringstream(outdir) >> filesinfo_orig;
 

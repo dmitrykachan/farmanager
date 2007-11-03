@@ -19,6 +19,7 @@ bool Screen::isSaved()
 void Screen::save()
 {
 	PROCP(L"savecout: " << saveCount_);
+
 	if(FP_LastOpMode & OPM_FIND)
 		return;
 
