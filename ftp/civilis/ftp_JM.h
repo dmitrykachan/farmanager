@@ -110,4 +110,14 @@ class FTPCmdBlock
     void Reset( void );
 };
 
+const wchar_t NET_SLASH = L'/';
+const wchar_t LOC_SLASH = L'\\';
+
+namespace
+{
+	const wchar_t* NET_SLASH_STR = L"/";
+	const wchar_t* LOC_SLASH_STR = L"\\";
+}
+
+
 #endif

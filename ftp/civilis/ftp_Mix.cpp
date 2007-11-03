@@ -5,15 +5,15 @@
 #include "ftp_Int.h"
 #include "utils/uniconverts.h"
 
-FTPCopyInfo::FTPCopyInfo( void )
-  {
-     asciiMode       = FALSE;
-     ShowProcessList = FALSE;
-     AddToQueque     = FALSE;
-     MsgCode         = ocNone;
-     Download        = FALSE;
-     UploadLowCase   = FALSE;
-     FTPRename       = FALSE;
+FTPCopyInfo::FTPCopyInfo()
+{
+     asciiMode       = false;
+     showProcessList = false;
+     addToQueque     = false;
+     msgCode         = ocNone;
+     download        = false;
+     uploadLowCase   = false;
+     FTPRename       = false;
 }
 
 bool WINAPI IsAbsolutePath(const std::wstring &path)
@@ -45,10 +45,10 @@ enum
 	SIZE_K = 1024
 };
 
-std::wstring WINAPI Size2Str(__int64 sz)
+std::wstring Size2Str(__int64 sz)
 {
 	wchar_t letter = 0;
-	double size = (double)sz;
+	double size = static_cast<double>(sz);
 
 	if(size >= SIZE_M)
 	{
@@ -62,17 +62,12 @@ std::wstring WINAPI Size2Str(__int64 sz)
 		}
 
 	if(!letter )
-	{
 		return boost::lexical_cast<std::wstring>(sz);
-	}
-
-	std::wstring s = boost::lexical_cast<std::wstring>(size);
-	if(s.find(L'.') == std::wstring::npos)
-		return s;
-	return s + letter;
+	else
+		return boost::lexical_cast<std::wstring>(size) + letter;
 }
 
-__int64 WINAPI Str2Size(std::wstring str)
+__int64 Str2Size(std::wstring str)
 {  
 	wchar_t  letter;
 	int		mult = 1;
@@ -94,24 +89,28 @@ __int64 WINAPI Str2Size(std::wstring str)
 	return static_cast<__int64>(boost::lexical_cast<double>(str)*mult);
 }
 
-bool WINAPI FRealFile(const wchar_t* nm, FAR_FIND_DATA* fd)
+bool WINAPI FRealFile(const std::wstring &filename, FTPFileInfo& fd)
 {
 	HANDLE f;
 	bool   rc;
 
-	f = CreateFileW(nm, 0, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
-	rc = f &&
-		f != INVALID_HANDLE_VALUE &&
-		GetFileType(f) == FILE_TYPE_DISK;
+	f = CreateFileW(filename.c_str(), 0, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+	rc = f != INVALID_HANDLE_VALUE && GetFileType(f) == FILE_TYPE_DISK;
 
-	if ( rc && fd )
+	if(rc)
 	{
-		fd->lpwszFileName		= const_cast<wchar_t*>(nm);
-		fd->dwFileAttributes	= GetFileAttributesW(nm);
+		fd.clear();
+		fd.setFileName(filename);
+		fd.setWindowsAttribute(GetFileAttributesW(filename.c_str()));
 		DWORD highFileSize;
-		fd->nFileSize			= GetFileSize(f, &highFileSize);
-		fd->nFileSize			|= static_cast<__int64>(highFileSize) << 32;
-		GetFileTime(f, &fd->ftCreationTime, &fd->ftLastAccessTime, &fd->ftLastWriteTime );
+		DWORD lowFileSize = GetFileSize(f, &highFileSize);
+		fd.setFileSize(lowFileSize | (static_cast<__int64>(highFileSize) << 32));
+
+		FILETIME creationTime, lastAccess, lastWrite;
+		GetFileTime(f, &creationTime, &lastAccess, &lastWrite);
+		fd.setCreationTime(creationTime);
+		fd.setLastAccessTime(lastAccess);
+		fd.setLastWriteTime(lastWrite);
 	}
 
 	CloseHandle(f);
@@ -122,39 +121,31 @@ bool WINAPI FRealFile(const wchar_t* nm, FAR_FIND_DATA* fd)
 __int64 WINAPI Fsize(const std::wstring& filename)
 {
 	HANDLE f;
-	DWORD lo,hi;
 
 	f = CreateFileW(filename.c_str(), 0, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
-	if ( !f || f == INVALID_HANDLE_VALUE )
+	if (!f || f == INVALID_HANDLE_VALUE)
 		return 0;
-	lo = GetFileSize(f, &hi);
+	__int64 size = Fsize(f);
 	CloseHandle(f);
+	return size;
+}
 
-	if ( lo == UINT_MAX )
+__int64 WINAPI Fsize(HANDLE File)
+{
+	LARGE_INTEGER size;
+
+	if(GetFileSizeEx(File, &size))
 		return 0;
 	else
-		return ((__int64)hi) * ((__int64)UINT_MAX) + ((__int64)lo);
+		return size.QuadPart;
 }
 
-__int64 WINAPI Fsize( HANDLE File )
-  {  DWORD low,hi;
+bool WINAPI Fmove(HANDLE file, __int64 restart)
+{
+	LARGE_INTEGER point;
+	point.QuadPart = restart;
 
-     low = GetFileSize( File,&hi );
-     if ( low == UINT_MAX )
-       return 0;
-      else
-       return ((__int64)hi) * ((__int64)UINT_MAX) + ((__int64)low);
-}
-
-BOOL WINAPI Fmove( HANDLE file,__int64 restart )
-  {  LONG lo = (LONG)( restart % ((__int64)UINT_MAX) ),
-          hi = (LONG)( restart / ((__int64)UINT_MAX) );
-
-    if ( SetFilePointer( file,lo,&hi,FILE_BEGIN ) == 0xFFFFFFFF &&
-         GetLastError() != NO_ERROR )
-      return FALSE;
-
- return TRUE;
+	return SetFilePointerEx(file, point, NULL, FILE_BEGIN) != 0;
 }
 
 void WINAPI Fclose( HANDLE file )
@@ -315,43 +306,20 @@ bool CheckForEsc(bool isConnection, bool IgnoreSilent )
 	return rc;
 }
 
-int WINAPI IsCaseMixed(const char *Str)
+void WINAPI FixFTPSlash(std::wstring& s)
 {
-	char AnsiStr[1024];
-	OemToChar(Str,AnsiStr);
-	while (*Str && !IsCharAlpha(*Str))
-		Str++;
-	int Case=IsCharLower( *Str );
-	while (*(Str++))
-		if (IsCharAlpha(*Str) && IsCharLower(*Str) != Case)
-			return(TRUE);
-	return(FALSE);
-}
-
-void WINAPI LocalLower(char *Str)
-{
-  OemToChar(Str,Str);
-  CharLower(Str);
-  CharToOem(Str,Str);
-}
-
-void WINAPI FixFTPSlash(std::wstring& s )
-{
-	std::wstring::iterator i = s.begin();
-
-	while((i = std::find(i, s.end(), L'\\')) != s.end())
-		*i = L'/';
+	std::replace(s.begin(), s.end(), LOC_SLASH, NET_SLASH);
 }
 
 void WINAPI FixLocalSlash(std::wstring &path)
 {
-	std::replace(path.begin(), path.end(), L'/', L'\\');
+	std::replace(path.begin(), path.end(), NET_SLASH, LOC_SLASH);
 }
 
 
 std::wstring getPathBranch(const std::wstring &s)
 {
-	size_t n = s.rfind('\\');
+	size_t n = s.rfind(LOC_SLASH);
 	if(n == std::wstring::npos || n == 0)
 		return L"";
 	else
@@ -361,7 +329,7 @@ std::wstring getPathBranch(const std::wstring &s)
 
 std::wstring getPathLast(const std::wstring &s)
 {
-	size_t n = s.rfind('\\');
+	size_t n = s.rfind(LOC_SLASH);
 	if(n == std::wstring::npos || n == 0)
 		return s;
 	else

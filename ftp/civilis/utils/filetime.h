@@ -24,6 +24,12 @@ public:
 		dwHighDateTime = 0;
 	}
 
+	FileTime(const FILETIME &ft)
+	{
+		dwLowDateTime = ft.dwLowDateTime;
+		dwHighDateTime= ft.dwHighDateTime;
+	}
+
 	FileTime(int year, int month, int day, int hours, int minutes, int seconds, int milliseconds = 0)
 	{
 		setDate(year, month, day);

@@ -18,7 +18,10 @@ bool Connection::settype(ftTypes Mode)
 		BOOST_LOG(INF, L"TYPE = " << Mode);
 		return true;
 	} else
+	{
+		BOOST_LOG(ERR, L"new type was not set: " << Mode);
 		return false;
+	}
 }
 
 bool Connection::setascii()  { return settype(TYPE_A); }
@@ -169,12 +172,12 @@ bool Connection::put(const std::wstring &local, const std::wstring& remote)
 
 bool Connection::reget(const std::wstring &remote, const std::wstring& local)
 {
-	return getit(remote, local, 1, "a+" );
+	return getit(remote, local, 1, L"a+");
 }
 
 bool Connection::get(const std::wstring &remote, const std::wstring& local)
 {
-	return getit(remote, local, 0, restart_point ? "r+" : "w" );
+	return getit(remote, local, 0, restart_point ? L"r+" : L"w" );
 }
 
 /*
@@ -182,13 +185,13 @@ bool Connection::get(const std::wstring &remote, const std::wstring& local)
  */
 bool Connection::newer(const std::wstring &remote, const std::wstring& local)
 {
-	return getit(remote, local, -1, "w");
+	return getit(remote, local, -1, L"w");
 }
 
 /*
  * Receive one file.
  */
-int Connection::getit(const std::wstring &remote, const std::wstring& local, int restartit, char *mode)
+bool Connection::getit(const std::wstring &remote, const std::wstring& local, int restartit, wchar_t *mode)
 {
 	std::wstring loc = local;
 	if(loc.empty())
@@ -206,7 +209,7 @@ int Connection::getit(const std::wstring &remote, const std::wstring& local, int
 	recvrequest(g_manager.opt.cmdRetr, loc, remote, mode);
 	restart_point = 0;
 
-	return RPL_OK;
+	return true;
 }
 
 
@@ -228,7 +231,7 @@ bool Connection::setport()
 bool Connection::cd(const std::wstring &dir)
 {
 	int rc = command(g_manager.opt.cmdCwd + L" " + dir);
-	if(rc == SyntaxErrorBadCommand)
+	if(isBadCommand(rc))
 		rc = command(g_manager.opt.cmdXCwd + L" " + dir);
 	return isComplete(rc);
 }
@@ -240,7 +243,7 @@ bool Connection::deleteFile(const std::wstring& filename)
 {  
 	if(filename.empty())
 		return false;
-	return command(g_manager.opt.cmdDel + L" " + filename);
+	return command(g_manager.opt.cmdDel + L' ' + filename);
 }
 
 
@@ -253,10 +256,10 @@ bool Connection::renamefile(const std::wstring& oldfilename, const std::wstring&
 	if(oldfilename.empty() || newfilename.empty())
 		return false;
 
-	int rc = command(g_manager.opt.cmdRen + L' ' + oldfilename);
-	if(rc == RPL_CONTINUE)
-		rc = command(g_manager.opt.cmdRenTo + L' ' + newfilename);
-	return rc;
+	if(!isComplete(command(g_manager.opt.cmdRen + L' ' + oldfilename)))
+		return false;
+	else
+		return isComplete(command(g_manager.opt.cmdRenTo + L' ' + newfilename));
 }
 
 /*
@@ -267,21 +270,21 @@ bool Connection::ls(const std::wstring &path)
 {
 	ResetOutput();
 	if(!getHost().ExtList)
-		recvrequest(g_manager.opt.cmdList, L"-", path, "w");
+		return recvrequest(g_manager.opt.cmdList, L"-", path, L"w") == RPL_OK;
 	else
 	{
-		recvrequest(getHost().listCMD_, L"-", path, "w");
-//TODO		if(code > SyntaxErrorBadCommand && !path.empty())
-			recvrequest(g_manager.opt.cmdList, L"-", path, "w");
+		int rc = recvrequest(getHost().listCMD_, L"-", path, L"w");
+		if(isBadCommand(rc))
+			rc = recvrequest(g_manager.opt.cmdList, L"-", path, L"w");
+		return isComplete(rc);
 	}
-	return true;
 }
 
 
 bool Connection::nlist(const std::wstring &path)
 {
-	recvrequest(g_manager.opt.cmdNList, L"-", path, "w");
-	return RPL_OK;
+	recvrequest(g_manager.opt.cmdNList, L"-", path, L"w");
+	return true;
 }
 
 /*
@@ -300,7 +303,7 @@ bool Connection::pwd()
 	PROC;
 
 	int rc = command(g_manager.opt.cmdPwd);
-	if(rc == SyntaxErrorBadCommand)
+	if(isBadCommand(rc))
 	{
 		BOOST_LOG(INF, L"Try XPWD " << g_manager.opt.cmdXPwd);
 		rc = command(g_manager.opt.cmdXPwd);
@@ -317,7 +320,7 @@ bool Connection::makedir(const std::wstring &dir)
 		return false;
 
 	int rc = command(g_manager.opt.cmdMkd + L" " + dir);
-	if(rc == SyntaxErrorBadCommand)
+	if(isBadCommand(rc))
 		rc = command(g_manager.opt.cmdXMkd + L" " + dir);
 	return isComplete(rc);
 }
@@ -332,7 +335,7 @@ bool Connection::removedir(const std::wstring &dir)
 		return false;
 
 	int rc = command(g_manager.opt.cmdRmd  + L' ' + dir);
-	if(rc == SyntaxErrorBadCommand)
+	if(isBadCommand(rc))
 		rc = command(g_manager.opt.cmdXRmd + L' ' + dir);
 	return isComplete(rc);
 }
@@ -475,7 +478,7 @@ bool Connection::cdup()
 {
 	PROC;
 	int rc = command(g_manager.opt.cmdCDUp);
-	if(rc == SyntaxErrorBadCommand)
+	if(isBadCommand(rc))
 		rc = command(g_manager.opt.cmdXCDUp);
 	return isComplete(rc);
 }
@@ -496,7 +499,7 @@ bool Connection::restart(const std::wstring& point)
 		}
 		
 	}
-	return RPL_OK;
+	return true;
 }
 
 
@@ -516,7 +519,7 @@ bool Connection::sizecmd(const std::wstring& filename)
 	PROC;
 	if(filename.empty())
 		return false;
-	return command(g_manager.opt.cmdSize + L' ' + filename);
+	return isComplete(command(g_manager.opt.cmdSize + L' ' + filename));
 }
 
 /*

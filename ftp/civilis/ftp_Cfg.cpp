@@ -54,7 +54,7 @@ void FTPPluginManager::readCfg()
 	//JM
 	opt.CmdCount			=       std::max(5, std::min(WinAPI::getConsoleHeight()-5,regkey_.get(L"CmdLength",7 )));
 	opt.CmdLine				=       std::max(40, std::min(WinAPI::getConsoleWidth()-9,regkey_.get(L"CmdLine",60 )));
-	opt.IOBuffSize			=       std::max(FTR_MINBUFFSIZE, regkey_.get(L"IOBuffSize", 512));
+	opt.IOBuffSize			=       std::max(FTR_MINBUFFSIZE, regkey_.get(L"IOBuffSize", 4096));
 	opt.dDelimit			=       regkey_.get(L"DigitDelimit",       TRUE );
 	opt.dDelimiter			= (wchar_t)regkey_.get(L"DigitDelimiter",     0 );
 	opt.WaitTimeout			=       regkey_.get(L"WaitTimeout",        30 );

@@ -99,7 +99,7 @@ int FTP::GetHostFiles( struct PluginPanelItem *PanelItem, size_t ItemsNumber,int
 			h.Assign(p);
 // TODO			h.regPath_ = L"";
 
-			BOOST_ASSERT(0 && "Todo or check (write)");
+			BOOST_ASSERT(0 && "TODO or check (write)");
 			if(!h.Write(CheckKey))
 				return FALSE;
 
@@ -122,11 +122,11 @@ int FTP::GetHostFiles( struct PluginPanelItem *PanelItem, size_t ItemsNumber,int
 
 			DestName = DestPath + L'\\' + p->getIniFilename();
 
-			DWORD DestAttr=GetFileAttributesW(DestName.c_str());
+			DWORD DestAttr = GetFileAttributesW(DestName.c_str());
 
 			if ( !IS_SILENT(OpMode) &&
 				!OverwriteAll &&
-				DestAttr != 0xFFFFFFFF )
+				DestAttr != INVALID_FILE_ATTRIBUTES)
 			{
 
 					if (SkipAll)

@@ -9,12 +9,16 @@ enum
 };
 
 
-#define PROC   FunctionTracer functionTracer__(WIDEN(__FUNCSIG__)); functionTracer__.printHeader();
+#define PROC   if(boost::logging::logger::get_instance()->get_max_log_level() < FUNCTRACE) ; else { FunctionTracer functionTracer__(WIDEN(__FUNCSIG__)); functionTracer__.printHeader(); }
 
-#define PROCP(params)	FunctionTracer functionTracer__(WIDEN(__FUNCSIG__)); \
-	if(boost::logging::logger::get_instance()->get_max_log_level() >= FUNCTRACEPARAM)				\
-		functionTracer__.params_ << params;		\
-	functionTracer__.printHeader();
+#define PROCP(params)	\
+	if(boost::logging::logger::get_instance()->get_max_log_level() < FUNCTRACE) ; else \
+	{ \
+		FunctionTracer functionTracer__(WIDEN(__FUNCSIG__)); \
+			if(boost::logging::logger::get_instance()->get_max_log_level() >= FUNCTRACEPARAM)				\
+				functionTracer__.params_ << params;		\
+				functionTracer__.printHeader(); \
+	}
 
 class FunctionTracer
 {

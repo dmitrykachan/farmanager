@@ -81,10 +81,4 @@ private:
 	ListType list_;
 };
 
-
- void parseListing(const std::wstring &listing, boost::shared_ptr<ServerType> pServer, 
-	 std::vector<FTPFileInfo>& files);
-
-
-
 #endif

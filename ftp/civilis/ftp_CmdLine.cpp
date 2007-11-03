@@ -303,7 +303,7 @@ bool FTP::ExecCmdLine(const std::wstring& str, bool wasPrefix)
 	}while(0);
 
 	//processed
-	FARWrappers::getInfo().Control( this,FCTL_SETCMDLINE,(void*)"" );
+	FARWrappers::getInfo().Control(this, FCTL_SETCMDLINE, (void*)"");
 
 	if(isConn && (!getConnection().isConnected()))
 		BackToHosts();

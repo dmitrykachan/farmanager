@@ -6,10 +6,7 @@
 namespace WinAPI
 {
 	using namespace Unicode;
-//	typedef void* handle;
-//	class HMODULE;
 	typedef boost::shared_ptr<void> module;
-//	typedef int (__cdecl *FarProc)();
 	typedef FARPROC FarProc;
 
 	std::wstring	getModuleFileName();
@@ -33,6 +30,9 @@ namespace WinAPI
 
 	std::wstring	getStringError();
 	std::wstring	getStringError(DWORD error);
+
+	std::wstring	getMonthAbbreviature(int month, LCID loc = LOCALE_USER_DEFAULT);
+	std::wstring	getMonth(int month, LCID loc = LOCALE_USER_DEFAULT);
 
 	int checkForKeyPressed(const WORD* codes, int size);
 

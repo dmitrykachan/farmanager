@@ -1,12 +1,6 @@
 #ifndef __FAR_PLUGIN_FTP
 #define __FAR_PLUGIN_FTP
 
-#if !defined(SD_BOTH)
-  #define SD_RECEIVE      0x00
-  #define SD_SEND         0x01
-  #define SD_BOTH         0x02
-#endif
-
 extern int					FP_LastOpMode;
 
 #include "ftp_Cfg.h"       //Config constants and Opt structure
@@ -36,24 +30,22 @@ extern void     WINAPI FixLocalSlash(std::wstring &Path);
 extern std::wstring WINAPI getName(const std::wstring &path);
 
 extern bool     CheckForEsc(bool isConnection, bool IgnoreSilent = false);
-extern int      WINAPI IsCaseMixed(const char *Str);
-extern void     WINAPI LocalLower(char *Str);
 extern bool		WINAPI IsAbsolutePath(const std::wstring &nm);
 
 extern HANDLE   WINAPI Fopen(const wchar_t* nm, const wchar_t* mode /*R|W|A[+]*/, DWORD attr = FILE_ATTRIBUTE_NORMAL );
 extern __int64  WINAPI Fsize(const std::wstring& filename);
 extern __int64  WINAPI Fsize( HANDLE nm );
-extern BOOL     WINAPI Fmove( HANDLE file,__int64 restart_point );
+extern bool     WINAPI Fmove(HANDLE file, __int64 restart_point);
 extern void     WINAPI Fclose( HANDLE file );
 extern int      WINAPI Fwrite( HANDLE File,LPCVOID Buff,size_t Size );
 extern int      WINAPI Fread( HANDLE File,LPVOID Buff,int Size );
 extern BOOL     WINAPI Ftrunc( HANDLE h,DWORD move = FILE_CURRENT );
 
-extern bool     WINAPI FRealFile(const wchar_t* nm, FAR_FIND_DATA* fd = NULL );
+extern bool     WINAPI FRealFile(const std::wstring& filename, FTPFileInfo& fd);
 
 extern void     IdleMessage(const wchar_t* str, int color, bool error = false);
-extern std::wstring WINAPI Size2Str(__int64 sz);
-extern __int64  WINAPI Str2Size(std::wstring str);
+extern std::wstring Size2Str(__int64 sz);
+extern __int64  Str2Size(std::wstring str);
 extern void     WINAPI QuoteStr(std::wstring &str);
 
 //[ftp_JM.cpp]
@@ -64,7 +56,7 @@ extern void     WINAPI LogCmd(const wchar_t* src,CMDOutputDir out,DWORD Size = U
 extern bool     WINAPI IsCmdLogFile( void );
 extern std::wstring WINAPI GetCmdLogFile();
 
-std::wstring	WINAPI FixFileNameChars(std::wstring s, BOOL slashes = FALSE);
+std::wstring	WINAPI FixFileNameChars(std::wstring s, bool slashes = false);
 
 extern void     WINAPI OperateHidden(const std::wstring& fnm, bool set);
 
@@ -103,7 +95,7 @@ public:
 	void readCfg();
 	void WriteCfg();
 	void InvalidateAll();
-	void addWait(time_t tm);
+	void addWait(size_t tm);
 
 
 	const WinAPI::RegKey& getRegKey() const
@@ -130,12 +122,44 @@ inline bool IS_SILENT(int v)
 	return (v & (OPM_FIND|OPM_VIEW|OPM_EDIT)) != 0;
 }
 
-#define FAR_VERT_CHAR                        L'\xB3' //³
-#define FAR_SBMENU_CHAR                      '\x10' //
+const wchar_t FAR_VERT_CHAR		= L'\x2502';
+const wchar_t FAR_SBMENU_CHAR	= L'\x10';
+const wchar_t FAR_LEFT_CHAR		= L'\x25C4';
+const wchar_t FAR_RIGHT_CHAR	= L'\x25BA';
+const wchar_t FAR_SHADOW_CHAR	= L'\x2593';
+const wchar_t FAR_FULL_CHAR		= L'\x2588';
+
+
 
 namespace
 {
 	const wchar_t* HostRegName = L"Hosts\\";
 }
+
+
+class BeepOnLongOperation
+{
+private:
+	WinAPI::Stopwatch stopwatch;
+
+public:
+	BeepOnLongOperation()
+		: stopwatch(g_manager.opt.LongBeepTimeout)
+	{
+	}
+
+	~BeepOnLongOperation()
+	{
+		if(stopwatch.isTimeout())
+		{
+			MessageBeep( MB_ICONASTERISK );
+		}
+	}
+
+	void reset()
+	{
+		stopwatch.reset();
+	}
+};
 
 #endif

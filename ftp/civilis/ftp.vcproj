@@ -560,11 +560,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ftpfileview.h"
+				>
+			</File>
+			<File
 				RelativePath=".\listing.h"
 				>
 			</File>
 			<File
 				RelativePath=".\panelview.h"
+				>
+			</File>
+			<File
+				RelativePath=".\progress.h"
 				>
 			</File>
 			<File
@@ -796,10 +804,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ftp_DeleteFile.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\ftp_FAR.cpp"
 				>
 			</File>
@@ -885,6 +889,10 @@
 			</File>
 			<File
 				RelativePath=".\hostview.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\progress.cpp"
 				>
 			</File>
 			<File

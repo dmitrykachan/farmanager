@@ -37,10 +37,6 @@ namespace FARWrappers
 
 	const wchar_t* getMsg(int msgId)
 	{
-		if(msgId == -8)
-		{
-			return 0;
-		}
 		BOOST_ASSERT(msgId > 0 && msgId < 1000);
 		return getInfo().GetMsg(getModuleNumber(), msgId);
 	}

@@ -56,13 +56,17 @@ private:
 	struct ItemInfo 
 	{
 		ItemInfo(const std::wstring& text, int id)
-			: text_(text), pValueString_(0), pValueInt_(0), id_(id)
+			: text_(text), pValueString_(0), type_(ValLess), id_(id)
 		{};
 		ItemInfo(const std::wstring& text, std::wstring* value, int id)
-			: pValueString_(value), pValueInt_(0), id_(id), text_(text)
+			: pValueString_(value), type_(StringVal), id_(id), text_(text)
 		{};
 		ItemInfo(const std::wstring& text, int* value, int id)
-			: pValueString_(0), pValueInt_(value), id_(id), text_(text)
+			: pValueInt_(value), type_(IntVal), id_(id), text_(text)
+		{};
+
+		ItemInfo(const std::wstring& text, bool* value, int id)
+			: pValueBool_(value), type_(BoolVal), id_(id), text_(text)
 		{};
 
 		wchar_t* getText() const
@@ -72,48 +76,56 @@ private:
 
 		wchar_t* getValueStr() const
 		{
-			BOOST_ASSERT(pValueString_);
+			BOOST_ASSERT(type_ == StringVal);
 			return const_cast<wchar_t*>(pValueString_->c_str());
 		}
 
 		wchar_t* getValue()
 		{
-			if(pValueString_ != 0)
-				return const_cast<wchar_t*>(pValueString_->c_str());
-			if(pValueInt_ != 0)
+			switch(type_)
 			{
-				text_ = boost::lexical_cast<std::wstring>(*pValueInt_);
-				return const_cast<wchar_t*>(text_.c_str());
+				case StringVal:
+					return const_cast<wchar_t*>(pValueString_->c_str());
+				case IntVal:
+					text_ = boost::lexical_cast<std::wstring>(*pValueInt_);
+					break;
+				case BoolVal:
+					text_ = boost::lexical_cast<std::wstring>(*pValueBool_);
+					break;
+				default:
+					BOOST_ASSERT(0 && "unsupported type");
 			}
-			BOOST_ASSERT(0);
 			return const_cast<wchar_t*>(text_.c_str());
 		}
 
 		void set(wchar_t* value)
 		{
-			if(pValueString_ != 0)
+			try
 			{
-				pValueString_->assign(value);
-				return;
+				switch(type_)
+				{
+				case StringVal:
+					pValueString_->assign(value);
+					return;
+				case IntVal:
+					*pValueInt_	= boost::lexical_cast<int>(boost::trim_copy(std::wstring(value)));
+					break;
+				case BoolVal:
+					*pValueBool_= boost::lexical_cast<int>(boost::trim_copy(std::wstring(value))) != 0;
+					break;
+				default:
+					BOOST_ASSERT(0 && "unsupported type");
+				}
 			}
-			if(pValueInt_ != 0)
+			catch (boost::bad_lexical_cast &)
 			{
-				try
-				{
-					std::wstring v = value;
-					*pValueInt_	= boost::lexical_cast<int>(boost::trim_copy(v));
-				}
-				catch (boost::bad_lexical_cast &)
-				{
-					BOOST_LOG(WRN, std::wstring(L"bad int: ") + value);
-				}
-				return;
+				BOOST_LOG(WRN, std::wstring(L"bad value: ") + value);
 			}
-			BOOST_ASSERT(0);
 		}
 
 		void set(wchar_t* value, int selected)
 		{
+			BOOST_ASSERT(0);
 			BOOST_ASSERT(pValueInt_ && pValueString_);
 			pValueString_->assign(value);
 			*pValueInt_	= selected;
@@ -121,15 +133,35 @@ private:
 
 		void set(int selected)
 		{
-			BOOST_ASSERT(pValueInt_);
-			*pValueInt_	= selected;
+			switch(type_)
+			{
+			case IntVal:
+				*pValueInt_ = selected;
+				break;
+			case BoolVal:
+				*pValueBool_ = selected != 0;
+			    break;
+			default:
+				BOOST_ASSERT(0 && "Incorrect type");
+			    break;
+			}
 		}
 
 
+		enum Type
+		{
+			StringVal, IntVal, BoolVal, ValLess
+		};
 		std::wstring			text_;
 		int						id_;
-		std::wstring*			pValueString_;
-		int*					pValueInt_;
+		Type					type_;
+
+		union
+		{
+			std::wstring*		pValueString_;
+			int*				pValueInt_;
+			bool*				pValueBool_;
+		};
 	};
 
 	DWORD						flags_;
@@ -195,6 +227,7 @@ public:
 	DialogItem	addButton(int x, int y, int id, const std::wstring& label, int flag = 0);
 	DialogItem	addDefaultButton(int x, int y, int id, const std::wstring& label, int flag = 0);
 	DialogItem	addCheckbox(int x, int y, int *value, const std::wstring& label, int id = 0, DWORD flag = 0);
+	DialogItem	addCheckbox(int x, int y, bool *value, const std::wstring& label, int id = 0, DWORD flag = 0);
 	DialogItem	addCombobox();
 	DialogItem	addDoublebox(int x1, int y1, int x2, int y2, const std::wstring &label = L"", DWORD flag = 0);
 	DialogItem	addEditor(int x, int y, int x2, std::wstring *value, int id = 0, const wchar_t* history = 0, DWORD flag = 0);

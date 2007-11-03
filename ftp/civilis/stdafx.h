@@ -80,6 +80,7 @@
 #include <numeric>
 #include <map>
 #include <hash_set>
+#include <hash_map>
 
 #include <Winsock2.h>
 
@@ -100,3 +101,4 @@ extern std::locale defaultLocale_;
 	#define ARRAY_SIZE( v )  (sizeof(v) / sizeof( (v)[0] ))
 #endif
 
+namespace fs=boost::filesystem;

@@ -8,28 +8,9 @@
 #include "socket.h"
 
 class Connection;
+class FTPProgress;
 
 const wchar_t quoteMark = L'\x1';
-
-struct FTPProgress// TODO : public FTPPlugin<ProgressInterface*, FTP_PROGRESS_MAGIC> 
-{
-	HANDLE Object;
-
-	FTPProgress( void ) { Object = NULL; }
-	~FTPProgress()      { /*if (Object) { Interface()->DestroyObject(Object); Object = NULL; }*/ }
-
-	void Resume(const char* LocalFileName ) {};
-	void Resume( __int64 size ) {};
-	BOOL Callback( int Size ) { return true; };
-	void Init(HANDLE Connection,int tMsg,int OpMode,FARWrappers::ItemList* il) {};
-	void InitFile( __int64 sz, const std::wstring &SrcName, const std::wstring & DestName ) {};
-	void InitFile( PluginPanelItem *pi, const std::wstring &SrcName, const std::wstring & DestName ) {};
-	void InitFile( WIN32_FIND_DATAW* pi, const std::wstring& SrcName, const std::wstring & DestName ) {};
-	void Skip( void ) {};
-	void Waiting( time_t paused ) {};
-	void SetConnection( HANDLE Connection ) {};
-};
-
 
 struct ConnectionState
 {
@@ -201,7 +182,7 @@ public:
     bool		dataconn(in_addr data_addr, int port);
     bool		do_umask(const std::wstring &mask);
     int			empty_(struct fd_set *mask, int sec);
-    int			getit(const std::wstring &remote, const std::wstring& local, int restartit, char *mode);
+    bool		getit(const std::wstring &remote, const std::wstring& local, int restartit, wchar_t *mode);
     int			getreply(DWORD tm = 0);
 	void		getline(std::string &str, DWORD tm = 0);
 	bool		hookup(const std::wstring& host, int port);
@@ -218,8 +199,8 @@ public:
 	bool		idle(const std::wstring &time);
 
     bool		quote(const std::vector<std::wstring> &params);
-    void		recvrequestINT(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, char *mode );
-	void		recvrequest(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, char *mode );
+    int			recvrequestINT(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, wchar_t *mode );
+	int			recvrequest(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, wchar_t *mode );
     bool		reget(const std::wstring &remote, const std::wstring& local);
 	bool		removedir(const std::wstring &dir);
 	bool		renamefile(const std::wstring& oldfilename, const std::wstring& newfilename);
@@ -333,22 +314,30 @@ public:
 	{
 		if(code == RPL_ERROR)
 			return false;
-		return getFirstDigit(code) == RPL_COMPLETE;
+		return getFirstDigit(code) == FTP_RESULT_CODE_COMPLETE;
 	}
 
 	static bool isContinue(int code)
 	{
 		if(code == RPL_ERROR)
 			return false;
-		return getFirstDigit(code) == RPL_CONTINUE;
+		return getFirstDigit(code) == FTP_RESULT_CODE_CONTINUE;
 	}
 
 	static bool isPrelim(int code)
 	{
 		if(code == RPL_ERROR)
 			return false;
-		return getFirstDigit(code) == RPL_PRELIM;
+		return getFirstDigit(code) == FTP_RESULT_CODE_PRELIM;
 	}
+
+	static bool isBadCommand(int code)
+	{
+		if(code == RPL_ERROR)
+			return false;
+		return getFirstDigit(code) == FTP_RESULT_CODE_BADCOMMAND;
+	}
+
 
 	FTP*	getPlugin()
 	{
@@ -363,6 +352,21 @@ public:
 	WinAPI::Stopwatch& getKeepStopWatch()
 	{
 		return keepAliveStopWatch_;
+	}
+
+	bool isResumeSupport() const
+	{
+		return resumeSupport_;
+	}
+
+	int getRetryCount() const
+	{
+		return retryCount_;
+	}
+
+	void setRetryCount(int count)
+	{
+		retryCount_ = count;
 	}
 
 private:
@@ -397,16 +401,16 @@ private:
 	static CommandsList		commandsList_;
 	WinAPI::Stopwatch		keepAliveStopWatch_;
 
-	FTP*				plugin_;
+	FTP*			plugin_;
+	bool			resumeSupport_;
+	int				retryCount_;
 
 public:
     FTPCurrentStates CurrentState;
 	std::wstring	DirFile;
-    int            RetryCount;
 	FTPProgress*   TrafficInfo;
     BOOL           CmdVisible;
-    bool           resumeSupport_;
-    BOOL           IOCallback;
+    bool           IOCallback;
 
 	BOOL           LoginComplete;
 

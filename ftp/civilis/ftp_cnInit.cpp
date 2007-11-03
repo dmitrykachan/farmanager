@@ -21,6 +21,8 @@ bool Connection::Init(const std::wstring& Host, size_t Port, const std::wstring&
 	setConnected(false);
 	portnum		= -1;
 	brk_flag	= false;
+	restart_point = 0;
+	IOCallback	= false;
 
 	keepAliveStopWatch_.setTimeout(g_manager.opt.KeepAlive*1000);
 

@@ -18,8 +18,6 @@ FTP::FTP()
 	ShowHosts			= TRUE;
 	panel_				= &hostPanel_;
 	SwitchingToFTP		= FALSE;
-	OverrideMsgCode		= ocNone;
-	LastMsgCode			= ocNone;
 
 	UrlsList			= NULL;
 	QuequeSize			= 0;
@@ -34,8 +32,6 @@ FTP::FTP()
 	PanelInfo  pi;
 	FARWrappers::getShortPanelInfo(pi);
 	startViewMode_		= pi.ViewMode;
-	IncludeMask = L"";
-	ExcludeMask = L"";
 }
 
 FTP::~FTP()
@@ -84,79 +80,10 @@ bool FTP::AddWrapper(FARWrappers::ItemList& il, PluginPanelItem &p,
 	return true;
 }
 
-int FTP::GetFindData( PluginPanelItem **pPanelItem, int *pItemsNumber, int OpMode )
-{  
-	PROC;
-	FTPFileInfo FileInfo;
-
-	*pPanelItem   = NULL;
-	*pItemsNumber = 0;
-
-
-	//FTP
-	FARWrappers::Screen scr;
-
-	if(!getConnection().isConnected() && !Connect())
-		return false;
-
-Restart:
-
-	if(!FtpFindFirstFile(&getConnection(), L"*", &FileInfo, &resetCache_))
-	{
-		if ( GetLastError() == ERROR_NO_MORE_FILES )
-		{
-			*pItemsNumber = 0;
-			return TRUE;
-		}
-
-		if (!SwitchingToFTP || GetLastError() != ERROR_CANCELLED && CurrentState == fcsExpandList)
-		{
-			// TODO FreeFindData(*pPanelItem,*pItemsNumber);
-			*pPanelItem   = NULL;
-			*pItemsNumber = 0;
-			return FALSE;
-		}
-
-			//Query reconnect
-		do
-		{
-			if ( GetLastError() == ERROR_CANCELLED )
-				break;
-
-			if(!getConnection().ConnectMessageTimeout(MConnectionLost, chost_.url_.fullhostname_, MRestore ))
-			{
-				BOOST_LOG(INF, L"WaitMessage canceled");
-				break;
-			}
-
-			if(getConnection().keepAlive())
-				goto Restart;
-
-			if(!selectFile_.empty() && CurrentState != fcsExpandList) // TODO selFile
-				SaveUsedDirNFile();
-
-			if ( Connect() )
-				goto Restart;
-			else
-				break;
-
-		}while(1);
-
-		if ( !ShowHosts )
-			BackToHosts();
-
-		// TODO FreeFindData( *pPanelItem, *pItemsNumber );
-
-		return GetFindData(pPanelItem,pItemsNumber,OpMode);
-	}
-
-	return true;
-}
-
 void FTP::SetBackupMode( void )
 {
     PanelInfo  pi;
-    FARWrappers::getInfo().Control( INVALID_HANDLE_VALUE, FCTL_GETPANELINFO, &pi );
+    FARWrappers::getInfo().Control(INVALID_HANDLE_VALUE, FCTL_GETPANELINFO, &pi );
     ActiveColumnMode = pi.ViewMode;
 }
 

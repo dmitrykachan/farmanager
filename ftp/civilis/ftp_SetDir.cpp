@@ -11,7 +11,7 @@ bool FTP::SetDirectoryStepped(const std::wstring &Dir, bool update)
 		return true;
 
 	//Try direct change
-	if(FtpSetCurrentDirectory(&getConnection(), Dir))
+	if(FtpFilePanel_.ftpSetCurrentDirectory(Dir))
 	{
 		if (update) Invalidate();
 		return true;
@@ -69,7 +69,7 @@ bool FTP::SetDirectoryStepped(const std::wstring &Dir, bool update)
 		}
 
 		BOOST_LOG(INF, L"Dir: [" << str << L"]");
-		if ( !FtpSetCurrentDirectory(&getConnection(),str) )
+		if (!FtpFilePanel_.ftpSetCurrentDirectory(str))
 			return FALSE;
 
 		if (update) Invalidate();
