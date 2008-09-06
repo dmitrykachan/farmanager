@@ -202,6 +202,36 @@ BOOST_AUTO_TEST_CASE(listing_test)
 	}
 }
 
+BOOST_AUTO_TEST_CASE(util_string_test)
+{
+	std::wstring s = L"abcde\"fffff\"\"ggggg\"vvv";
+	Utils::removeDuplicatedCharacter(s, '\"');
+	BOOST_CHECK_MESSAGE(s == L"abcde\"fffff\"ggggg\"vvv", "removeDuplicatedCharacter error");
 
+	s = L"\"";
+	Utils::removeDuplicatedCharacter(s, '\"');
+	BOOST_CHECK_MESSAGE(s == L"\"", "removeDuplicatedCharacter error");
+
+	s = L"\"";
+	Utils::removeDuplicatedCharacter(s, '\"');
+	BOOST_CHECK_MESSAGE(s == L"\"", "removeDuplicatedCharacter error");
+
+	BOOST_CHECK(Utils::FDigit(0, L',')			== L"0"); 
+	BOOST_CHECK(Utils::FDigit(1, L',')			== L"1"); 
+	BOOST_CHECK(Utils::FDigit(12, L',')			== L"12"); 
+	BOOST_CHECK(Utils::FDigit(123, L',')		== L"123"); 
+	BOOST_CHECK(Utils::FDigit(1234, L',')		== L"1,234"); 
+	BOOST_CHECK(Utils::FDigit(12345, L',')		== L"12,345"); 
+	BOOST_CHECK(Utils::FDigit(123456, L',')		== L"123,456"); 
+	BOOST_CHECK(Utils::FDigit(1234567, L',')	== L"1,234,567"); 
+	BOOST_CHECK(Utils::FDigit(12345678, L',')	== L"12,345,678"); 
+	BOOST_CHECK(Utils::FDigit(123456789, L',')	== L"123,456,789"); 
+	BOOST_CHECK(Utils::FDigit(1234567890, L',')	== L"1,234,567,890"); 
+	BOOST_CHECK(Utils::FDigit(12345678901, L',')== L"12,345,678,901"); 
+	BOOST_CHECK(Utils::FDigit(112345678901, L',')== L"112,345,678,901"); 
+	BOOST_CHECK(Utils::FDigit(1112345678901, L',')== L"1,112,345,678,901"); 
+
+	BOOST_CHECK(Utils::FDigit(12345678901)== L"12345678901");
+}
 
 #endif

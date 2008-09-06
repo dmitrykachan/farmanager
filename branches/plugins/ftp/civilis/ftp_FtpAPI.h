@@ -1,11 +1,7 @@
 #ifndef __FAR_PLUGIN_FTP_IEFTP
 #define __FAR_PLUGIN_FTP_IEFTP
 
-int    FtpCmdBlock( Connection *hConnect,int block /*TRUE,FALSE,-1*/ );
-bool   FtpFindFirstFile(Connection *hConnect, const std::wstring &searchFile, FTPFileInfo* lpFindFileData, bool *ResetCache );
-bool   FtpPutFile(Connection *Connect, const std::wstring &localFile, std::wstring remoteFile, bool Reput, int AsciiMode);
-void	FtpSystemInfo(Connection *hConnect);
-__int64  FtpFileSize(Connection *Connect, const std::wstring &fnm);
+int    FtpCmdBlock( Connection *hConnect, bool block);
 
 class FTPConnectionBreakable
 {

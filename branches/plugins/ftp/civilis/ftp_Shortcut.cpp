@@ -36,7 +36,6 @@ FTP
   IOBuffSize (atoi)
   1
   FFDup + '0'
-  DecodeCmdLine + '0'
   1
 * /
     Line += 4;
@@ -79,7 +78,6 @@ FTP
       Host.ExtCmdView    = g_manager.opt.ExtCmdView;
       Host.IOBuffSize    = g_manager.opt.IOBuffSize;
       Host.FFDup         = g_manager.opt.FFDup;
-      Host.DecodeCmdLine = TRUE;
 
       //IOBuffSize
       m1 = m+1;
@@ -106,13 +104,6 @@ FTP
       if ( *m1 != '0' && *m1 != '1' )
         break;
       Host.FFDup = *m1 - '0';
-
-      //DecodeCmdLine
-      m1++;
-      if ( !m1[0] ||
-           (*m1 != '0' && *m1 != '1') )
-        break;
-      Host.DecodeCmdLine = *m1 - '0';
 
     }while(0);
 

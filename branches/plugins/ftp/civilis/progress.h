@@ -11,15 +11,25 @@ public:
 	FTPProgress();
 	~FTPProgress();
 
-	void resume(__int64 size);
-	bool refresh(unsigned __int64 size);
-	void Init(int tMsg,int OpMode, const FileList &filelist);
-	void initFile(FTPFileInfo& info, const std::wstring &destName);
+	enum Show
+	{
+		ShowProgress, ShowIdle, NotDisplay
+	};
 
+	void resume(__int64 size);
+	bool refresh(Connection* connection);
+	bool refresh(Connection* connection, unsigned __int64 size);
+	void Init(int tMsg,int OpMode, const FileList &filelist, Show show);
+	void initFile(Connection* connection, const FTPFileInfo& info, const std::wstring &destName);
+	void initFile();
 
 	void skip();
 	void Waiting(size_t paused);
-	void setConnection(Connection* connection);
+	bool isShow() const
+	{
+		return show_ == ShowProgress;
+	}
+	
 	class Speed
 	{
 	private:
@@ -137,7 +147,7 @@ public:
 private:
 	static const int MAX_TRAF_LINES = 20;
 
-	Connection*			connection_;
+	Show				show_;
 
 	Speed				fileSpeed_;
 	Speed				totalSpeed_;
@@ -151,7 +161,6 @@ private:
 
 	boost::array<__int64, 3> averageCps_;
 
-	bool				showStatus_;
 	int					titleMsg_;
 
 	std::wstring		srcFilename_;
@@ -174,5 +183,4 @@ private:
 	void				drawInfos(std::vector<std::wstring> &lines);
 	void				formatLine(int num, std::vector<std::wstring> &lines, std::wstring::const_iterator begin, const std::wstring::const_iterator &end, std::vector<InfoItem>& items);
 	void				drawInfo(InfoItem *it, std::vector<std::wstring>& lines, bool isReplace);
-
 };

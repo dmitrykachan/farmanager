@@ -4,10 +4,6 @@
 #include "servertype.h"
 
 const int FTR_MINBUFFSIZE = 50;
-enum
-{
-	FTR_MAXTIME		= 3600*99 //max calculated estimated time (sec)
-};
 
 //Dialog edit history
 #define FTP_GETHISTORY        L"FTPGet"
@@ -20,12 +16,6 @@ enum
 
 #define FTP_CMDPREFIX         L"ftp"
 #define FTP_CMDPREFIX_SIZE    3
-
-enum
-{
-	FTR_HOURSEC		= 3600,
-	FTR_MINSEC		= 60
-};
 
 inline std::wstring FTP_FILENAME(const PluginPanelItem *p)
 {
@@ -40,19 +30,9 @@ inline std::wstring FTP_FILENAME(const PluginPanelItem *p)
 enum ftTypes {
   TYPE_A = 'A',
   TYPE_I = 'I',
-  TYPE_E = 'E',
-  TYPE_L = 'L',
   TYPE_NONE = 0
 };
 
-//Socket wait state
-enum {
- ws_connect,
- ws_read,
- ws_write,
- ws_accept,
- ws_error
-};
 
 //FTP overwrite mode
 enum overCode {
@@ -64,15 +44,6 @@ enum overCode {
   ocResumeAll,
   ocNone,
   ocCancel = -1
-};
-
-//Current FTP state
-enum FTPCurrentStates {
-  fcsNormal,
-  fcsExpandList,
-  fcsClose,
-  fcsConnecting,
-  fcsFTP,
 };
 
 //CMDLog output directions
@@ -87,22 +58,23 @@ enum CMDOutputDir {
 class FTP;
 
 //Save list options
-enum sliTypes {
-  sltUrlList,
-  sltTree,
-  sltGroup,
-  sltNone
+enum sliTypes
+{
+	sltUrlList,
+	sltTree,
+	sltGroup,
+	sltNone
 };
 
 struct SaveListInfo
 {
 	std::wstring path;
-	BOOL     Append;
-	BOOL     AddPrefix;             //all
-	BOOL     AddPasswordAndUser;
-	BOOL     Quote;
-	BOOL     Size;                  //tree and group
-	int      RightBound;            //tree
+	bool	Append;
+	bool	AddPrefix;             //all
+	bool	AddPasswordAndUser;
+	bool	Quote;
+	bool	Size;                  //tree and group
+	int		RightBound;            //tree
 	sliTypes ListType;
 };
 
@@ -149,7 +121,7 @@ struct Options // : public OptionsPlugin
 	ServerTypePtr    defaultServerType_;   //Type of server
 	BOOL    FFDup;                         //Duplicate FF symbols on transfer to server
 	BOOL    UndupFF;                       //Remove FF duplicate from PWD
-	BOOL    ShowSilentProgress;            //Show normal progress on silent operations
+	bool    ShowSilentProgress;            //Show normal progress on silent operations
 	BOOL    ProcessCmd;                    //Default for command line processing
 	BOOL    UseBackups;                    //Use FTP backups
 	int     IdleShowPeriod;                //Period to refresh idle state (ms)
@@ -158,10 +130,6 @@ struct Options // : public OptionsPlugin
 	int     RetryTimeout;                  //Timeout of auto-retry (sec)
 	BOOL    DoNotExpandErrors;             //Do not expand CMD window on error
 	int     AskLoginFail;                  //Reask user name and password if login fail                   TRUE
-
-
-
-
 	std::wstring defaultPassword_;
 
 //Configurable
@@ -185,7 +153,7 @@ struct Options // : public OptionsPlugin
 
   SaveListInfo sli;
 
-  BOOL    _ShowPassword;                 //Show paswords in any places                                  FALSE
+	bool			showPassword_;                 //Show paswords in any places                                  FALSE
 
 	std::wstring	cmdPut;                  //"STOR" /*APPE*/
 	std::wstring	cmdAppe;                 //"APPE"

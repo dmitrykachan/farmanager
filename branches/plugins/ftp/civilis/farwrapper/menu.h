@@ -11,18 +11,23 @@ public:
 		: conststrings_(0), flags_(flags), selectedItem_(no_selected_items), maxHeight_(0)
 	{
 		reserve(reserveSize);
+		keys_ = 0;
+		breakIndex_ = -2;
 	}
 	template<size_t size>
 	Menu(const wchar_t*(&items)[size], bool copy = true, DWORD flags = 0)
 		: flags_(flags), selectedItem_(no_selected_items), maxHeight_(0)
 	{
+		keys_ = 0;
+		breakIndex_ = -2;
 		init(items, size, copy);
 	}
 
 	~Menu();
 
 	void	select	(size_t n);
-	void	check	(size_t n, bool val = true);
+	void	setCheck(size_t n, bool val = true);
+	bool	isChecked(size_t n) const;
 	int		show	(int x = -1, int y = -1);
 	void	setTitle(const std::wstring& title);
 	void	setBottom(const std::wstring& bottom);
@@ -34,6 +39,9 @@ public:
 
 	void	addItem(const std::wstring &text);
 	void	reserve(size_t n);
+	size_t  size() const;
+	void	setBreakKeys(const int keys[]);
+	int     getBreakIndex() const;
 
 private:
 	enum { no_selected_items = UINT_MAX, reserveSize = 10 };
@@ -46,6 +54,8 @@ private:
 	std::wstring				helpTopic_;
 	int							maxHeight_;
 	size_t						selectedItem_;
+	const int*					keys_;
+	int							breakIndex_;
 	
 	void	init(const wchar_t** items, size_t size, bool copy);
 	void	preshow();

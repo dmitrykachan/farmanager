@@ -4,7 +4,7 @@
 #include "ftp_Int.h"
 #include "farwrapper/dialog.h"
 
-static std::wstring MkFileInfo(const wchar_t* title, const FTPFileInfo* p)
+static std::wstring MkFileInfo(const wchar_t* title, const FTPFileInfo& p)
 {
 	SYSTEMTIME tm;
 
@@ -12,25 +12,22 @@ static std::wstring MkFileInfo(const wchar_t* title, const FTPFileInfo* p)
 
 	ws << std::setw(20) << std::setiosflags(std::ios::left) << title;
 
-	if(p) 
-	{
-		//Size
-		ws << std::setw(14) << std::setiosflags(std::ios::right) << p->getFileSize() << L' ';
+	//Size
+	ws << std::setw(14) << std::setiosflags(std::ios::right) << p.getFileSize() << L' ';
 
-		//Time
-		FileTimeToSystemTime(&p->getLastWriteTime(), &tm);
-		ws	<< std::setfill(L'0') << std::setw(2) << tm.wDay << L'.'
-			<< std::setw(2) << tm.wMonth  << L'.'
-			<< std::setw(4) << tm.wYear   << L'.'
-			<< std::setw(2) << tm.wHour   << L':'
-			<< std::setw(2) << tm.wMinute << L':'
-			<< std::setw(2) << tm.wSecond;
-	}
+	//Time
+	FileTimeToSystemTime(&p.getLastWriteTime(), &tm);
+	ws	<< std::setfill(L'0') << std::setw(2) << tm.wDay << L'.'
+		<< std::setw(2) << tm.wMonth  << L'.'
+		<< std::setw(4) << tm.wYear   << L'.'
+		<< std::setw(2) << tm.wHour   << L':'
+		<< std::setw(2) << tm.wMinute << L':'
+		<< std::setw(2) << tm.wSecond;
 	return ws.str();	
 }
 
 
-overCode FTP::AskOverwrite(int title, BOOL Download, FTPFileInfo* dest, const FTPFileInfo* src,overCode last)
+overCode FTP::AskOverwrite(int title, BOOL Download, const FTPFileInfo& dest, const FTPFileInfo& src,overCode last)
 {
 	if ( last == ocOverAll || last == ocSkipAll )
 		return last;
@@ -43,7 +40,7 @@ overCode FTP::AskOverwrite(int title, BOOL Download, FTPFileInfo* dest, const FT
 
 	dlg.addDoublebox( 3, 1, 66, 11,			getMsg(title))->
 		addLabel	( 5, 2,					getMsg(MAlreadyExist))->
-		addLabel	( 6, 3,					dest->getFileName())->
+		addLabel	( 6, 3,					dest.getFileName())->
 		addLabel	( 5, 4,					getMsg(MAskOverwrite))->
 		addHLine	( 3, 5)->
 		addLabel	( 5, 6,					MkFileInfo(getMsg(MBtnCopyNew), src))->

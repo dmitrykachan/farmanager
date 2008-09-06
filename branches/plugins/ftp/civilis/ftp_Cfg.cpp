@@ -51,7 +51,6 @@ void FTPPluginManager::readCfg()
 	{
 	}
 
-	//JM
 	opt.CmdCount			=       std::max(5, std::min(WinAPI::getConsoleHeight()-5,regkey_.get(L"CmdLength",7 )));
 	opt.CmdLine				=       std::max(40, std::min(WinAPI::getConsoleWidth()-9,regkey_.get(L"CmdLine",60 )));
 	opt.IOBuffSize			=       std::max(FTR_MINBUFFSIZE, regkey_.get(L"IOBuffSize", 4096));
@@ -64,7 +63,7 @@ void FTPPluginManager::readCfg()
 	opt.TimeoutRetry		=       regkey_.get(L"TimeoutRetry",       FALSE );
 	opt.RetryCount			=       regkey_.get(L"RetryCount",         0 );
 	opt.LogOutput			=       regkey_.get(L"LogOutput",          FALSE );
-	opt._ShowPassword		=       regkey_.get(L"ShowPassword",       FALSE );
+	opt.showPassword_		=       regkey_.get(L"ShowPassword",       FALSE );
 	opt.IdleColor			=       regkey_.get(L"IdleColor",          FARWrappers::makeColor(FARWrappers::fccCYAN, FARWrappers::fccBLUE) );
 	opt.IdleMode			=       regkey_.get(L"IdleMode",           IDLE_CONSOLE );
 	opt.LongBeepTimeout		=       regkey_.get(L"BeepTimeout",        30 );
@@ -98,7 +97,7 @@ void FTPPluginManager::readCfg()
 	if(opt.PluginColumnMode < 0 || opt.PluginColumnMode >= 10)
 		opt.PluginColumnMode = -1;
 
-	opt.CmdLogFile			= L"c:\\temp\\ftp.log";// TODO regkey_.get(L"CmdLogFile", L"");
+	opt.CmdLogFile			= regkey_.get(L"CmdLogFile", L"");
 
 	//Queue
 	opt.RestoreState		= regkey_.get(L"QueueRestoreState",    TRUE);

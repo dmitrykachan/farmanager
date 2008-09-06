@@ -71,12 +71,12 @@ private:
 
 public:
 	ItemList();
-	ItemList(PluginPanelItem* items, size_t count);
+	ItemList(PluginPanelItem** items, size_t count);
 	~ItemList()
 	{}
 
 	PluginPanelItem&	add(const PluginPanelItem &src);
-	void				add(const PluginPanelItem *src, size_t count);
+	void				add(PluginPanelItem **src, size_t count);
 	void				reserve(size_t n);
 
 	PluginPanelItem* items()

@@ -99,7 +99,7 @@ PanelView::Result HostView::GetFiles(PluginPanelItem *PanelItem, int ItemsNumber
 		BOOST_ASSERT(0 && "TODO");
 		for(int n = 0; n < ItemsNumber; n++)
 		{
-			const FTPHost* p = findhost(PanelItem[n].UserData);
+			const FtpHostPtr& p = findhost(PanelItem[n].UserData);
 			if(!p)
 				continue;
 
@@ -111,12 +111,9 @@ PanelView::Result HostView::GetFiles(PluginPanelItem *PanelItem, int ItemsNumber
 				continue;
 			}
 
-			FTPHost h;
-			h.Assign(p);
-			// TODO			p->regPath_ = L"";
-
 			BOOST_ASSERT(0 && "TODO and check");
-			if(!h.Write(path))
+			p->setRegPath(path);
+			if(!p->Write())
 			{
 				troubles = true;
 				continue;
@@ -134,9 +131,7 @@ PanelView::Result HostView::GetFiles(PluginPanelItem *PanelItem, int ItemsNumber
 	bool skipAll = false, overwriteAll = false;
 	for(int n = 0; n < ItemsNumber; n++)
 	{
-		const FTPHost* p = findhost(PanelItem[n].UserData);
-		if(!p)
-			continue;
+		const FtpHostPtr& p = findhost(PanelItem[n].UserData);
 
 		if(p->Folder)
 			continue;
@@ -167,8 +162,8 @@ void HostView::readFolder(const std::wstring& dir, HostList &hostList)
 {
 	try
 	{
-		std::wstring path = HostRegName + dir;
-		WinAPI::RegKey regkey(g_manager.getRegKey(), path.c_str());
+		std::wstring path = dir;
+		WinAPI::RegKey regkey(g_manager.getRegKey(), (HostRegName+path).c_str());
 		std::vector<std::wstring> hosts = regkey.getKeys();
 		hostList.reserve(hosts.size());
 
@@ -179,8 +174,8 @@ void HostView::readFolder(const std::wstring& dir, HostList &hostList)
 			boost::shared_ptr<FTPHost> h(new FTPHost);
 			h->Init();
 
-			h->LastWrite.dwHighDateTime = 0;
-			h->LastWrite.dwLowDateTime = 0;
+			h->lastEditTime_.dwHighDateTime = 0;
+			h->lastEditTime_.dwLowDateTime = 0;
 
 			if(!h->Read(*itr++, path))
 				continue;
@@ -217,18 +212,19 @@ bool HostView::GetFindData(PluginPanelItem **pPanelItem,int *pItemsNumber, int O
 		i.CustomColumnData[0]       = L"..";
 		i.CustomColumnData[1]       = L"..";
 		i.CustomColumnData[2]       = L"..";
+		i.UserData                  = ParentDirHostID;
 	}
 
 	itemList_.reserve(itemList_.size()+hosts_.size());
 	std::vector<boost::shared_ptr<FTPHost> >::const_iterator itr = hosts_.begin();
-	size_t index = 1;
+	size_t index = ParentDirHostID+1;
 	while(itr != hosts_.end())
 	{
 		PluginPanelItem& i = itemList_.add(PluginPanelItem());
 		FARWrappers::clear(i);
 
 		i.FindData.lpwszFileName	= const_cast<wchar_t*>((*itr)->getIniFilename().c_str());
-		i.FindData.ftLastWriteTime  = (*itr)->LastWrite;
+		i.FindData.ftLastWriteTime  = (*itr)->lastEditTime_;
 		i.FindData.dwFileAttributes = (*itr)->Folder ? FILE_ATTRIBUTE_DIRECTORY : 0;
 		i.Flags                     = 0;
 		i.UserData                  = index;
@@ -266,7 +262,6 @@ bool HostView::SetDirectory(const std::wstring &Dir,int OpMode)
 		if(oldDir.empty() || oldDir == L"\\")
 		{
 			BOOST_LOG(INF, L"Close plugin");
-			plugin_->CurrentState = fcsClose;
 			FARWrappers::getInfo().Control(plugin_, FCTL_CLOSEPLUGIN, NULL);
 			return true;
 		}
@@ -293,9 +288,7 @@ bool HostView::SetDirectory(const std::wstring &Dir,int OpMode)
 
 bool InsertHostsCmd(FTP* ftp, bool full)
 {
-	const FTPHost*  p = ftp->getCurrentHost();
-	if(p == 0)
-		return false;
+	const FtpHostPtr&  p = ftp->getSelectedHost();
 
 	std::wstring m = full? p->url_.toString() : p->url_.Host_;
 	return FARWrappers::getInfo().Control(ftp, FCTL_INSERTCMDLINE, (void*)m.c_str());
@@ -325,15 +318,12 @@ bool HostView::ProcessKey(int Key, unsigned int ControlState)
 
 	if(ControlState == 0 && Key == VK_RETURN)
 	{
-		const FTPHost* p = plugin_->getCurrentHost();
-		if (!p)
-			return false;
+		FtpHostPtr& p = plugin_->getSelectedHost();
 
 		//Switch to FTP
-		if(!p->Folder)
+		if(p && !p->Folder)
 		{
-			plugin_->chost_.Assign(p);
-			plugin_->FullConnect();
+			plugin_->FullConnect(p);
 
 			return true;
 		}
@@ -343,15 +333,17 @@ bool HostView::ProcessKey(int Key, unsigned int ControlState)
 	if((ControlState==PKF_SHIFT && Key==VK_F4) ||
 	   (ControlState==PKF_ALT   && Key==VK_F6))
 	{
-		FTPHost		h;
+		FtpHostPtr h = FtpHostPtr(new FTPHost);
 
-		h.Init();
-		if(plugin_->GetHost(MEnterFtpTitle, &h, false))
+		h->Init();
+		if(plugin_->EditHostDlg(MEnterFtpTitle, h, false))
 		{
-			h.Write(getCurrentDirectory());
-			h.MkINIFile();
-			plugin_->selectFile_ = h.getIniFilename();
+			h->setRegPath(getCurrentDirectory());
+			h->Write();
+			h->MkINIFile();
+
 			plugin_->Invalidate();
+			selectPanelItem(h->getIniFilename());
 		}
 		return true;
 	}
@@ -361,24 +353,20 @@ bool HostView::ProcessKey(int Key, unsigned int ControlState)
 		(ControlState==PKF_SHIFT   && Key==VK_F6) ||
 		(ControlState==PKF_CONTROL && Key=='Z') )
 	{
-		FTPHost* p = plugin_->getCurrentHost();
-		if (!p)
-			return true;
+		FtpHostPtr& p = plugin_->getSelectedHost();
 		if(p->Folder)
 		{
-			if(!plugin_->EditDirectory(p->url_.Host_, p->hostDescription_, false, false))
+			if(!plugin_->EditDirectory(p->url_.Host_, p->hostDescription_, false, true))
 				return true;
 		} else 
 		{
-			if(!plugin_->GetHost(MEditFtpTitle,p,Key=='Z'))
+			if(!plugin_->EditHostDlg(MEditFtpTitle,p,Key=='Z'))
 				return true;
 		}
 
 		p->MkINIFile();
-		if (p->Write(getCurrentDirectory()))
+		if (p->Write())
 		{
-			plugin_->selectFile_ = p->getIniFilename();
-
 			FARWrappers::getInfo().Control(plugin_,FCTL_UPDATEPANEL,NULL);
 			FARWrappers::getInfo().Control(plugin_,FCTL_REDRAWPANEL,NULL);
 		}
@@ -413,7 +401,7 @@ private:
 	std::locale loc_;
 };
 
-int icompare(const std::wstring& str1, const std::wstring& str2)
+static int icompare(const std::wstring& str1, const std::wstring& str2)
 {
 	is_icompare comp;
 	std::wstring::const_iterator itr1 = str1.begin();
@@ -438,8 +426,8 @@ PanelView::CompareResult HostView::Compare(const PluginPanelItem *i1, const Plug
 	if(!i1 || !i2)
 		return UseInternal;
 
-	const FTPHost* p1 = findhost(i1->UserData);
-	const FTPHost* p2 = findhost(i2->UserData);
+	const FtpHostPtr& p1 = findhost(i1->UserData);
+	const FtpHostPtr& p2 = findhost(i2->UserData);
 	int      n;
 
 	if(!p1 || !p2)
@@ -453,7 +441,7 @@ PanelView::CompareResult HostView::Compare(const PluginPanelItem *i1, const Plug
 
 	case SM_MTIME:
 	case SM_CTIME:
-	case SM_ATIME: n = (int)CompareFileTime(&p2->LastWrite, &p1->LastWrite);
+	case SM_ATIME: n = (int)CompareFileTime(&p2->lastEditTime_, &p1->lastEditTime_);
 		break;
  
 	default: n = icompare(p1->url_.Host_, p2->url_.Host_);
@@ -485,7 +473,7 @@ void HostView::FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber)
 }
 
 
-struct DeleteData 
+struct DeleteData: boost::noncopyable
 {
 	FTP*	plugin;
 	bool	deleteAllFolders;
@@ -497,8 +485,6 @@ struct DeleteData
 HostView::CallbackStatus 
 HostView::deleteCallback(bool enter, FTPHost &host, const std::wstring& path, void* param)
 {
-	PROCP(enter << L"  " << host.url_.fullhostname_);
-
 	BOOST_ASSERT(enter == true);
 
 	DeleteData* data = reinterpret_cast<DeleteData*>(param);
@@ -509,7 +495,7 @@ HostView::deleteCallback(bool enter, FTPHost &host, const std::wstring& path, vo
 		{
 			getMsg(MDeleteHostsTitle),
 			getMsg(MDeleteHostFolder),
-			host.url_.fullhostname_.c_str(),
+			host.url_.toString().c_str(),
 			getMsg(MDeleteGroupDelete),
 			getMsg(MDeleteGroupAll),
 			getMsg(MSkip),
@@ -631,7 +617,7 @@ PanelView::Result HostView::MakeDirectory(std::wstring &name, int OpMode)
 
 	h.Init();
 
-	if(!IS_SILENT(OpMode) && !plugin_->EditDirectory(name, h.hostDescription_, true, false))
+	if(!IS_SILENT(OpMode) && !plugin_->EditDirectory(name, h.hostDescription_, true, true))
 		return Canceled;
 
 	if(name.empty())
@@ -644,13 +630,14 @@ PanelView::Result HostView::MakeDirectory(std::wstring &name, int OpMode)
 	}
 
 	h.Folder = true;
-	h.url_.Host_ = h.url_.fullhostname_ = name;
-	h.Write(getCurrentDirectory());
+	h.url_.Host_ = name;
+	h.setRegPath(getCurrentDirectory());
+	h.Write();
 
 	return Succeeded;
 }
 
-PanelView::PutResult HostView::PutFiles(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode)
+PanelView::Result HostView::PutFiles(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode)
 {
 	bool            SkipAll = false;
 	std::wstring	destPath, srcFile, destName, curName;
@@ -668,7 +655,7 @@ PanelView::PutResult HostView::PutFiles(PluginPanelItem* panelItems, int itemsNu
 	for(n = 0; n < itemsNumber; n++ )
 	{
 		if (CheckForEsc(false))
-			return CanceledPut;
+			return Canceled;
 
 		h.Init();
 		curName = panelItems[n].FindData.lpwszFileName;
@@ -681,7 +668,8 @@ PanelView::PutResult HostView::PutFiles(PluginPanelItem* panelItems, int itemsNu
 		{
 			h.Folder = true;
 			h.url_.Host_ = curName.c_str();
-			h.Write(getCurrentDirectory());
+			h.setRegPath(getCurrentDirectory());
+			h.Write();
 			continue;
 		}
 
@@ -702,13 +690,14 @@ PanelView::PutResult HostView::PutFiles(PluginPanelItem* panelItems, int itemsNu
 		{
 			if(!IS_SILENT(OpMode))
 				if(SayNotReadedTerminates(srcFile, SkipAll))
-					return CanceledPut;
+					return Canceled;
 			continue;
 		}
 
 		BOOST_LOG(INF, L"Write new host [" << srcFile << L"] -> [" << destName << L"]");
 		BOOST_ASSERT(0 && "TODO and check (write)");
-		h.Write(destName);
+		h.setRegPath(destName);
+		h.Write();
 
 		if (Move)
 		{
@@ -725,7 +714,7 @@ PanelView::PutResult HostView::PutFiles(PluginPanelItem* panelItems, int itemsNu
 		for(n = itemsNumber-1; n >= 0; n-- )
 		{
 			if(CheckForEsc(FALSE))
-				return CanceledPut;
+				return Canceled;
 
 			if(is_flag(il[n].FindData.dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY))
 				if(RemoveDirectoryW( FTP_FILENAME(&il[n]).c_str()))
@@ -734,7 +723,7 @@ PanelView::PutResult HostView::PutFiles(PluginPanelItem* panelItems, int itemsNu
 		}
 	}
 
-	return SucceededPut;
+	return Succeeded;
 }
 
 
@@ -743,8 +732,8 @@ bool HostView::ProcessEvent(int Event, void *Param)
 	PROCP(Event);
 	BOOST_LOG(IMPTDATA, L"Event: " << Event);
 
-	if(plugin_->CurrentState == fcsClose || plugin_->CurrentState == fcsConnecting)
-		return false;
+//TODO	if(plugin_->CurrentState == fcsClose || plugin_->CurrentState == fcsConnecting)
+//		return false;
 
 	PanelInfo pi;
 
@@ -756,29 +745,22 @@ bool HostView::ProcessEvent(int Event, void *Param)
 		g_manager.getRegKey().set(L"LastHostsMode", pi.ViewMode);
 		break;
 	case FE_REDRAW:
-		if(!plugin_->PluginColumnModeSet)
+		if(!pluginColumnModeSet_)
 		{
 			if(g_manager.opt.PluginColumnMode != -1)
 				FARWrappers::getInfo().Control(plugin_, FCTL_SETVIEWMODE,&g_manager.opt.PluginColumnMode);
 			else
 			{
 				int num = g_manager.getRegKey().get(L"LastHostsMode", 2);
-				FARWrappers::getInfo().Control(plugin_, FCTL_SETVIEWMODE,&num );
+				FARWrappers::getInfo().Control(plugin_, FCTL_SETVIEWMODE, &num);
 			}
-			plugin_->PluginColumnModeSet = true;
-		}
-		if(!plugin_->selectFile_.empty())
-		{
-			std::wstring s = plugin_->selectFile_;
-			plugin_->selectFile_ = L"";
-			selectPanelItem(s);
+			pluginColumnModeSet_ = true;
 		}
 
 		break;
 
 	case FE_CLOSE:
 		BOOST_LOG(INF, L"Close notify");
-		plugin_->CurrentState = fcsClose;
 		plugin_->getPanelInfo(pi);
 		g_manager.getRegKey().set(L"LastHostsMode", pi.ViewMode);
 		break;
@@ -809,9 +791,8 @@ void HostView::selectPanelItem(const std::wstring &item) const
 {
 	PanelInfo pi;
 	plugin_->getPanelInfo(pi);
-	int n;
 
-	for(n = 0; n < pi.ItemsNumber; n++)
+	for(int n = 0; n < pi.ItemsNumber; n++)
 	{
 		if(item == pi.PanelItems[n].FindData.lpwszFileName)
 		{

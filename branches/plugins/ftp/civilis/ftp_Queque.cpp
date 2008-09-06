@@ -18,10 +18,12 @@ int AskDeleteQueue( void )
 	return FARWrappers::message(MsgItems, 3, FMSG_WARNING);
 }
 
-void FTP::ClearQueue( void )
-  {  FTPUrl* p, *p1;
+void FTP::ClearQueue()
+{  
+	FTPUrl* p, *p1;
 
-     for( p = UrlsList; p; p = p1 ) {
+	for(p = UrlsList; p; p = p1)
+	{
        p1 = p->Next;
        delete p;
      }
@@ -62,7 +64,7 @@ void FTP::SetupQOpt( QueueExecOptions* op )
 	op->RemoveCompleted = g_manager.opt.RemoveCompleted;
 }
 
-const wchar_t* FTP::InsertCurrentToQueue( void )
+const wchar_t* FTP::InsertCurrentToQueue()
 {
 	PanelInfo   pi, api;
 	FARWrappers::ItemList backup,il;
@@ -72,7 +74,7 @@ const wchar_t* FTP::InsertCurrentToQueue( void )
 		return getMsg(MErrGetPanelInfo);
 
 	if( pi.SelectedItemsNumber <= 0 ||
-		pi.SelectedItemsNumber == 1 && !is_flag(pi.SelectedItems[0].Flags,PPIF_SELECTED) )
+		pi.SelectedItemsNumber == 1 && !is_flag(pi.SelectedItems[0]->Flags,PPIF_SELECTED) )
 		return getMsg(MErrNoSelection);
 
 	backup.add(pi.SelectedItems, pi.SelectedItemsNumber);
@@ -93,7 +95,7 @@ const wchar_t* FTP::InsertCurrentToQueue( void )
 	return NULL;
 }
 
-const wchar_t* FTP::InsertAnotherToQueue( void )
+const wchar_t* FTP::InsertAnotherToQueue()
 {
 	FARWrappers::ItemList backup,il;
 	PanelInfo       pi;
@@ -106,13 +108,13 @@ const wchar_t* FTP::InsertAnotherToQueue( void )
 		return getMsg(MErrGetPanelInfo);
 
 	if ( pi.SelectedItemsNumber <= 0 ||
-		pi.SelectedItemsNumber == 1 && !is_flag(pi.SelectedItems[0].Flags,PPIF_SELECTED) )
+		pi.SelectedItemsNumber == 1 && !is_flag(pi.SelectedItems[0]->Flags,PPIF_SELECTED) )
 		return getMsg(MErrNoSelection);
 
 	if ( pi.PanelType != PTYPE_FILEPANEL || pi.Plugin )
 		return getMsg(MErrNotFiles);
 
-	backup.add( pi.SelectedItems, pi.SelectedItemsNumber );
+	backup.add(pi.SelectedItems, pi.SelectedItemsNumber);
 
 	BOOL rc = ExpandList( backup, &il, FALSE );
 	FARWrappers::Screen::fullRestore();
@@ -179,7 +181,7 @@ void FTP::InsertToQueue( void )
 
 void FTP::QuequeMenu( void )
 {
-	BOOST_ASSERT(0 && "Not implemented");
+	BOOST_ASSERT(0 && "TODO: Not implemented");
 /*
 	int              n,
 		num;
@@ -282,7 +284,8 @@ void FTP::AddToQueque(FTPUrl* item, int pos)
 	FTPUrl* p, *p1,*newi;
 
      newi = new FTPUrl;
-     *newi = *item;
+//  TODO HOST  ASSIGN
+//     *newi = *item;
 
      if ( pos == -1 ) pos = QuequeSize;
      p = UrlItem( pos, &p1 );
@@ -297,7 +300,7 @@ void FTP::AddToQueque(FTPFileInfo& fileName, const std::wstring& path, bool Down
 {
 	FTPUrl* p = new FTPUrl;
 
-	p->Host	= chost_;
+//TODO HOST ASSIGN	p->Host	= chost_;
 	p->Download = Download;
 
 
@@ -309,8 +312,6 @@ void FTP::AddToQueque(FTPFileInfo& fileName, const std::wstring& path, bool Down
 	int     num;
 	FTPUrl* p = new FTPUrl;
 
-	memcpy( &p->Host, &Host, sizeof(Host) );
-	p->Download = Download;
 	p->Next     = NULL;
 	p->FileName = *FileName;
 	p->Error.Null();
@@ -379,12 +380,12 @@ void FTP::ListToQueque(const FileList& filelist, const FTPCopyInfo& ci)
 	}
 }
 
-void FTP::ExecuteQueue( QueueExecOptions* op )
+void FTP::ExecuteQueue(QueueExecOptions* op)
 {
-	if ( !QuequeSize ) return;
+	if(!QuequeSize)
+		return;
 
-	FTPHost   oHost = chost_;
-	BOOL      oShowHosts = ShowHosts;
+	FTPUrl_  url = getConnection().getHost()->url_;
 	std::wstring oDir;
 
 	oDir = panel_->getCurrentDirectory();
@@ -392,26 +393,28 @@ void FTP::ExecuteQueue( QueueExecOptions* op )
 	ExecuteQueueINT(op);
 
 	//Restore plugin state
-	if ( op->RestoreState )
+	if(op->RestoreState)
 	{
-		if ( oShowHosts )
+		if(ShowHosts)
 		{
 			BackToHosts();
 		} else
-			if(!chost_.CmpConnected(&oHost))
+			if(!getConnection().getHost()->url_.compare(url))
 			{
-				chost_ = oHost;
-				FullConnect();
-				resetCache_ = true;
+				FtpHostPtr host = FtpHostPtr(new FTPHost);
+				host->url_ = url;
+				FullConnect(host);
+
+				FtpFilePanel_.resetFileCache();
 			}
-			FtpFilePanel_.SetDirectory( oDir,0 );
+			FtpFilePanel_.SetDirectory(oDir, 0);
 			Invalidate();
 	}
 }
 
 void FTP::ExecuteQueueINT( QueueExecOptions* op )
 {
-	BOOST_ASSERT(0 && "Not implemented");
+	BOOST_ASSERT(0 && "TODO Not implemented");
 /*
 	PROCP(op->RestoreState << L", " << op->RemoveCompleted)
 		FARWrappers::Screen scr;
@@ -514,8 +517,8 @@ void FTP::ExecuteQueueINT( QueueExecOptions* op )
 			ci.DestPath += Unicode::utf8ToUtf16(FixFileNameChars(p->FileName.cFileName,TRUE));
 
 			__int64 fsz = FtpFileSize( hConnect, ci.SrcPath.c_str() );
-			hConnect->TrafficInfo->Init( hConnect, MStatusDownload, 0, NULL );
-			hConnect->TrafficInfo->InitFile( fsz, ci.SrcPath.c_str(), Unicode::utf16ToUtf8(ci.DestPath).c_str() );
+			hConnect->trafficInfo_.Init( hConnect, MStatusDownload, 0, NULL );
+			hConnect->trafficInfo_.InitFile( fsz, ci.SrcPath.c_str(), Unicode::utf16ToUtf8(ci.DestPath).c_str() );
 
 			if ( FRealFile(ci.DestPath.c_str(),&fd) ) {
 				if ( fsz != -1 ) {
@@ -561,8 +564,8 @@ void FTP::ExecuteQueueINT( QueueExecOptions* op )
 
 			__int64 fsz = FtpFileSize( hConnect, Unicode::utf16ToUtf8(ci.DestPath).c_str());
 
-			hConnect->TrafficInfo->Init( hConnect, MStatusUpload, 0, NULL );
-			hConnect->TrafficInfo->InitFile( &fd, ci.SrcPath.c_str(), Unicode::utf16ToUtf8(ci.DestPath).c_str() );
+			hConnect->trafficInfo_.Init( hConnect, MStatusUpload, 0, NULL );
+			hConnect->trafficInfo_.InitFile( &fd, ci.SrcPath.c_str(), Unicode::utf16ToUtf8(ci.DestPath).c_str() );
 
 			if ( fsz != -1 ) {
 				ffd = fd;
@@ -585,7 +588,7 @@ void FTP::ExecuteQueueINT( QueueExecOptions* op )
 				needUpdate = TRUE;
 			}
 
-			rc = _FtpPutFile( ci.SrcPath.c_str(),
+			rc = putFile( ci.SrcPath.c_str(),
 				Unicode::utf16ToUtf8(ci.DestPath).c_str(),
 				ci.MsgCode == ocResume || ci.MsgCode == ocResumeAll,
 				ci.asciiMode );

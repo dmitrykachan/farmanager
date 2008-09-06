@@ -1,21 +1,9 @@
 #include "stdafx.h"
 
-#pragma hdrstop
-
 #include "ftp_Int.h"
+#include "farwrapper/dialog.h"
 
-#define FTPHOST_DVERSION                 2740
 #define FTPHOST_DVERSION_WSTR			 L"1.2740"
-
-#undef PROC
-#undef Log
-#if 0
-  #define Log(v)  INProc::Say v
-  #define PROC(v) INProc _inp v ;
-#else
-  #define PROC(v)
-  #define Log(v)
-#endif
 
 //---------------------------------------------------------------------------------
 typedef bool (*HexToPassword_cb)(const std::wstring& hexstr, std::wstring &password);
@@ -105,7 +93,7 @@ bool HexToPassword_2740(const std::wstring& hexstr, std::wstring &password)
 	return TRUE;
 }
 
-void FTPHost::Init( void )
+void FTPHost::Init()
 {
 	PROCP(this);
 
@@ -116,7 +104,7 @@ void FTPHost::Init( void )
 	url_.clear();
 
 	AskLogin = PassiveMode = UseFirewall = AsciiMode = ExtCmdView = ProcessCmd =
-		CodeCmd = ExtList = FFDup = UndupFF = DecodeCmdLine = SendAllo = UseStartSpaces = false;
+		ExtList = FFDup = UndupFF = SendAllo = UseStartSpaces = false;
 
 	listCMD_	= L"LIST -la";
 
@@ -127,32 +115,18 @@ void FTPHost::Init( void )
 	UseFirewall  = g_manager.opt.firewall[0] != 0;
 	FFDup        = g_manager.opt.FFDup;
 	UndupFF      = g_manager.opt.UndupFF;
-	DecodeCmdLine= TRUE;
 	serverType_   = ServerList::instance().create(L"");
 }
 
-void FTPHost::Assign(const FTPHost* p )
+void FTPHost::MkUrl(std::wstring &str, std::wstring Path, const std::wstring &nm)
 {
-	BOOST_ASSERT( p );
-	BOOST_ASSERT( p != this );
-	*this = *p;
-}
-
-BOOL FTPHost::CmpConnected(FTPHost* p)
-{
-	return	boost::algorithm::iequals(p->url_.Host_, url_.Host_) &&
-			p->url_.username_ == url_.username_ && p->url_.password_ == url_.password_;
-}
-
-void FTPHost::MkUrl(std::wstring &str, const std::wstring &Path, const std::wstring &nm, bool sPwd )
-{
-	url_.directory_ = Path; // TODO check that this not affected anything
-	url_.toString(sPwd || is_flag(g_manager.opt.PwdSecurity,SEC_PLAINPWD));
+	url_.directory_.swap(Path);
+	url_.directory_ = Path;
+	str = url_.toString(is_flag(g_manager.opt.PwdSecurity, SEC_PLAINPWD));
+	url_.directory_.swap(Path);
 
 	if (!nm.empty()) 
-	{
 		str += L"/" + nm;
-	}
 
 	FixFTPSlash( str );
 }
@@ -188,11 +162,11 @@ public:
 void FTPHost::MkINIFile()
 {
 	iniFilename_ = L"";
-	iniFilename_.reserve(url_.fullhostname_.size());
+	std::wstring fullhostname = url_.toString(false, false);
+	iniFilename_.reserve(fullhostname.size());
 
 	//Correct bad characters and add possible to DestName
-	std::for_each(url_.fullhostname_.begin(), 
-		url_.fullhostname_.end(), 
+	std::for_each(fullhostname.begin(), fullhostname.end(), 
 		CopyAndCorrectBadCharacters(iniFilename_, Folder? L":/\\\"\'|><^*?" : L":/\\.@\"\'|><^*?"));
 	if(!Folder)
 		iniFilename_ += L".ftp";
@@ -202,7 +176,7 @@ std::wostream& operator << (std::wostream& os, FTPHost& h)
 {
 	os << "user: " << h.url_.username_ << "\n";
 	os << "pass: " << h.url_.password_ << "\n";
-	os << "host: " << h.url_.fullhostname_ << "\n";
+	os << "host: " << h.url_.Host_ << "\n";
 	os << "port: " << h.url_.port_ << "\n";
 	os << "dir : " << h.url_.directory_ << "\n";
 	return os;
@@ -257,7 +231,6 @@ bool FTPUrl_::parse(const std::wstring &s)
 	Host_		= L"";
 	directory_	= L"";
 	port_		= 0;
-	fullhostname_	= s;
 
 	typedef match_array<std::wstring::const_iterator, count> MC;
 	std::wstring::const_iterator itr;
@@ -282,11 +255,15 @@ bool FTPUrl_::parse(const std::wstring &s)
 }
 
 
-std::wstring FTPUrl_::toString(bool insertPassword) const
+std::wstring FTPUrl_::toString(bool insertPassword, bool useServiceName) const
 {
 	bool defLogin =	username_ == L"anonymous" && password_ == g_manager.opt.defaultPassword_;
 	
-	std::wstring str = L"ftp://";
+	std::wstring str;
+	str.reserve(6+username_.size()+password_.size()+2+Host_.size()+directory_.size());
+	
+	if(useServiceName)
+		str += L"ftp://";
 
 	if(!defLogin && !username_.empty()) 
 	{
@@ -295,6 +272,26 @@ std::wstring FTPUrl_::toString(bool insertPassword) const
 			str += L":" + password_;
 		str += L"@";
 	}
+	str += Host_;
+
+	if(!directory_.empty())
+	{
+		if(directory_[0] != L'/')
+			str += L'/';
+		str += directory_;
+	}
+
+	return str;
+}
+
+std::wstring FTPUrl_::getUrl(bool useServerName) const
+{
+	std::wstring str;
+	str.reserve(Host_.size() + directory_.size() + 8);
+	
+	if(useServerName)
+		str += L"ftp://";
+
 	str += Host_;
 
 	if(!directory_.empty())
@@ -357,46 +354,43 @@ std::wstring DecryptPassword_old(const std::vector<unsigned char> &crypt);
 bool FTPHost::Read(const std::wstring &keyName, const std::wstring &path)
 {  
 	PROCP(keyName << L", " << path);
-	std::wstring	usr;
 	std::vector<unsigned char>	psw;
-	std::wstring	hnm;
-	std::wstring	pwd;
 
 	WinAPI::RegKey r;
 
 	try
 	{
-		r.open(g_manager.getRegKey(), (path + keyName).c_str());
+		r.open(g_manager.getRegKey(), (HostRegName + path + keyName).c_str());
 
 		setRegName(keyName);
+		setRegPath(path);
 		Folder = r.get(L"Folder", 0);
 		if(Folder) 
 		{
 			url_.clear();
 			hostDescription_	= r.get(L"Description", L"");
-			url_.fullhostname_		= 
-				url_.Host_		= r.get(L"HostName",	keyName);
+			url_.Host_			= r.get(L"HostName",	keyName);
 			MkINIFile();
 			return true;
 		}
 
-		hnm = r.get(L"HostName", L"");
-		if(hnm.empty())
+		url_.Host_ = r.get(L"HostName", L"");
+		if(url_.Host_.empty())
 			return false;
 
-		usr = r.get(L"User", L"");
+		url_.username_ = r.get(L"User", L"");
 		try
 		{
 			r.get(L"Passwordw", &psw);
 			if(!psw.empty())
-				pwd = DecryptPassword(psw);
+				url_.password_ = DecryptPassword(psw);
 		}
 		catch(WinAPI::RegKey::exception&)
 		{
 			try
 			{
 				r.get(L"Password", &psw);
-				pwd = DecryptPassword_old(psw);
+				url_.password_ = DecryptPassword_old(psw);
 			}
 			catch(WinAPI::RegKey::exception&)
 			{
@@ -404,9 +398,8 @@ bool FTPHost::Read(const std::wstring &keyName, const std::wstring &path)
 			}
 		}
 
-		SetHostName(hnm, usr, pwd);
-
 		hostDescription_	= r.get(L"Description",		L"");
+		url_.directory_		= r.get(L"LocalDir",        L"");
 		codePage_			= r.get(L"Table",			defaultCodePage);
 		ProcessCmd			= r.get(L"ProcessCmd",		TRUE);
 		AskLogin			= r.get(L"AskLogin",		FALSE);
@@ -417,12 +410,10 @@ bool FTPHost::Read(const std::wstring &keyName, const std::wstring &path)
 		ExtList				= r.get(L"ExtList",			FALSE);
 		serverType_			= ServerList::instance().create(
 							  r.get(L"ServerType",		g_manager.opt.defaultServerType_->getName()));
-		CodeCmd				= r.get(L"CodeCmd",			TRUE );
 		listCMD_			= r.get(L"ListCMD",			L"LIST -la");
 		IOBuffSize			= r.get(L"IOBuffSize",      g_manager.opt.IOBuffSize);
 		FFDup				= r.get(L"FFDup",           g_manager.opt.FFDup);
 		UndupFF				= r.get(L"UndupFF",         g_manager.opt.UndupFF);
-		DecodeCmdLine		= r.get(L"DecodeCmdLine",   TRUE);
 		SendAllo			= r.get(L"SendAllo",        FALSE);
 		UseStartSpaces		= r.get(L"UseStartSpaces",	TRUE);
 
@@ -438,20 +429,18 @@ bool FTPHost::Read(const std::wstring &keyName, const std::wstring &path)
 	return true;
 }
 
-bool FTPHost::Write(const std::wstring &path)
+bool FTPHost::Write()
 {  
-	PROCP(path);
-
 	WinAPI::RegKey r;
 	if(getRegName().empty())
 	{
 		std::wstring name;
-		r = findFreeKey(HostRegName + path, name);
+		r = findFreeKey(HostRegName + getRegPath(), name);
 		setRegName(name);
 	}
 	else
 	{
-		r.open(g_manager.getRegKey(), (HostRegName + path + getRegName()).c_str());
+		r.open(g_manager.getRegKey(), (HostRegName + getRegPath() + getRegName()).c_str());
 	}
 	
 	if(!Folder)
@@ -465,6 +454,7 @@ bool FTPHost::Write(const std::wstring &path)
 
 		r.set(L"User",			url_.username_);
 		r.set(L"Passwordw",		psw);
+		r.set(L"LocalDir",		url_.directory_);
 		r.set(L"Table",			codePage_);
 		r.set(L"AskLogin",		AskLogin   );
 		r.set(L"PassiveMode",	PassiveMode);
@@ -475,15 +465,13 @@ bool FTPHost::Write(const std::wstring &path)
 		r.set(L"ServerType",	serverType_->getName());
 		r.set(L"ListCMD",		listCMD_);
 		r.set(L"ProcessCmd",	ProcessCmd );
-		r.set(L"CodeCmd",		CodeCmd );
 		r.set(L"IOBuffSize",	IOBuffSize );
 		r.set(L"FFDup",			FFDup);
 		r.set(L"UndupFF",		UndupFF);
-		r.set(L"DecodeCmdLine",	DecodeCmdLine);
 		r.set(L"SendAllo",		SendAllo);
 		r.set(L"UseStartSpaces",UseStartSpaces);
 	}
-	r.set(L"HostName",			url_.fullhostname_);
+	r.set(L"HostName",			url_.Host_);
 	r.set(L"Description",		hostDescription_);
 	r.set(L"Folder",			Folder);
 
@@ -564,10 +552,6 @@ private:
 bool FTPHost::ReadINI(const std::wstring &nm)
 {  
 	std::wstring hex;
-	std::wstring hst;
-	std::wstring usr;
-	std::wstring pwd;
-
 
 	Init();
 
@@ -581,13 +565,13 @@ bool FTPHost::ReadINI(const std::wstring &nm)
 	} else
 		DecodeProc = HexToPassword_OLD;
 
-	hst = p.getString(L"Url", L"");
-	if(hst.empty())
+	url_.Host_ = p.getString(L"Host", L"");
+	if(url_.Host_.empty())
 		return false;
-	usr = p.getString(L"User", L"");
+	url_.username_ = p.getString(L"User", L"");
 	hex = p.getString(L"Password", L"");
 
-	if(!DecodeProc(hex,pwd) || !SetHostName(hst,usr,pwd))
+	if(!DecodeProc(hex, url_.password_))
 		return false;
 
 	hostDescription_ = p.getString(L"Description", L"");
@@ -602,12 +586,10 @@ bool FTPHost::ReadINI(const std::wstring &nm)
 	std::wstring serverName = p.getString(L"ServerType", L"");
 	serverType_		= ServerList::instance().create(serverName);
 	ProcessCmd		= p.getInt(L"ProcessCmd", TRUE);
-	CodeCmd			= p.getInt(L"CodeCmd", TRUE);
 	listCMD_		= p.getString(L"ListCMD", listCMD_);
 	IOBuffSize		= p.getInt(L"IOBuffSize", g_manager.opt.IOBuffSize);
 	FFDup			= p.getInt(L"FFDup", g_manager.opt.FFDup);
 	UndupFF			= p.getInt(L"UndupFF", g_manager.opt.UndupFF);
-	DecodeCmdLine	= p.getInt(L"DecodeCmdLine", TRUE);
 	SendAllo		= p.getInt(L"SendAllo", FALSE);
 	UseStartSpaces	= p.getInt(L"UseStartSpaces", true);
 	codePage_		= p.getInt(L"CharTable", defaultCodePage);
@@ -641,9 +623,10 @@ bool FTPHost::WriteINI(const std::wstring & nm) const
 	std::wstring hexPassword = PasswordToHex(url_.password_);
  	res = 
  		p.setString(L"Version",		FTPHOST_DVERSION_WSTR) &&
-		p.setString(L"Url",			url_.fullhostname_) &&
+		p.setString(L"Host",		url_.Host_) &&
 		p.setString(L"User",		url_.username_) &&
 		p.setString(L"Password",	hexPassword) &&
+		p.setString(L"LocalDir",	url_.directory_) &&
 		p.setString(L"Description",	hostDescription_) &&
 		p.setInt   (L"AskLogin",	AskLogin) &&
 		p.setInt   (L"AsciiMode",	AsciiMode) &&
@@ -652,12 +635,10 @@ bool FTPHost::WriteINI(const std::wstring & nm) const
 		p.setInt   (L"ExtCmdView",	ExtCmdView) &&
 		p.setInt   (L"ExtList",		ExtList) &&
 		p.setString(L"ServerType",	serverType_->getName()) &&
-		p.setInt   (L"CodeCmd",		CodeCmd) &&
 		p.setString(L"ListCMD",		listCMD_) &&
 		p.setInt   (L"IOBuffSize",	IOBuffSize) &&
 		p.setInt   (L"FFDup",		FFDup) &&
 		p.setInt   (L"UndupFF",		UndupFF) &&
-		p.setInt   (L"DecodeCmdLine",	DecodeCmdLine) &&
 		p.setInt   (L"SendAllo",	SendAllo) &&
 		p.setInt   (L"UseStartSpaces",UseStartSpaces) &&
 		p.setInt   (L"ProcessCmd",	ProcessCmd) &&
@@ -732,3 +713,4 @@ std::wstring DecryptPassword(const std::vector<unsigned char> &crypt)
 	}
 	return uncrypted;
 }
+

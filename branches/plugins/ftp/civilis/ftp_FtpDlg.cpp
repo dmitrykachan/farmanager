@@ -14,7 +14,7 @@ bool WINAPI AskSaveList(SaveListInfo* sli)
 
 	dlg.addDoublebox	( 3, 1,56,14,					getMsg(MFLTitle))->
 		addLabel		( 4, 2,							getMsg(MFLSaveTo))->
-		addEditor		( 4, 3,54,	&sli->path, 0,	L"SaveListHistory")->
+		addEditor		( 4, 3,54,	&sli->path, 0,		L"SaveListHistory")->
 		addHLine		( 1, 4)->
 
 		addRadioButtonStart(4,5,	&listType[0],		getMsg(MFLUrls))->
@@ -53,7 +53,7 @@ bool FTP::CopyAskDialog(bool Move, bool Download, FTPCopyInfo* ci)
 
 	ci->showProcessList = ci->addToQueque = ci->FTPRename = false;
 
-	int dummy = 0; // TODO
+	bool doNotScan = false;
 
 	boost::array<int, 4> msg = {{0}};
 	switch(ci->msgCode)
@@ -83,7 +83,7 @@ bool FTP::CopyAskDialog(bool Move, bool Download, FTPCopyInfo* ci)
 		addHLine		( 3, 8)->
 
 		addCheckbox		( 5, 9,		&ci->asciiMode,			getMsg(MDownloadAscii))->
-		addCheckbox		( 5,10,		&dummy,					getMsg(MDoNotScan), 0, DIF_DISABLE)->
+		addCheckbox		( 5,10,		&doNotScan,				getMsg(MDoNotScan), 0, DIF_DISABLE)->
 		addCheckbox		( 5,11,		&ci->showProcessList,	getMsg(MSelectFromList))->
 		addCheckbox		( 5,12,		&ci->addToQueque,		getMsg(MAddQueue), 0, Move? DIF_DISABLE : 0)->
 		addCheckbox		( 5,13,		&ci->uploadLowCase,		getMsg(MConfigUploadLowCase), 0, Download? DIF_DISABLE : 0)->
@@ -120,14 +120,13 @@ bool FTP::CopyAskDialog(bool Move, bool Download, FTPCopyInfo* ci)
 	return true;
 }
 
-void QueryExHostOptions(FTP* ftp, FTPHost* p)
+void QueryExHostOptions(FTP* ftp, FtpHostPtr& p)
 {
 	FARWrappers::Dialog dlg(L"FTPExtHost");
 
 	dlg.addDoublebox( 3, 1,72,17,				getMsg(MEHTitle))->
 		addCheckbox	( 5, 2, &p->FFDup,			getMsg(MDupFF))->
 		addCheckbox	( 5, 3, &p->UndupFF,		getMsg(MUndupFF))->
-		addCheckbox	( 5, 4, &p->DecodeCmdLine,	getMsg(MEHDecodeCmd))->
 		addCheckbox	( 5, 5, &p->SendAllo,		getMsg(MSendAllo))->
 		addCheckbox	( 5, 6, &p->UseStartSpaces,	getMsg(MUseStartSpaces))->
 		addHLine	( 3,15)->
@@ -139,7 +138,7 @@ void QueryExHostOptions(FTP* ftp, FTPHost* p)
 	ftp->longBeep_.reset();
 }
 
-bool FTP::GetHost(int title, FTPHost* p, bool ToDescription)
+bool FTP::EditHostDlg(int title, FtpHostPtr& p, bool ToDescription)
 {
 	FARWrappers::Dialog dlg(L"FTPConnect");
 
@@ -147,10 +146,11 @@ bool FTP::GetHost(int title, FTPHost* p, bool ToDescription)
 	{
 		idTable = 1, idServer, idExtOpt, idSave, idConnect, idHost, idDescription
 	};
+	std::wstring fullhostname = p->url_.getUrl(true);
 
 	dlg.addDoublebox( 3, 1,72,17,							getMsg(title))->
 		addLabel	( 5, 2,									getMsg(MFtpName))->
-		addEditor	( 7, 3,70,		&p->url_.fullhostname_, idHost,	FTP_HOSTHISTORY)->
+		addEditor	( 7, 3,70,		&fullhostname, idHost,	FTP_HOSTHISTORY)->
 		addHLine	( 4, 4)->
 		addLabel	( 5, 5,									getMsg(MUser))->
 		addEditor	(18, 5,70,		&p->url_.username_, 0,	FTP_USERHISTORY)->
@@ -162,9 +162,8 @@ bool FTP::GetHost(int title, FTPHost* p, bool ToDescription)
 		addCheckbox	( 5, 9,			&p->AskLogin,			getMsg(MAskLogin))->
 		addCheckbox	( 5,10,			&p->AsciiMode,			getMsg(MAsciiMode))->
 		addCheckbox	( 5,11,			&p->PassiveMode,		getMsg(MPassiveMode))->
-		addCheckbox	( 5,12,			&p->UseFirewall,		getMsg(MUseFirewall))->
+//		addCheckbox	( 5,12,			&p->UseFirewall,		getMsg(MUseFirewall))->
 
-		addCheckbox	( 5,13,			&p->CodeCmd,			getMsg(MDecodeCommands))->
 		addCheckbox	(40, 9,			&p->ExtCmdView,			getMsg(MExtWindow))->
 		addCheckbox	(40,10,			&p->ExtList,			getMsg(MExtList))->
 		addEditor	(44,11,59,		&p->listCMD_)->
@@ -182,7 +181,6 @@ bool FTP::GetHost(int title, FTPHost* p, bool ToDescription)
 		dlg.find(ToDescription? idDescription : idHost).setFocus();
 
 	int rc;
-	std::wstring hostname;
 	do 
 	{
 		rc = dlg.show(76, 19);
@@ -204,17 +202,16 @@ bool FTP::GetHost(int title, FTPHost* p, bool ToDescription)
 			QueryExHostOptions(this, p);
 			continue;
 		}
-		hostname = p->url_.fullhostname_;
-		boost::trim(hostname);
-		if(hostname.empty())
+		boost::trim(fullhostname);
+		if(fullhostname.empty())
 			continue;
-		if(hostname[0] == L'\"' && FARWrappers::getFSF()->Unquote)
+		if(fullhostname[0] == L'\"' && FARWrappers::getFSF()->Unquote)
 		{
-			std::vector<wchar_t> v(hostname.begin(), hostname.end());
+			std::vector<wchar_t> v(fullhostname.begin(), fullhostname.end());
 			v.push_back(0);
 			FARWrappers::getFSF()->Unquote(&v[0]);
-			hostname.assign(v.begin(), v.end()-1);
-			if(hostname.empty())
+			fullhostname.assign(v.begin(), v.end()-1);
+			if(fullhostname.empty())
 				continue;
 		}
 
@@ -223,12 +220,14 @@ bool FTP::GetHost(int title, FTPHost* p, bool ToDescription)
 	} while(1);
 
 	p->IOBuffSize  = std::max(FTR_MINBUFFSIZE, p->IOBuffSize);
-	p->SetHostName(hostname, std::wstring(p->url_.username_), std::wstring(p->url_.password_));
+	p->SetHostName(fullhostname, std::wstring(p->url_.username_), std::wstring(p->url_.password_));
+	SYSTEMTIME currentTime;
+	GetSystemTime(&currentTime);
+	SystemTimeToFileTime(&currentTime, &p->lastEditTime_); 
 
 	if(rc == idConnect)
 	{
-		chost_.Assign(p);
-		FullConnect();
+		FullConnect(p);
 		return false;
 	}
 	return true;
@@ -286,7 +285,6 @@ UINT FTP::SelectTable(UINT codePage)
 	return tables[exitCode];
 }
 
-//---------------------------------------------------------------------------------
 bool WINAPI GetLoginData(std::wstring &username, std::wstring &password, bool forceAsk)
 {
 	if(!username.empty() && password.empty())
@@ -300,8 +298,6 @@ bool WINAPI GetLoginData(std::wstring &username, std::wstring &password, bool fo
 
 	if(password.empty() && boost::algorithm::to_lower_copy(username) == L"anonymous")
 		password = g_manager.opt.defaultPassword_;
-
-
 
 	FARWrappers::Dialog dlg(L"FTPConnect");
 

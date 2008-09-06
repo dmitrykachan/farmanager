@@ -1,7 +1,5 @@
 #include "stdafx.h"
 
-#pragma hdrstop
-
 #include "ftp_Int.h"
 #include "farwrapper/dialog.h"
 
@@ -12,8 +10,8 @@ void ShowHostError( FTPUrl* p )
 
 void FTP::UrlInit(FTPUrl* p)
 {
-      p->Host     = chost_;
-      p->Download = FALSE;
+//TODO HOST ASSIGN      p->Host     = chost_;
+      p->Download = false;
       p->Next     = NULL;
 }
 
@@ -136,7 +134,7 @@ bool FTP::EditUrlItem( FTPUrl* p )
 			case -1:
 				return false;
 			case idHost:
-				GetHost(MEditFtpTitle, &p->Host, false);
+				EditHostDlg(MEditFtpTitle, FtpHostPtr(&p->Host), false);
 				break;
 			case idError:
 				ShowHostError(p);

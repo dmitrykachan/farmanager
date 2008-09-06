@@ -41,7 +41,7 @@ enum {
   MConfigFirewall,                 //"F&irewall:port"
   MConfigPassiveMode,              //"Passi&ve mode"
 
-  MCannotConnectTo,                //"Cannot connect to"
+  MCannotConnect,                //"Cannot connect to"
   MConnectionLost,                 //"Connection lost. Restore it?"
   MRestore,                        //"Restore"
 
@@ -326,7 +326,7 @@ enum {
   MServerType,                     //"S&erver type"
   MUtilsSelectTable,               //"Change c&haracter table..."
   MUtilsServerType,                //"Change ser&ver type..."
-  MDecodeCommands,                 //"Decode co&mmands text"
+  MDecodeCommands_removed,                 //"Decode co&mmands text" // TODO remove lng
   MResumeRestart,                  //"FAR: Site does not support resuming. Restarting from the beginning."
 
   MAddToSites,                     //"Add to saved s&ites"
@@ -412,7 +412,7 @@ enum {
   MEHTitle,                        //"Extended host options"
   MDupFF,                          //"Dup FF in commands"
   MUndupFF,                        //"UnDup FF in PWD"
-  MEHDecodeCmd,                    //"Decode &cmd line commands"
+  MEHDecodeCmd_remove,             // TODO remove lng       //"Decode &cmd line commands"
   MSendAllo,                       //"Send ALLO command before upload"
   MUseStartSpaces,              //"Ignore spaces at file name start"
 

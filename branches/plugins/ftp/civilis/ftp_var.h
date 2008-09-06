@@ -21,14 +21,6 @@ enum FTP_RESULT
 	FTP_RESULT_CODE_BADCOMMAND	= 5,
 };
 
-enum RPL_RESULT
-{
-	RPL_OK			= 0, 
-	RPL_ERROR		= -1,
-	RPL_TRANSFERERROR = -2,
-	RPL_CANCEL		= -3
-};
-
 enum ReplyCodes
 {
 	RestartMarkerReply		= 110,
