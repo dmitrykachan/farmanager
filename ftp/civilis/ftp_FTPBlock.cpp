@@ -4,24 +4,26 @@
 
 #include "ftp_Int.h"
 
-//---------------------------------------------------------------------------------
-FTPCmdBlock::FTPCmdBlock( FTP *c,int block )
-  {
-    Handle = c;
-    hVis   = -1;
-    Block( block );
+FTPCmdBlock::FTPCmdBlock(FTP *c, int block)
+{
+	handle_ = c;
+	hVis   = -1;
+	Block(block);
 }
+
 FTPCmdBlock::~FTPCmdBlock()
 {
-   Reset();
+	Reset();
 }
-void FTPCmdBlock::Block( int block )
+
+void FTPCmdBlock::Block(int block)
 {
-    if ( Handle && block != -1 )
-      hVis = FtpCmdBlock(&Handle->getConnection(), block);
+	if(handle_ && block != -1)
+		hVis = FtpCmdBlock(&handle_->getConnection(), block);
 }
-void FTPCmdBlock::Reset( void )
+
+void FTPCmdBlock::Reset()
 {
-    Block( hVis );
-    hVis = -1;
+	Block(hVis);
+	hVis = -1;
 }

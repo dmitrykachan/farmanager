@@ -13,7 +13,7 @@ class PanelView: boost::noncopyable
 public:
 	enum Result
 	{
-		Succeeded = 1, Failed = 0, Canceled = -1
+		Succeeded = 1, Failed = 0, Canceled = -1, NotMove = 2
 	};
 
 	enum CompareResult
@@ -21,16 +21,11 @@ public:
 		Less = -1, Equal = 0, More = 1, UseInternal = -2
 	};
 
-	enum PutResult
-	{
-		SucceededPut = Succeeded, FailedPut = Failed, CanceledPut = Canceled, NotMove = 2
-	};
-
 	virtual Result GetFiles(
 		PluginPanelItem *PanelItem, int ItemsNumber, int Move, 
 		const std::wstring &destPath, int OpMode) = 0;
 	
-	virtual PutResult PutFiles(
+	virtual Result PutFiles(
 		PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode) = 0;
 
 	virtual CompareResult Compare(
@@ -59,7 +54,7 @@ class HostView: public PanelView
 {
 public:
 	HostView()
-		: plugin_(0) {}
+		: plugin_(0), pluginColumnModeSet_(false) {}
 
 	void setPlugin(FTP* plugin)
 	{
@@ -68,7 +63,7 @@ public:
 
 	virtual Result		GetFiles(PluginPanelItem *PanelItem, int ItemsNumber, int Move, 
 							const std::wstring &destPath, int OpMode);
-	virtual PutResult	PutFiles(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode);
+	virtual Result		PutFiles(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode);
 	virtual CompareResult Compare(const PluginPanelItem *i1, const PluginPanelItem *i2, unsigned int Mode);
 	virtual bool		DeleteFiles(const PluginPanelItem *PanelItem, int ItemsNumber, int OpMode);
 	virtual Result		MakeDirectory(std::wstring &name, int OpMode);
@@ -78,23 +73,21 @@ public:
 	virtual bool		GetFindData(PluginPanelItem **pPanelItem,int *pItemsNumber, int OpMode);
 	virtual void		FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber);
 	virtual const std::wstring getCurrentDirectory() const;
-	virtual void setCurrentDirectory(const std::wstring& dir);
+	virtual void		setCurrentDirectory(const std::wstring& dir);
 
-	const FTPHost* findhost(size_t id) const
+	const FtpHostPtr& findhost(size_t id) const
 	{
-		if(id > 0 && id <= hosts_.size())
-			return hosts_[id-1].get();
-		else
-			return 0;
+		BOOST_ASSERT(id > 0 && id <= hosts_.size());
+		return hosts_[id-1];
 	}
 
-	FTPHost* findhost(size_t id)
+	FtpHostPtr& findhost(size_t id)
 	{
-		if(id > 0 && id <= hosts_.size())
-			return hosts_[id-1].get();
-		else
-			return 0;
+		BOOST_ASSERT(id > 0 && id <= hosts_.size());
+		return hosts_[id-1];
 	}
+
+	static const int							ParentDirHostID = 0;
 
 private:
 	typedef std::vector<boost::shared_ptr<FTPHost> > HostList;
@@ -117,7 +110,7 @@ private:
 	std::vector<boost::shared_ptr<FTPHost> >	hosts_;
 	FARWrappers::ItemList						itemList_;
 	boost::scoped_array<wchar_t*>				columndata_;
-
+	bool			pluginColumnModeSet_;
 };
 
 

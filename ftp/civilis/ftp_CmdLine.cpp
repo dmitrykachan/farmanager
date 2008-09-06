@@ -85,7 +85,6 @@ bool FTP::ExecCmdLineHOST(const std::wstring &str, bool prefix)
 {
 	if(boost::iequals(str, L"EXIT") || boost::iequals(str, L"QUIT"))
 	{
-		CurrentState = fcsClose;
 		FARWrappers::getInfo().Control(this, FCTL_CLOSEPLUGIN, NULL);
 		return true;
 	}
@@ -93,18 +92,20 @@ bool FTP::ExecCmdLineHOST(const std::wstring &str, bool prefix)
 	//Connect to ftp
 	if(boost::starts_with(str, L"//"))
 	{
-		chost_.Init();
-		chost_.SetHostName(std::wstring(L"ftp:") + str, L"", L"");
-		FullConnect();
+		FtpHostPtr h = FtpHostPtr(new FTPHost);
+		h->Init();
+		h->SetHostName(std::wstring(L"ftp:") + str, L"", L"");
+		FullConnect(h);
 		return true;
 	}
 	
 	//Connect to http
 	if(boost::istarts_with(str, L"HTTP://"))
 	{
-		chost_.Init();
-		chost_.SetHostName(str, L"", L"");
-		FullConnect();
+		FtpHostPtr h = FtpHostPtr(new FTPHost);
+		h->Init();
+		h->SetHostName(str, L"", L"");
+		FullConnect(h);
 		return true;
 	}
 
@@ -120,39 +121,31 @@ bool FTP::ExecCmdLineHOST(const std::wstring &str, bool prefix)
 #define FCMD_SINGLE_COMMAND 0
 #define FCMD_FULL_COMMAND   1
 
-#define FCMD_SHOW_MSG       0x0001
-#define FCMD_SHOW_EMSG      0x0002
+const int FCMD_SHOW_MSG = 0x0001;
+const int FCMD_SHOW_EMSG = 0x0002;
 
 bool FTP::DoCommand(const std::wstring& str, int type, DWORD flags)
 {
 	FARWrappers::Screen scr;
 
-	bool	ext = getConnection().getHost().ExtCmdView,
+	bool	ext = getConnection().getHost()->ExtCmdView,
 			dex = g_manager.opt.DoNotExpandErrors;
-	int  rc;
 	std::wstring m;
 
-	getConnection().getHost().ExtCmdView = TRUE;
+	getConnection().getHost()->ExtCmdView = TRUE;
 	g_manager.opt.DoNotExpandErrors     = FALSE;
 
 	m = str;
+	Connection::Result res;
 
 	//Process command types
 	switch( type ) 
 	{
 	case FCMD_SINGLE_COMMAND: 
-		rc = getConnection().command(m);
-		if(Connection::isPrelim(rc))
-		{
-			do 
-			{
-				rc = getConnection().getreply();
-			} while(Connection::isPrelim(rc));
-		}
-		rc = Connection::isComplete(rc);
+		res = getConnection().command(m);
 		break;
 
-	case   FCMD_FULL_COMMAND: //Convert string quoting to '\x1'
+	case FCMD_FULL_COMMAND: //Convert string quoting to '\x1'
 		{
 			std::wstring::iterator itr = m.begin();
 			while(itr != m.end())
@@ -169,45 +162,44 @@ bool FTP::DoCommand(const std::wstring& str, int type, DWORD flags)
 				}
 				++itr;
 			}
-			rc = getConnection().ProcessCommand(m);
+			res = getConnection().ProcessCommand(m);
 		}
 		break;
 	}
 
-	if ( (rc && is_flag(flags,FCMD_SHOW_MSG)) ||
-		(!rc && is_flag(flags,FCMD_SHOW_EMSG)) )
-		getConnection().ConnectMessage(MOk, L"", rc != 0, MOk);
+	if ( (res == Connection::Done && is_flag(flags, FCMD_SHOW_MSG)) ||
+		(res != Connection::Done && is_flag(flags,FCMD_SHOW_EMSG)) )
+		getConnection().ConnectMessage(MOk, L"", res != Connection::Done, MOk);
 
 	//Special process of known commands
 	if(type == FCMD_SINGLE_COMMAND)
 		if(boost::istarts_with(str, L"CWD "))
-			resetCache_ = true;
+		{
+			//TODO	resetCache_ = true;
+		}
 
-	getConnection().getHost().ExtCmdView = ext;
+	getConnection().getHost()->ExtCmdView = ext;
 	g_manager.opt.DoNotExpandErrors     = dex;
-	return rc == RPL_OK;
+	return res == Connection::Done;
 }
 
 /* FTP state */
 bool FTP::ExecCmdLineFTP(const std::wstring& str, bool Prefix)
 {
 	std::wstring s = str;
-	if(Prefix && s.size()> 0 && s[0] == L'/')
+	if(Prefix && !s.empty() && s[0] == L'/')
 	{
-		// TODO possible a bug
-		FTPHost tmp;
-		tmp.Assign(&chost_);
+		FtpHostPtr host = FtpHostPtr(new FTPHost);
 		if(boost::istarts_with(s, L"FTP:") == false)
 			s = L"ftp:" + s;
-		if(tmp.SetHostName(s, L"", L""))
+		if(host->SetHostName(s, L"", L""))
 		{
-			if (chost_.CmpConnected(&tmp) )
+			if(getConnection().getHost()->url_.compare(host->url_))
 			{
-				FtpFilePanel_.SetDirectory(tmp.url_.directory_, 0);
+				FtpFilePanel_.SetDirectory(host->url_.directory_, 0);
 				return true;
 			}
-			chost_.Assign(&tmp);
-			FullConnect();
+			FullConnect(host);
 			return true;
 		}
 	}
@@ -227,13 +219,6 @@ bool FTP::ExecCmdLineFTP(const std::wstring& str, bool Prefix)
 		return true;
 	}
 
-	//DIRFILE
-	if(boost::iequals(cmd, L"DIRFILE") == 0)
-	{
-		getConnection().DirFile = s;
-		return true;
-	}
-
 	//CMD
 	if(boost::iequals(cmd, L"CMD"))
 	{
@@ -242,8 +227,8 @@ bool FTP::ExecCmdLineFTP(const std::wstring& str, bool Prefix)
 		return true;
 	}
 
-	BOOST_LOG(INF, L"ProcessCmd" << chost_.ProcessCmd);
-	if (!chost_.ProcessCmd)
+	BOOST_LOG(INF, L"ProcessCmd" << getConnection().getHost()->ProcessCmd);
+	if (!getConnection().getHost()->ProcessCmd)
 		return false;
 
 	//CD
@@ -308,10 +293,10 @@ bool FTP::ExecCmdLine(const std::wstring& str, bool wasPrefix)
 	if(isConn && (!getConnection().isConnected()))
 		BackToHosts();
 
-	if(CurrentState != fcsClose)
-		Invalidate();
-	else
-		FARWrappers::getInfo().Control(0,FCTL_REDRAWPANEL,NULL);
+//TODO	if(CurrentState != fcsClose)
+// 		Invalidate();
+// 	else
+// 		FARWrappers::getInfo().Control(0,FCTL_REDRAWPANEL,NULL);
 
 	return TRUE;
 }
@@ -350,7 +335,8 @@ int FTP::ProcessCommandLine(wchar_t *CommandLine)
 		(*cmdLine.rbegin() != '/' && cmdLine.find(L'/') != std::wstring::npos)? 
 			cmdLine.begin() + cmdLine.rfind(cmdLine, L'/') : cmdLine.end();
 
-	chost_.Init();
+	FtpHostPtr h = FtpHostPtr(new FTPHost);
+	h->Init();
 	UrlInit( &ui );
 	SetupQOpt( &op );
 
@@ -396,9 +382,9 @@ int FTP::ProcessCommandLine(wchar_t *CommandLine)
 	ClearQueue();
 
 	//Fill`n`Connect
-	chost_.SetHostName(CommandLine, L"", L"");
+	h->SetHostName(CommandLine, L"", L"");
 
-	if(!FullConnect())
+	if(!FullConnect(h))
 		return false;
 
 	FARWrappers::Screen::fullRestore();

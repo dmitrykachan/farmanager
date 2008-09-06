@@ -4,14 +4,13 @@
 
 #include "ftp_Int.h"
 
-CommandsList Connection::commandsList_;
+std::auto_ptr<CommandsList> Connection::commandsList_ = std::auto_ptr<CommandsList>(new CommandsList);
 
 void Connection::lostpeer()
 {
 	if(isConnected())
 	{
 		AbortAllRequest(FALSE);
-		setConnected(false);
 	}
 }
 
@@ -98,9 +97,9 @@ BOOST_AUTO_TEST_CASE(TestParseCommandLine)
 #endif
 
 
-int Connection::ProcessCommand(const std::wstring &line)
+Connection::Result Connection::ProcessCommand(const std::wstring &line)
 {  
-	bool rc = FALSE;
+	Result res = Error;
 
 	do
 	{
@@ -115,7 +114,7 @@ int Connection::ProcessCommand(const std::wstring &line)
 		}
 
 		Command cmd;
-		if(!commandsList_.find(vec[0], cmd))
+		if(!commandsList_->find(vec[0], cmd))
 		{
 			BOOST_LOG(INF, L"!cmd");
 			SetLastError( ERROR_INVALID_PARAMETER );
@@ -131,13 +130,11 @@ int Connection::ProcessCommand(const std::wstring &line)
 
 		brk_flag  = FALSE;
 //		code      = 0;
-		ErrorCode = 0;
-		rc = cmd.execute(*this, vec);
+		res = cmd.execute(*this, vec);
 
 	}while( 0 );
 
 	brk_flag = FALSE;
 
-	BOOST_LOG(INF, L"rc=" <<rc);
-	return rc;
+	return res;
 }

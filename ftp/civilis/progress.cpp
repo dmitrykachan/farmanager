@@ -6,6 +6,11 @@
 #include "ftp_Int.h"
 
 
+static std::wstring FDigit(__int64 val)
+{
+	return Utils::FDigit(val, g_manager.opt.dDelimit? g_manager.opt.dDelimiter : 0);
+}
+
 static const std::wstring InfinTime = L"--:--:--";
 static const std::wstring InfinDate = L"------";
 
@@ -266,7 +271,7 @@ std::wstring FCps4(__int64 val)
 
 
 FTPProgress::FTPProgress()
-	: connection_(0)
+	: show_(NotDisplay)
 {
 }
 
@@ -274,20 +279,19 @@ FTPProgress::FTPProgress()
 FTPProgress::~FTPProgress()
 {}
 
-void FTPProgress::Init(int tMsg, int OpMode, const FileList &filelist)
+void FTPProgress::Init(int tMsg, int OpMode, const FileList &filelist, Show show)
 {
 	lastSize_ = totalComplete_ = totalSkipped_ = 0;
 	averageCps_[0] = averageCps_[1] = averageCps_[2] = 0;
+	show_ = show;
 
 	titleMsg_		= tMsg;
 
-	showStatus_ = true;
-
-	if(is_flag(OpMode, OPM_FIND))
-		showStatus_ = false;
+	if(show_ == ShowProgress && is_flag(OpMode, OPM_FIND))
+		show_ = NotDisplay;
 	else
 		if(is_flag(OpMode, OPM_VIEW) || is_flag(OpMode, OPM_EDIT))
-			showStatus_ = g_manager.opt.ShowSilentProgress;
+			show_ = g_manager.opt.ShowSilentProgress? ShowProgress : NotDisplay;
 
 	__int64 totalFullSize = 0;
 	totalFiles_		= 0;
@@ -305,35 +309,16 @@ void FTPProgress::Init(int tMsg, int OpMode, const FileList &filelist)
 	totalSpeed_.start(totalFullSize);
 }
 
-bool FTPProgress::refresh(unsigned __int64 size)
+bool FTPProgress::refresh(Connection* connection)
 {
-	std::wstring	str;
-
-	fileSpeed_.progress(size);
-
-	BOOST_LOG(ERR, L"refresh size: " << size << L" downloaded: " << fileSpeed_.getPossition() << L" of " << fileSpeed_.getSize()
-		<< L"\nTotal pos: " << totalSpeed_.getPossition() << L" pos2: " << getPossition() << L"size: " << totalSpeed_.getSize());
-
-	if(size == 0)
-	{
-		++totalComplete_;
-		BOOST_ASSERT(totalFiles_ >= totalSkipped_ + totalComplete_);
-		totalSpeed_.progress(fileSpeed_.getSize());
-		return true;
-	}
-
-	if(lastTime_.getPeriod() < static_cast<size_t>(g_manager.opt.IdleShowPeriod))
-		return true;	
-
 	//Avg
 	if(lastTime_.getPeriod() > 0)
 	{
- 		averageCps_[0] = averageCps_[1];
+		averageCps_[0] = averageCps_[1];
 		averageCps_[1] = averageCps_[2];
 		averageCps_[2] = 1000*(fileSpeed_.getPossition() - lastSize_) / lastTime_.getPeriod();
 	}
 	lastTime_.reset();
-
 
 	lastSize_ = fileSpeed_.getPossition();
 
@@ -341,28 +326,31 @@ bool FTPProgress::refresh(unsigned __int64 size)
 
 	__int64 totalPercent = toPercent(getPossition(), totalSpeed_.getSize());
 
+	if(show_ == NotDisplay)
+		return true;
+
 	//Show QUIET progressing
-	if(showStatus_ == false)
+	if(show_ == ShowIdle)
 	{
 		std::wstringstream stm;
 		stm << L'{' << totalPercent/100 << L'.' << totalPercent % 100 << L"%} " 
 			<< getMsg(titleMsg_) << L": " << getName(srcFilename_);
-		
+
 		IdleMessage(stm.str().c_str(), g_manager.opt.ProcessColor);
 		return true;
 	}
 
 	//Window caption
 	std::wstringstream stm;
-	if (connection_->getRetryCount())
-		stm << connection_->getRetryCount() << L": ";
+	if (connection->getRetryCount())
+		stm << connection->getRetryCount() << L": ";
 	stm << L'{' << totalPercent/100 << L'.' << totalPercent % 100 << L"%} " 
 		<< getMsg(titleMsg_) << L" - Far";
 
 	WinAPI::setConsoleTitle(stm.str());
 
 	//Mark CMD window invisible
-	FtpCmdBlock(connection_, true);
+	FtpCmdBlock(connection, true);
 
 
 	std::vector<std::wstring> lines;
@@ -372,16 +360,63 @@ bool FTPProgress::refresh(unsigned __int64 size)
 
 	std::vector<std::wstring> msgItems;
 	msgItems.resize(lines.size()+1);
-	if(connection_->getRetryCount())
-		msgItems[0] += boost::lexical_cast<std::wstring>(connection_->getRetryCount()) + L": ";
+	if(connection->getRetryCount())
+		msgItems[0] += boost::lexical_cast<std::wstring>(connection->getRetryCount()) + L": ";
 	msgItems[0] += getMsg(titleMsg_);
 
 	for(size_t n = 0; n < lines.size(); n++ )
 		msgItems[n+1] = lines[n];
 
 	FARWrappers::message(msgItems, 0, FMSG_LEFTALIGN, NULL);
-
 	return true;
+}
+
+bool FTPProgress::refresh(Connection* connection, unsigned __int64 size)
+{
+	std::wstring	str;
+
+//TODO 
+/*
+if(IOCallback)
+	trafficInfo_.refresh(bytes_transferred);
+
+	//Show Quite progressing
+	if(g_manager.opt.ShowIdle && remote.empty())
+	{
+	std::wstring str;
+	if (stopwatch.isTimeout())
+	{
+	str = getMsg(MReaded) + Size2Str(totalValue);
+	SetLastError( ERROR_SUCCESS );
+	IdleMessage(str.c_str(),g_manager.opt.ProcessColor );
+	stopwatch.reset();
+	if ( CheckForEsc(FALSE) ) {
+	ErrorCode = ERROR_CANCELLED;
+	goto abort;
+	}
+	}
+*/
+
+	fileSpeed_.progress(size);
+
+	BOOST_LOG(ERR, L"refresh size: " << size << L" downloaded: " << fileSpeed_.getPossition() << L" of " << fileSpeed_.getSize()
+		<< L"\nTotal pos: " << totalSpeed_.getPossition() << L" pos2: " << getPossition() << L"size: " << totalSpeed_.getSize());
+
+	// file is fully processed
+	if(size == 0)
+	{
+		++totalComplete_;
+		BOOST_ASSERT(totalFiles_ == 0 || totalFiles_ >= totalSkipped_ + totalComplete_);
+		totalSpeed_.progress(fileSpeed_.getSize());
+		refresh(connection);
+		return true;
+	}
+
+	if(lastTime_.getPeriod() < static_cast<size_t>(g_manager.opt.IdleShowPeriod))
+		return true;	
+
+
+	return refresh(connection);
 }
 
 void FTPProgress::drawInfos(std::vector<std::wstring> &lines)
@@ -552,12 +587,12 @@ void FTPProgress::formatLine(int num, std::vector<std::wstring> &lines, std::wst
 	}
 }
 
-
-static std::wstring FDigit(__int64 val)
+static std::wstring PDigit(__int64 val)
 {
-	// TODO
 	return boost::lexical_cast<std::wstring>(val);
 }
+
+
 
 static std::wstring FTime(__int64 secs)
 {
@@ -845,7 +880,7 @@ void FTPProgress::Waiting(size_t paused)
 	totalSpeed_.wait(paused);
 }
 
-void FTPProgress::initFile(FTPFileInfo& info, const std::wstring &destName)
+void FTPProgress::initFile(Connection* connection, const FTPFileInfo& info, const std::wstring &destName)
 {
 	BOOST_LOG(ERR, L"file: [" << info.getFileName() << L"], size: " << info.getFileSize());
 
@@ -857,6 +892,19 @@ void FTPProgress::initFile(FTPFileInfo& info, const std::wstring &destName)
 
 	srcFilename_		= info.getFileName();
 	destFilename_		= destName;
+	refresh(connection);
+}
+
+void FTPProgress::initFile()
+{
+	fileSpeed_.start(0);
+	lastSize_			= 0;
+
+	averageCps_[0] = 0; averageCps_[1] = 0; averageCps_[2] = 0;
+	lastTime_.reset();
+
+	srcFilename_		= L"";
+	destFilename_		= L"";
 }
 
 void FTPProgress::skip()
@@ -866,11 +914,6 @@ void FTPProgress::skip()
 	BOOST_ASSERT(totalFiles_ < totalSkipped_ + totalComplete_);
 
 	fileSpeed_.clear();
-}
-
-void FTPProgress::setConnection(Connection* connection)
-{
-	connection_ = connection;
 }
 
 #ifdef CONFIG_TEST
@@ -888,11 +931,10 @@ void progress_test_()
 	info->setFileSize(128);
 	list.push_back(info);
 
-	progress.setConnection(&con);
-	progress.Init(MStatusDownload, 0, list);
+	progress.Init(MStatusDownload, 0, list, FTPProgress::ShowProgress);
 
-	progress.initFile(*info, L"destnnn");
-	progress.refresh(100);
+	progress.initFile(&con, *info, L"destnnn");
+	progress.refresh(&con, 100);
 }
 
 BOOST_AUTO_TEST_CASE(progress_test)

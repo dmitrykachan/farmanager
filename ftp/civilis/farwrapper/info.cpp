@@ -43,12 +43,12 @@ namespace FARWrappers
 
 	bool getPanelInfo(PanelInfo &pi, bool currentPanel)
 	{
-		return getInfo().Control(currentPanel? CURRENT_PANEL : ANOTHER_PANEL, FCTL_GETPANELINFO, &pi) != 0;
+		return getInfo().Control(currentPanel? PANEL_ACTIVE : PANEL_PASSIVE, FCTL_GETPANELINFO, &pi) != 0;
 	}
 
 	bool getShortPanelInfo(PanelInfo &pi, bool currentPanel)
 	{
-		return getInfo().Control(currentPanel? CURRENT_PANEL : ANOTHER_PANEL, FCTL_GETPANELSHORTINFO, &pi) != 0;
+		return getInfo().Control(currentPanel? PANEL_ACTIVE : PANEL_PASSIVE, FCTL_GETPANELSHORTINFO, &pi) != 0;
 	}
 
 

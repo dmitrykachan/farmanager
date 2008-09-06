@@ -3,8 +3,9 @@
 #pragma hdrstop
 
 #include "ftp_Int.h"
+#include "panelview.h"
 
-void SetTitles(wchar_t *cols[], const wchar_t* fmt, int cn)
+static void SetTitles(wchar_t *cols[], const wchar_t* fmt, int cn)
 {
 	int n = 0;
 
@@ -13,7 +14,7 @@ void SetTitles(wchar_t *cols[], const wchar_t* fmt, int cn)
 
 	do
 	{
-		if(*fmt == L'C' || *fmt == L'c' )
+		if(*fmt == L'C' || *fmt == L'c')
 		{
 			fmt++;
 			switch(*fmt)
@@ -26,15 +27,15 @@ void SetTitles(wchar_t *cols[], const wchar_t* fmt, int cn)
 			cols[n] = NULL;
 
 		n++;
-		if ( n >= cn )
+		if(n >= cn)
 			return;
 
-		while( 1 )
+		while(1)
 		{
-			if ( *fmt == 0 )
+			if(*fmt == 0)
 				return;
 
-			if ( *fmt == L',' )
+			if(*fmt == L',')
 			{
 				fmt++;
 				break;
@@ -75,8 +76,8 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 	if(ShowHosts)
 		panelTitle_ = std::wstring(L" FTP: ") + pi->CurDir;
 	else
-		panelTitle_	= std::wstring(L" FTP: ") + chost_.url_.username_ + L'@' + 
-						chost_.url_.Host_ + pi->CurDir;
+		panelTitle_	= std::wstring(L" FTP: ") + getConnection().getHost()->url_.username_ + L'@' + 
+						getConnection().getHost()->url_.Host_ + pi->CurDir;
 
 	if(inside > 1)
 	{
@@ -90,7 +91,7 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 	if ( ShowHosts )
 		Format = L"//Hosts/"; // TODO
 	else
-		Format = L"//" + chost_.url_.Host_ + L"/";
+		Format = L"//" + getConnection().getHost()->url_.Host_ + L"/";
 
 	Format += pi->CurDir + ( *pi->CurDir == '/' || *pi->CurDir == '\\' );
 
@@ -104,10 +105,12 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 	InfoLines[0].Separator = TRUE;
 
 	Utils::safe_wcscpy(InfoLines[1].Text, getMsg(MFtpInfoHostName));
-	Utils::safe_wcscpy(InfoLines[1].Data, chost_.url_.fullhostname_);
+	if(!ShowHosts)
+		Utils::safe_wcscpy(InfoLines[1].Data, getConnection().getHost()->url_.toString());
 
 	Utils::safe_wcscpy(InfoLines[2].Text, getMsg(MFtpInfoHostDescr));
-	Utils::safe_wcscpy(InfoLines[2].Data, chost_.hostDescription_);
+	if(!ShowHosts)
+		Utils::safe_wcscpy(InfoLines[2].Data, getConnection().getHost()->hostDescription_);
 
 	Utils::safe_wcscpy(InfoLines[3].Text, getMsg(MFtpInfoHostType));
 	if(getConnection().isConnected())
@@ -198,22 +201,20 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 		IOBuffSize (atoi)
 		1
 		FFDup + '0'
-		DecodeCmdLine + '0'
 		1
 		*/
-		ShortcutData = L"FTP:" + chost_.url_.Host_ + 
-			L'\x1' + static_cast<wchar_t>(chost_.AskLogin+3) + 
-					 static_cast<wchar_t>(chost_.AsciiMode+3) +
-					 static_cast<wchar_t>(chost_.PassiveMode+3) +
-					 static_cast<wchar_t>(chost_.UseFirewall+3) +
-					 chost_.serverType_->getName() +
-			L'\x1' + boost::lexical_cast<std::wstring>(chost_.codePage_) +
-			L'\x1' + chost_.url_.username_ +
-			L'\x1' + chost_.url_.password_ +
-			L'\x1' + static_cast<wchar_t>(chost_.ExtCmdView+3) + 
-			         boost::lexical_cast<std::wstring>(chost_.IOBuffSize) +
-			L'\x1' + static_cast<wchar_t>('0'+chost_.FFDup) +
-					 static_cast<wchar_t>('0'+chost_.DecodeCmdLine) +
+		ShortcutData = L"FTP:" + getConnection().getHost()->url_.Host_ + 
+			L'\x1' + static_cast<wchar_t>(getConnection().getHost()->AskLogin+3) + 
+					 static_cast<wchar_t>(getConnection().getHost()->AsciiMode+3) +
+					 static_cast<wchar_t>(getConnection().getHost()->PassiveMode+3) +
+					 static_cast<wchar_t>(getConnection().getHost()->UseFirewall+3) +
+					 getConnection().getHost()->serverType_->getName() +
+			L'\x1' + boost::lexical_cast<std::wstring>(getConnection().getHost()->codePage_) +
+			L'\x1' + getConnection().getHost()->url_.username_ +
+			L'\x1' + getConnection().getHost()->url_.password_ +
+			L'\x1' + static_cast<wchar_t>(getConnection().getHost()->ExtCmdView+3) + 
+			         boost::lexical_cast<std::wstring>(getConnection().getHost()->IOBuffSize) +
+			L'\x1' + static_cast<wchar_t>('0'+getConnection().getHost()->FFDup) +
 			L'\x1';
 	}
 	pi->ShortcutData = ShortcutData.c_str();
@@ -222,29 +223,29 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 	//HOSTST
 	if (ShowHosts)
 	{
-		static struct PanelMode PanelModesArray[10];
+		static struct PanelMode PanelModesArray[10] = {0};
 		static wchar_t *ColumnTitles[4] = { NULL };
 		static wchar_t *ColumnTitles2[4] = { NULL };
 		static std::wstring Mode, ModeSz, ModeSz2;
-		size_t      dizLen = 0,
-			nmLen  = 0,
-			hLen   = 0,
+		size_t      descrLen = 0,
+			usrLen  = 0,
+			dirLen   = 0,
 			hstLen = 0;
-		size_t		n,num;
-		const FTPHost* p;
 
-		std::fill_n(reinterpret_cast<char*>(PanelModesArray), sizeof(PanelModesArray), 0);
-		if ( !thisPInfo.PanelItems)
+		if(!thisPInfo.PanelItems)
 			getPanelInfo(thisPInfo);
 
-		for (n = 0; static_cast<int>(n) < thisPInfo.ItemsNumber; n++ )
+		for(int n = 0; n < thisPInfo.ItemsNumber; n++ )
 		{
-			p = hostPanel_.findhost(thisPInfo.PanelItems[n].UserData);
-			if (!p) continue;
-			dizLen = std::max(dizLen,p->hostDescription_.size());
-			nmLen  = std::max(nmLen, p->url_.username_.size());
-			hLen   = std::max(hLen,  p->url_.directory_.size());
-			hstLen = std::max(hstLen,p->url_.Host_.size());
+			if(thisPInfo.PanelItems[n].UserData != HostView::ParentDirHostID)
+			{
+				const FtpHostPtr& p = hostPanel_.findhost(thisPInfo.PanelItems[n].UserData);
+				if (!p) continue;
+				descrLen	= std::max(descrLen, p->hostDescription_.size());
+				usrLen		= std::max(usrLen,   p->url_.username_.size());
+				dirLen		= std::max(dirLen,   p->url_.directory_.size());
+				hstLen		= std::max(hstLen,   p->url_.Host_.size());
+			}
 		}
 		ColumnTitles[0] = const_cast<wchar_t*>(getMsg(MHostColumn));
 
@@ -253,42 +254,48 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 		PanelModesArray[1].ColumnWidths  = L"0";
 
 		//==2
-		num = 1;
-		n   = (thisPInfo.PanelRect.right-thisPInfo.PanelRect.left)/2;
+		size_t num = 1;
+		size_t n   = (thisPInfo.PanelRect.right-thisPInfo.PanelRect.left)/2;
+		size_t columnCount = (usrLen? 1 : 0) + (dirLen? 1 : 0) + (descrLen? 1 : 0);
+		if(columnCount != 0)
+		{
+			size_t sumLen = hstLen + usrLen + dirLen + descrLen + columnCount;
+			size_t panelWidth = thisPInfo.PanelRect.right-thisPInfo.PanelRect.left;
+			if(sumLen > panelWidth)
+			{
+				hstLen = std::min(panelWidth/2, hstLen);
+				size_t columnWidth = (panelWidth-hstLen-columnCount)/columnCount;
+				usrLen	= std::min(usrLen, columnWidth);
+				dirLen	= std::min(dirLen, columnWidth);
+				descrLen= std::min(descrLen, columnWidth);
+			}
+		}
 
 		//HOST
 		Mode = L"C0";
-		ModeSz = hLen || nmLen || dizLen ? boost::lexical_cast<std::wstring>(hstLen) : L"0";
+		ModeSz = L"0";
 
 		//HOME
-		if(hLen)
+		if(dirLen)
 		{
 			Mode += L",C1";
-			if(hLen < n && (nmLen || dizLen))
-			{
-				ModeSz += L',' + boost::lexical_cast<std::wstring>(hLen);
-				n -= hLen;
-			} else
-				ModeSz += L",0";
+			ModeSz += L',' + boost::lexical_cast<std::wstring>(dirLen);
 			ColumnTitles[num++] = const_cast<wchar_t*>(getMsg(MHomeColumn));
 		}
 
 		//UNAME
-		if (nmLen)
+		if (usrLen)
 		{
 			Mode += L",C2";
-			if(nmLen < n && dizLen )
-				ModeSz += L',' + boost::lexical_cast<std::wstring>(nmLen);
-			else
-				ModeSz += L",0";
+			ModeSz += L',' + boost::lexical_cast<std::wstring>(usrLen);
 			ColumnTitles[num++] = const_cast<wchar_t*>(getMsg(MUserColumn));
 		}
 
 		//DIZ
-		if(dizLen)
+		if(descrLen)
 		{
 			Mode += L",Z";
-			ModeSz += L",0";
+			ModeSz += L',' + boost::lexical_cast<std::wstring>(descrLen);
 			ColumnTitles[num] = const_cast<wchar_t*>(getMsg(MDescColumn));
 		}
 
@@ -299,7 +306,7 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 		ColumnTitles2[0] = const_cast<wchar_t*>(getMsg(MHostColumn));
 		ColumnTitles2[1] = const_cast<wchar_t*>(getMsg(MDescColumn));
 
-		if (!dizLen)
+		if (!descrLen)
 		{
 			PanelModesArray[3].ColumnTypes   = L"C0";
 			PanelModesArray[3].ColumnWidths  = L"0";
@@ -308,7 +315,7 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 			PanelModesArray[3].ColumnTypes   = L"C0,Z";
 			PanelModesArray[3].ColumnWidths  = const_cast<wchar_t*>(ModeSz2.c_str());
 			ModeSz2 = boost::lexical_cast<std::wstring>(
-				std::min( (size_t)(thisPInfo.PanelRect.right-thisPInfo.PanelRect.left)/2,hstLen)
+				std::min( static_cast<size_t>(thisPInfo.PanelRect.right-thisPInfo.PanelRect.left)/2,hstLen)
 				) + L",0";
 		}
 		PanelModesArray[3].ColumnTitles  = ColumnTitles2;
@@ -317,34 +324,49 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 		pi->PanelModesNumber = sizeof(PanelModesArray)/sizeof(PanelModesArray[0]);
 		pi->StartPanelMode   = 0;
 
-		for ( n = 1; n <= 3; n++ ) {
+		for ( n = 1; n <=3; n++ )
+		{
 			PanelModesArray[n].StatusColumnTypes   = PanelModesArray[n].ColumnTypes;
 			PanelModesArray[n].StatusColumnWidths  = PanelModesArray[n].ColumnWidths;
 		}
 
-	} else {
+	} else
+	{
 		//FTP
-		static struct PanelMode PanelModesArray[10];
-		memset( PanelModesArray, 0, sizeof(PanelModesArray) );
+		static struct PanelMode PanelModesArray[10] = {0};
 
 		static wchar_t *ColumnTitles[10];
-		SetTitles( ColumnTitles, getMsg(MColumn9), ARRAY_SIZE(ColumnTitles) );
+		SetTitles(ColumnTitles, getMsg(MColumn9), ARRAY_SIZE(ColumnTitles));
 
 		PanelModesArray[9].ColumnTypes  = const_cast<wchar_t*>(getMsg(MColumn9));
 		PanelModesArray[9].ColumnWidths = const_cast<wchar_t*>(getMsg(MSizes9));
 		PanelModesArray[9].ColumnTitles = ColumnTitles;
-		PanelModesArray[9].FullScreen   = boost::lexical_cast<int>(getMsg(MFullScreen9));
+		try
+		{
+			PanelModesArray[9].FullScreen= boost::lexical_cast<int>(getMsg(MFullScreen9));
+		}
+		catch (boost::bad_lexical_cast &)
+		{
+			PanelModesArray[9].FullScreen=0;
+		}
 
 		static wchar_t *ColumnTitles1[10];
-		SetTitles( ColumnTitles1, getMsg(MColumn0), ARRAY_SIZE(ColumnTitles) );
+		SetTitles(ColumnTitles1, getMsg(MColumn0), ARRAY_SIZE(ColumnTitles));
 
 		PanelModesArray[0].ColumnTypes  = const_cast<wchar_t*>(getMsg(MColumn0));
 		PanelModesArray[0].ColumnWidths = const_cast<wchar_t*>(getMsg(MSizes0));
 		PanelModesArray[0].ColumnTitles = ColumnTitles1;
+		try
+		{
 		PanelModesArray[0].FullScreen   = boost::lexical_cast<int>(getMsg(MFullScreen0));
+		}
+		catch (boost::bad_lexical_cast &)
+		{
+			PanelModesArray[9].FullScreen=0;
+		}
 
 		pi->PanelModesArray  = PanelModesArray;
-		pi->PanelModesNumber = sizeof(PanelModesArray)/sizeof(PanelModesArray[0]);
+		pi->PanelModesNumber = ARRAY_SIZE(PanelModesArray);
 	}
 
 	//---------------- KEYBAR
@@ -357,18 +379,14 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 
 	KeyBar.AltTitles[6-1]   = const_cast<wchar_t*>(getMsg(MAltF6));
 
-	if ( ShowHosts ) {
 		KeyBar.ShiftTitles[1-1] = const_cast<wchar_t*>(getMsg(MShiftF1));
-		KeyBar.ShiftTitles[4-1] = ShowHosts ? const_cast<wchar_t*>(getMsg(MShiftF4)):NULL;
-	} else {
-		KeyBar.ShiftTitles[1-1] = const_cast<wchar_t*>(getMsg(MShiftF1));
+	if(ShowHosts)
+		KeyBar.ShiftTitles[4-1] = const_cast<wchar_t*>(getMsg(MShiftF4));
+	else
 		KeyBar.ShiftTitles[7-1] = const_cast<wchar_t*>(getMsg(MShiftF7));
-	}
 	pi->KeyBar=&KeyBar;
 
-	//---------------- RESTORE SCREEN
-	if(CurrentState != fcsExpandList &&
-		!IS_SILENT(FP_LastOpMode) )
+//TODO	if(CurrentState != fcsExpandList && !IS_SILENT(FP_LastOpMode))
 		FARWrappers::Screen::fullRestore();
 
 	//Back

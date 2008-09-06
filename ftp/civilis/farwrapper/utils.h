@@ -57,6 +57,8 @@ namespace FARWrappers
 		fccYELLOW,
 		fccWHITE
 	};
+
+	void convertFindData(WIN32_FIND_DATAW& w, const FAR_FIND_DATA &f);
 }
 
 template<typename T, typename F>
@@ -81,7 +83,7 @@ static void set_flag(T &flags, F flag, bool value)
 }
 
 template<typename T, typename F>
-static bool is_flag(T &flags, F flag)
+static bool is_flag(const T &flags, F flag)
 {
 	return (flags & flag) != 0;
 }

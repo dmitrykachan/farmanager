@@ -55,17 +55,15 @@ void _cdecl CloseUp()
 {
 	FTP::backups_.eraseAll();
 
-	Connection::cleanupWSA();
-
 	if(ExitProc)
 		ExitProc();
 }
 
 void FTPPluginManager::addWait(size_t tm)
 {
-	for(size_t n = 0; n < FTPPanels_.size(); n++)
-		if(FTPPanels_[n] && FTPPanels_[n]->getConnection().IOCallback)
-			FTPPanels_[n]->getConnection().TrafficInfo->Waiting(tm);
+//TODO 	for(size_t n = 0; n < FTPPanels_.size(); n++)
+// 		if(FTPPanels_[n] && FTPPanels_[n]->getConnection().IOCallback)
+// 			FTPPanels_[n]->getConnection().trafficInfo_.Waiting(tm);
 }
 
 
@@ -189,7 +187,6 @@ void WINAPI GetPluginInfoW(struct PluginInfo *Info)
 		DiskStrings.reserve(1 + FTP::backups_.size());
 		DiskStrings.push_back(getMsg(MFtpDiskMenu));
 
-		FTPHost* p;
 		size_t	uLen = 0, hLen = 0;
 		std::wstring	str;
 
@@ -198,9 +195,9 @@ void WINAPI GetPluginInfoW(struct PluginInfo *Info)
 		{
 			if((*itr)->FTPMode())
 			{
-				p = &(*itr)->chost_;
+				boost::shared_ptr<FTPHost>& p = (*itr)->getConnection().getHost();
 				uLen = std::max(uLen, p->url_.username_.size());
-				hLen = std::max(hLen, p->url_.fullhostname_.size());
+				hLen = std::max(hLen, p->url_.getUrl().size());
 			}
 			++itr;
 		}
@@ -213,9 +210,10 @@ void WINAPI GetPluginInfoW(struct PluginInfo *Info)
 			std::wstring disk = L"FTP: ";
 			if((*itr)->FTPMode())
 			{
-				p = &(*itr)->chost_;
+				boost::shared_ptr<FTPHost>& p = (*itr)->getConnection().getHost();
+				std::wstring url = p->url_.getUrl();
 				disk += p->url_.username_ + std::wstring(uLen+1-p->url_.username_.size(), L' ') +
-					p->url_.fullhostname_ + std::wstring(hLen+1-p->url_.fullhostname_.size(), L' '); // FTP: %-*s %-*s %s"
+					    url + std::wstring(hLen+1-url.size(), L' '); // FTP: %-*s %-*s %s"
 			}
 			DiskStrings.push_back(disk + boost::lexical_cast<std::wstring>(++i) + str);
 			++itr;
@@ -348,7 +346,7 @@ void WINAPI GetOpenPluginInfoW(HANDLE hPlugin,struct OpenPluginInfo *Info)
 
 int WINAPI GetMinFarVersionW(void)
 {
-	return MAKEFARVERSION(1,80,267);
+	return MAKEFARVERSION(1,80,560);
 }
 
 
@@ -364,16 +362,16 @@ int WINAPI SetDirectoryW(HANDLE hPlugin, const wchar_t* Dir,int OpMode)
 	return rc;
 }
 
-int WINAPI GetFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,const wchar_t *DestPath,int OpMode)
+int WINAPI GetFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,const wchar_t **DestPath,int OpMode)
 {
 	FPOpMode _op(OpMode);
 	FTP*     p = (FTP*)hPlugin;
-	if ( !p || !DestPath || !DestPath[0] )
+	if(!p || !DestPath || !DestPath[0])
 		return FALSE;
 
 	p->Call();
 	PanelItem->Description = 0;
-	int rc = p->panel_->GetFiles(PanelItem, ItemsNumber, Move, std::wstring(DestPath), OpMode);
+	int rc = p->panel_->GetFiles(PanelItem, ItemsNumber, Move, std::wstring(*DestPath), OpMode);
 	p->End(rc);
 	return rc;
 }
@@ -400,7 +398,7 @@ int WINAPI DeleteFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int Ite
 	return rc;
 }
 
-int WINAPI MakeDirectoryW(HANDLE hPlugin, char* name,int OpMode)
+int WINAPI MakeDirectoryW(HANDLE hPlugin, const wchar_t** name,int OpMode)
 {  
 	FPOpMode _op(OpMode);
 
@@ -410,8 +408,7 @@ int WINAPI MakeDirectoryW(HANDLE hPlugin, char* name,int OpMode)
 	FTP*     p = (FTP*)hPlugin;
 
 	p->Call();
-	std::wstring s = Unicode::fromOem(name);
-	int rc = p->panel_->MakeDirectory(s, OpMode);
+	int rc = p->panel_->MakeDirectory(std::wstring(*name), OpMode);
 	p->End(rc);
 
 	return rc;
@@ -463,6 +460,7 @@ BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID ptr )
 			WRN);                      // log level
 
 		BOOST_LOG_ADD_OUTPUT_STREAM(new boost::logging::wdebugstream);
+		BOOST_LOG_ADD_OUTPUT_STREAM(new std::wofstream("output.log"));
 	}
 
 	if(reason == DLL_PROCESS_DETACH)

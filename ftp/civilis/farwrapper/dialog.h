@@ -53,19 +53,19 @@ class Dialog
 {
 private:
 
-	struct ItemInfo 
+	struct ItemValue 
 	{
-		ItemInfo(const std::wstring& text, int id)
+		ItemValue(const std::wstring& text, int id)
 			: text_(text), pValueString_(0), type_(ValLess), id_(id)
 		{};
-		ItemInfo(const std::wstring& text, std::wstring* value, int id)
+		ItemValue(const std::wstring& text, std::wstring* value, int id)
 			: pValueString_(value), type_(StringVal), id_(id), text_(text)
 		{};
-		ItemInfo(const std::wstring& text, int* value, int id)
+		ItemValue(const std::wstring& text, int* value, int id)
 			: pValueInt_(value), type_(IntVal), id_(id), text_(text)
 		{};
 
-		ItemInfo(const std::wstring& text, bool* value, int id)
+		ItemValue(const std::wstring& text, bool* value, int id)
 			: pValueBool_(value), type_(BoolVal), id_(id), text_(text)
 		{};
 
@@ -98,7 +98,7 @@ private:
 			return const_cast<wchar_t*>(text_.c_str());
 		}
 
-		void set(wchar_t* value)
+		void set(const wchar_t* value)
 		{
 			try
 			{
@@ -123,7 +123,7 @@ private:
 			}
 		}
 
-		void set(wchar_t* value, int selected)
+		void set(const wchar_t* value, int selected)
 		{
 			BOOST_ASSERT(0);
 			BOOST_ASSERT(pValueInt_ && pValueString_);
@@ -167,10 +167,10 @@ private:
 	DWORD						flags_;
 	std::wstring				helpTopic_;
 	std::vector<FarDialogItem>	items_;
-	std::vector<ItemInfo>		info_;
+	std::vector<ItemValue>		info_;
 
 	FarDialogItem& addItem(DialogItemTypes type, int x1, int y1, int x2, int y2, 
-							DWORD flag, ItemInfo& info)
+							DWORD flag, ItemValue& info)
 	{
 		FarDialogItem item;
 		item.Type	= type;
@@ -183,7 +183,7 @@ private:
 		item.Focus			= 0;
 		item.Reserved		= 0;
 		item.DefaultButton	= 0;
-		item.PtrLength		= 0;
+		item.MaxLen			= 0;
 
 		info_.push_back(info);
 		items_.push_back(item);
@@ -206,7 +206,7 @@ private:
 		else
 			BOOST_ASSERT(!(flag & DIF_MASKEDIT));
 
-		FarDialogItem& item = addItem(type, x, y, x2, y, flag, ItemInfo(L"", value, id));
+		FarDialogItem& item = addItem(type, x, y, x2, y, flag, ItemValue(L"", value, id));
 		if(history)
 			item.History		= history;
 		else

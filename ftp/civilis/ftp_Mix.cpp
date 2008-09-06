@@ -167,33 +167,32 @@ BOOL WINAPI Ftrunc( HANDLE h,DWORD move )
 
 HANDLE WINAPI Fopen(const wchar_t* nm, const wchar_t* mode /*R|W|A[+]*/, DWORD attr )
 {
-	  BOOL   rd  = toupper(mode[0]) == L'R';
-     HANDLE h;
+	BOOL   rd  = toupper(mode[0]) == L'R';
+	HANDLE h;
 
-     if ( rd )
-       h = CreateFileW( nm, GENERIC_READ,
-                       FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, attr, NULL );
-      else
-       h = CreateFileW( nm, GENERIC_WRITE,
-                       FILE_SHARE_READ, NULL, OPEN_ALWAYS, attr, NULL );
+	if(rd)
+		h = CreateFileW( nm, GENERIC_READ,
+		FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, attr, NULL );
+	else
+		h = CreateFileW( nm, GENERIC_WRITE,
+		FILE_SHARE_READ, NULL, OPEN_ALWAYS, attr, NULL );
 
-     if ( !h ||
-          h == INVALID_HANDLE_VALUE )
-       return NULL;
+	if(h == INVALID_HANDLE_VALUE)
+		return NULL;
 
-     do{
-       if ( toupper(mode[0]) == L'A' || mode[1] == L'+' )
-         if ( SetFilePointer(h,0,NULL,FILE_END) == 0xFFFFFFFF )
-           break;
+	do{
+		if ( toupper(mode[0]) == L'A' || mode[1] == L'+' )
+			if ( SetFilePointer(h,0,NULL,FILE_END) == INVALID_SET_FILE_POINTER )
+				break;
 
-       if ( !rd )
-         SetEndOfFile(h);  //Ignore SetEndOfFile result in case of use with CON, NUL and others
+		if ( !rd )
+			SetEndOfFile(h);  //Ignore SetEndOfFile result in case of use with CON, NUL and others
 
-       return h;
-     }while(0);
+		return h;
+	}while(0);
 
-     CloseHandle(h);
- return NULL;
+	CloseHandle(h);
+	return NULL;
 }
 
 int WINAPI Fwrite( HANDLE File,LPCVOID Buff, size_t Size)
@@ -288,22 +287,15 @@ std::wstring WINAPI getName(const std::wstring &path)
 bool CheckForEsc(bool isConnection, bool IgnoreSilent )
 {  
 	const WORD  ESCCode = VK_ESCAPE;
-	BOOL  rc;
 
-	if(!IgnoreSilent && is_flag(FP_LastOpMode,OPM_FIND))
+	if(!IgnoreSilent && is_flag(FP_LastOpMode, OPM_FIND))
 		return false;
 
-	rc = WinAPI::checkForKeyPressed(&ESCCode, 1);
-	if(rc == -1)
+	if(WinAPI::checkForKeyPressed(&ESCCode, 1) == -1)
 		return false;
 
-	rc = !g_manager.opt.AskAbort ||
-		FARWrappers::messageYesNo(getMsg( isConnection ? MTerminateConnection : MTerminateOp ));
-
-	if(rc)
-		BOOST_LOG(INF, L"ESC: cancel detected");
-
-	return rc;
+	return !g_manager.opt.AskAbort ||
+		FARWrappers::messageYesNo(getMsg(isConnection ? MTerminateConnection : MTerminateOp));
 }
 
 void WINAPI FixFTPSlash(std::wstring& s)
@@ -316,10 +308,18 @@ void WINAPI FixLocalSlash(std::wstring &path)
 	std::replace(path.begin(), path.end(), NET_SLASH, LOC_SLASH);
 }
 
-
 std::wstring getPathBranch(const std::wstring &s)
 {
 	size_t n = s.rfind(LOC_SLASH);
+	if(n == std::wstring::npos || n == 0)
+		return L"";
+	else
+		return std::wstring(s, 0, n);
+}
+
+std::wstring getNetPathBranch(const std::wstring &s)
+{
+	size_t n = s.rfind(NET_SLASH);
 	if(n == std::wstring::npos || n == 0)
 		return L"";
 	else

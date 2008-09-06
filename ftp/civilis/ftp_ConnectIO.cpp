@@ -4,22 +4,10 @@
 
 #include "ftp_Int.h"
 
-int Connection::SetType(int type)
-{
-	switch ( type )
-	{
-		case TYPE_A: return setascii();
-		case TYPE_I: return setbinary();
-		case TYPE_E: return setebcdic();
-	}
-
-	return RPL_ERROR;
-}
-
-bool Connection::reset()
+Connection::Result Connection::reset()
 {
 	BOOST_ASSERT(0 && "Not implemented");
-	return true;
+	return Done;
 }
 
 void Connection::AbortAllRequest(int BrkFlag)
@@ -28,162 +16,100 @@ void Connection::AbortAllRequest(int BrkFlag)
 		brk_flag = TRUE;
 	else 
 	{
-		data_peer_.close();
-		cmd_socket_.close();
+		ftpclient_.close();
 	}
 }
 
-int Connection::command(const std::string &str, bool isQuit)
+
+Connection::Result Connection::commandOem(const std::string &str, bool isQuit)
 {  
 	ConnectMessage(MLast);
 
-	while(true)
+	AddCmdLineOem(str, ldOut);
+	error_code code = ftpclient_.sendCommandOem(str);
+	getKeepStopWatch().reset();
+
+	if(FTPClient::isCanceled(code))
+		return Cancel;
+	if(FTPClient::isComplete(code))
+		return Done;
+	return Error;
+	/* TODO надо куда нить засунуть обработку если конекшен упал
 	{
-		try
+		BOOST_LOG(ERR, L"!command(" << FromOEM(str) << L"): " << e.whatw());
+		AddCmdLine(e.whatw(), ldRaw);
+		if(ConnectMessageTimeout(MConnectionLost, getHost()->url_.Host_, true))
+			getPlugin()->FullConnect(getHost());
+		else
 		{
-			fputsSocket(cmd_socket_, (str + "\r\n").c_str());
-			getKeepStopWatch().reset();
-			return getreply();
-		}
-		catch(ConnectionError& e)
-		{
-			BOOST_LOG(ERR, L"!command(" << FromOEM(str) << L"): " << FromOEM(e.what()));
-			AddCmdLine(WinAPI::fromOEM(e.what()), ldRaw);
-			if(ConnectMessageTimeout(MConnectionLost, getHost().url_.Host_, true))
-				getPlugin()->FullConnect();
-			else
-			{
-				getPlugin()->BackToHosts();
-				getPlugin()->Invalidate();
-				lostpeer();
-				return RPL_ERROR;
-			}
+			getPlugin()->BackToHosts();
+			getPlugin()->Invalidate();
+			lostpeer();
+			return RPL_ERROR;
 		}
 	}
+	*/
 }
 
-
-int Connection::command(const std::wstring &str, bool isQuit)
+Connection::Result Connection::command(const std::wstring &str, bool isQuit)
 {
-	return command(toOEM(str), isQuit);
+	return commandOem(toOEM(str), isQuit);
 }
 
-void Connection::getline(std::string &str, DWORD tm)
-{
-	int c;
-	bool wasCarriageReturn = false;
-	str = "";
-	char buffer[3] = {cffIAC};
-
-	do
-	{
-		c = fgetcSocket(cmd_socket_, tm);
-		if(str.empty()) 
-		{
-			// handle telnet commands
-			if(c == cffIAC) 
-			{
-				switch (c = fgetcSocket(cmd_socket_, tm))
-				{
-				case cffWILL:
-				case cffWONT:
-					c = fgetcSocket(cmd_socket_, tm);
-					buffer[1] = cffDONT;
-					buffer[2] = c;
-					nb_send(cmd_socket_, buffer, 3, 0);
-					break;
-				case cffDO:
-				case cffDONT:
-					c = fgetcSocket(cmd_socket_, tm);
-					buffer[1] = cffWONT;
-					buffer[2] = c;
-					nb_send(cmd_socket_, buffer, 3, 0);
-					break;
-				default:
-					break;
-				}
-				continue;
-			}
-		}
-		if(wasCarriageReturn)
-		{
-			if(c != '\n')
-				throw std::exception("invalid replay");
-			return;
-		}
-		if(c == '\r')
-			wasCarriageReturn = true;
-		else
-			str.push_back(c);
-	} while(true);
-}
-
-int Connection::getreply(DWORD tm)
-{
-	int		originalcode = 0;
-	bool	continuation = false;
-	bool	isLastLine;
-	std::string line;
-	int		code;
-
-	replyString_ = "";
-	do
-	{
-		getline(line, tm);
-		code = 0;
-		isLastLine = false;
-		if(line.size() >= 4)
-		{
-			int i;
-			for(i = 0; i < 3; ++i)
-			{
-				if(isdigit(line[i]))
-					code = code * 10 + line[i] - '0';
-				else
-					break;
-			}
-			if(i == 3)
-			{
-				if(line[3] == ' ')
-					isLastLine = true;
-				else
-					if(line[3] == '-')
-						continuation = true;
-			}
-		}
-
-		if(replyString_.empty())
-		{
-			// parsing of the first line
-			if(!isLastLine && !continuation)
-				throw std::exception("incorrect reply");
-			originalcode = code;
-		} else
-			replyString_ += '\n';
-
-		replyString_ += line;
-
-	} while(!(isLastLine && (!continuation || code == originalcode)));
-
-	AddCmdLine(replyString_, ldIn);
-
-	cpend = !isPrelim(originalcode);
-	return originalcode;
-}
-
-void Connection::setHost(FTPHost* host)
+void Connection::setHost(const boost::shared_ptr<FTPHost> &host)
 {
 	pHost_ = host;
 }
 
-FTPHost& Connection::getHost()
+boost::shared_ptr<FTPHost>& Connection::getHost()
 {
 	BOOST_ASSERT(pHost_);
-	return *pHost_;
+	return pHost_;
 }
 
-const FTPHost& Connection::getHost() const
+const boost::shared_ptr<FTPHost>& Connection::getHost() const
 {
 	BOOST_ASSERT(pHost_);
-	return *pHost_;
+	return pHost_;
 }
+
+std::wstring Connection::getSystemInfo()
+{  
+	if(systemInfo_.empty())
+	{
+		FARWrappers::Screen scr;
+		if(syst() == Done)
+		{
+			std::string tmp = ftpclient_.getReply();
+			size_t n;
+			n = tmp.find_first_of("\r\n");
+			if(n != std::string::npos)
+				tmp.resize(n);
+
+			if(tmp.size() > 3 && isdigit(tmp[0]) && isdigit(tmp[1]) && isdigit(tmp[2]))
+				systemInfo_ = FromOEM(std::string(tmp.begin()+4, tmp.end()));
+			else
+				systemInfo_ = FromOEM(tmp);
+		} else
+		{
+			systemInfo_ = L"System info is undefined";
+		}
+	}
+	return systemInfo_;
+}
+
+
+__int64  Connection::fileSize(const std::wstring &filename)
+{
+	if(sizecmd(filename) != Done)
+	{
+		throw std::exception("file size command is broken");
+		return -1;
+	} else
+	{
+		const std::string& line = ftpclient_.getReply();
+		return Parser::parseUnsignedNumber(line.begin()+4, line.end(), 
+			std::numeric_limits<__int64>::max(), false); 
+	}
+}
+

@@ -7,20 +7,20 @@ namespace FARWrappers
 
 DialogItem Dialog::addButton(int x, int y, int id, const std::wstring& label, int flag)
 {
-	addItem(DI_BUTTON, x, y, 0, 0, flag, ItemInfo(label, id));
+	addItem(DI_BUTTON, x, y, 0, 0, flag, ItemValue(label, id));
 	return DialogItem(this, items_.size()-1);
 }
 
 DialogItem Dialog::addDefaultButton(int x, int y, int id, const std::wstring& label, int flag)
 {
-	FarDialogItem& item = addItem(DI_BUTTON, x, y, 0, 0, flag, ItemInfo(label, id));
+	FarDialogItem& item = addItem(DI_BUTTON, x, y, 0, 0, flag, ItemValue(label, id));
 	item.DefaultButton	= 1;
 	return DialogItem(this, items_.size()-1);
 }
 
 DialogItem Dialog::addCheckbox(int x, int y, int *value, const std::wstring& label, int id, DWORD flag)
 {
-	FarDialogItem& item  = addItem(DI_CHECKBOX, x, y, 0, 0, flag, ItemInfo(label, value, id));
+	FarDialogItem& item  = addItem(DI_CHECKBOX, x, y, 0, 0, flag, ItemValue(label, value, id));
 	item.Selected = *value;
 
 	return DialogItem(this, items_.size()-1);
@@ -28,7 +28,7 @@ DialogItem Dialog::addCheckbox(int x, int y, int *value, const std::wstring& lab
 
 DialogItem Dialog::addCheckbox(int x, int y, bool *value, const std::wstring& label, int id, DWORD flag)
 {
-	FarDialogItem& item  = addItem(DI_CHECKBOX, x, y, 0, 0, flag, ItemInfo(label, value, id));
+	FarDialogItem& item  = addItem(DI_CHECKBOX, x, y, 0, 0, flag, ItemValue(label, value, id));
 	item.Selected = *value;
 
 	return DialogItem(this, items_.size()-1);
@@ -41,7 +41,7 @@ DialogItem Dialog::addCombobox()
 
 DialogItem Dialog::addDoublebox(int x1, int y1, int x2, int y2, const std::wstring &label, DWORD flag)
 {
-	FarDialogItem& item  = addItem(DI_DOUBLEBOX, x1, y1, x2, y2, flag, ItemInfo(label, 0));
+	FarDialogItem& item  = addItem(DI_DOUBLEBOX, x1, y1, x2, y2, flag, ItemValue(label, 0));
 
 	return DialogItem(this, items_.size()-1);
 }
@@ -88,7 +88,7 @@ DialogItem Dialog::addListbox()
 
 DialogItem Dialog::addRadioButton(int x, int y, int* value, const std::wstring &label, int id, DWORD flag)
 {
-	FarDialogItem& item  = addItem(DI_RADIOBUTTON, x, y, 0, 0, flag, ItemInfo(label, value, id));
+	FarDialogItem& item  = addItem(DI_RADIOBUTTON, x, y, 0, 0, flag, ItemValue(label, value, id));
 	item.Selected = *value;
 
 	return DialogItem(this, items_.size()-1);
@@ -101,14 +101,14 @@ DialogItem Dialog::addRadioButtonStart(int x, int y, int* value, const std::wstr
 
 DialogItem Dialog::addSinglebox(int x1, int y1, int x2, int y2, const std::wstring &label, DWORD flag)
 {
-	FarDialogItem& item  = addItem(DI_SINGLEBOX, x1, y1, x2, y2, flag, ItemInfo(label, 0));
+	FarDialogItem& item  = addItem(DI_SINGLEBOX, x1, y1, x2, y2, flag, ItemValue(label, 0));
 
 	return DialogItem(this, items_.size()-1);
 }
 
 DialogItem Dialog::addLabel(int x, int y, const std::wstring& label, int id, DWORD flag)
 {
-	FarDialogItem& item  = addItem(DI_TEXT, x, y, 0, y, flag, ItemInfo(label, id));
+	FarDialogItem& item  = addItem(DI_TEXT, x, y, 0, y, flag, ItemValue(label, id));
 
 	return DialogItem(this, items_.size()-1);
 }
@@ -122,6 +122,7 @@ DialogItem Dialog::addVText()
 
 int Dialog::show(int x1, int y1, int x2, int y2, FARWINDOWPROC dlgProc, LONG_PTR param)
 {
+	int result;
 	BOOST_ASSERT(!items_.empty());
 
 	std::vector<FarDialogItem>::iterator itr = items_.begin();
@@ -148,35 +149,67 @@ int Dialog::show(int x1, int y1, int x2, int y2, FARWINDOWPROC dlgProc, LONG_PTR
 		++itr;
 	}	
 
-	int res = getInfo().DialogEx(getModuleNumber(), x1, y1, x2, y2, helpTopic_.c_str(),
+	HANDLE hDlg = getInfo().DialogInit(getModuleNumber(), x1, y1, x2, y2, helpTopic_.c_str(),
 		&items_[0], static_cast<int>(items_.size()), 0, flags_, 
 		dlgProc? dlgProc : getInfo().DefDlgProc, param);
 
+	if(hDlg == INVALID_HANDLE_VALUE)
+	{
+		getInfo().DialogFree(hDlg);
+		return -1;
+	}
+
+	int res = getInfo().DialogRun(hDlg);
+	result = -1;
 	if(res != -1 && info_[res].id_ != -1)
 	{
 		itr = items_.begin();
 		while(itr != items_.end())
 		{
+			int index = itr - items_.begin();
 			switch(itr->Type)
 			{
 			case DI_EDIT:
 			case DI_FIXEDIT:
 			case DI_PSWEDIT:
-				info_[itr - items_.begin()].set(itr->PtrData);
+				{
+					const wchar_t* text = reinterpret_cast<wchar_t*>(getInfo().SendDlgMessage(hDlg, DM_GETCONSTTEXTPTR, index, 0));
+					info_[itr - items_.begin()].set(text);
+				}
 				break;
 			case DI_COMBOBOX:
-				info_[itr - items_.begin()].set(itr->PtrData, itr->Selected);
+				{
+					FarDialogItem* pdi = reinterpret_cast<FarDialogItem*>(getInfo().SendDlgMessage(hDlg, DM_GETDLGITEM, index, 0));
+					if(pdi)
+					{
+						info_[index].set(pdi->PtrData, pdi->Selected);
+						getInfo().SendDlgMessage(hDlg, DM_FREEDLGITEM, 0, reinterpret_cast<LONG_PTR>(pdi));
+					}
+					else
+						info_[index].set(L"", 0);
+					break;
+				}
 			case DI_CHECKBOX:
 			case DI_RADIOBUTTON:
 			case DI_LISTBOX:
-				info_[itr - items_.begin()].set(itr->Selected);
+				{
+					FarDialogItem* pdi = reinterpret_cast<FarDialogItem*>(getInfo().SendDlgMessage(hDlg, DM_GETDLGITEM, index, 0));
+					if(pdi)
+					{
+						info_[index].set(pdi->Selected);
+						getInfo().SendDlgMessage(hDlg, DM_FREEDLGITEM, 0, reinterpret_cast<LONG_PTR>(pdi));
+					}
+					else
+						info_[index].set(0);
+					break;
+				}
 			}
 			++itr;
 		}
-		return info_[res].id_;
+		result = info_[res].id_;
 	}
-	else
-		return -1;
+	getInfo().DialogFree(hDlg);
+	return result;
 }
 
 int Dialog::show(int width, int height, FARWINDOWPROC dlgProc, LONG_PTR param)
@@ -186,7 +219,7 @@ int Dialog::show(int width, int height, FARWINDOWPROC dlgProc, LONG_PTR param)
 
 DialogItem Dialog::addHLine(int x, int y)
 {
-	FarDialogItem& item  = addItem(DI_TEXT, x, y, x, y, DIF_BOXCOLOR|DIF_SEPARATOR, ItemInfo(L"", 0));
+	FarDialogItem& item  = addItem(DI_TEXT, x, y, x, y, DIF_BOXCOLOR|DIF_SEPARATOR, ItemValue(L"", 0));
 	return DialogItem(this, items_.size()-1);
 }
 
@@ -217,8 +250,8 @@ int Dialog::getID(size_t n) const
 
 DialogItem Dialog::find(int id)
 {
-	std::vector<ItemInfo>::iterator itr;
-	itr = std::find_if(info_.begin(), info_.end(), boost::bind(&ItemInfo::id_, _1) == id);
+	std::vector<ItemValue>::iterator itr;
+	itr = std::find_if(info_.begin(), info_.end(), boost::bind(&ItemValue::id_, _1) == id);
 	if(itr != info_.end())
 		return DialogItem(this, itr - info_.begin());
 	return DialogItem(0, 0);

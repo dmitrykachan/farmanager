@@ -63,6 +63,8 @@
 #include <boost/filesystem/convenience.hpp>
 #include <boost/foreach.hpp>
 #include <boost/tuple/tuple.hpp>
+#define BOOST_ASIO_ENABLE_CANCELIO
+#include <boost/asio.hpp>
 
 #include "utils/log.h"
 
@@ -83,6 +85,7 @@
 #include <hash_map>
 
 #include <Winsock2.h>
+#include <shlwapi.h>
 
 #include "utils/winwrapper.h"
 #include "utils/sregexp.h"

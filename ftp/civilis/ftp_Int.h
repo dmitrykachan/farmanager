@@ -48,11 +48,7 @@ extern std::wstring Size2Str(__int64 sz);
 extern __int64  Str2Size(std::wstring str);
 extern void     WINAPI QuoteStr(std::wstring &str);
 
-//[ftp_JM.cpp]
-extern const std::wstring GetSocketErrorSTR(int err);
-extern const std::wstring GetSocketErrorSTR();
-
-extern void     WINAPI LogCmd(const wchar_t* src,CMDOutputDir out,DWORD Size = UINT_MAX );
+extern void     WINAPI LogCmd(const std::wstring &src,CMDOutputDir out);
 extern bool     WINAPI IsCmdLogFile( void );
 extern std::wstring WINAPI GetCmdLogFile();
 
@@ -62,17 +58,6 @@ extern void     WINAPI OperateHidden(const std::wstring& fnm, bool set);
 
 //[ftp_sock.cpp]
 extern void     WINAPI scClose( SOCKET& sock,int how = SD_BOTH );
-
-struct FHandle {
-  HANDLE Handle;
- public:
-  FHandle( void )     : Handle(NULL) {}
-  FHandle( HANDLE h ) : Handle(h)    {}
-  ~FHandle()                         { Close(); }
-
-  void Close( void )                 { if (Handle) { Fclose(Handle); Handle = NULL; } }
-};
-
 
 class FTPPluginManager
 {
@@ -114,8 +99,9 @@ private:
 
 extern	FTPPluginManager g_manager;
 
-extern std::wstring getPathBranch(const std::wstring &s);
-extern std::wstring getPathLast(const std::wstring &s);
+std::wstring getPathBranch(const std::wstring &s);
+std::wstring getNetPathBranch(const std::wstring &s);
+std::wstring getPathLast(const std::wstring &s);
 
 inline bool IS_SILENT(int v)
 {
@@ -129,7 +115,7 @@ const wchar_t FAR_RIGHT_CHAR	= L'\x25BA';
 const wchar_t FAR_SHADOW_CHAR	= L'\x2593';
 const wchar_t FAR_FULL_CHAR		= L'\x2588';
 
-
+const std::wstring g_MemoryFile = L"-";
 
 namespace
 {

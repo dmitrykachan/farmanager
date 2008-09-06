@@ -7,17 +7,12 @@
 Backup FTP::backups_;
 
 FTP::FTP()
-	: PluginColumnModeSet(false)
 {
 	hostPanel_.setPlugin(this);
 	FtpFilePanel_.setPlugin(this);
 
-	chost_.Init();
-
-	resetCache_			= true;
 	ShowHosts			= TRUE;
 	panel_				= &hostPanel_;
-	SwitchingToFTP		= FALSE;
 
 	UrlsList			= NULL;
 	QuequeSize			= 0;
@@ -25,9 +20,6 @@ FTP::FTP()
 	CallLevel			= 0;
 
 	hostPanel_.setCurrentDirectory(g_manager.getRegKey().get(L"LastHostsPath", L""));
-
-	RereadRequired		= FALSE;
-	CurrentState		= fcsNormal;
 
 	PanelInfo  pi;
 	FARWrappers::getShortPanelInfo(pi);
@@ -73,13 +65,6 @@ const wchar_t* FTP::CloseQuery()
 	return NULL;
 }
 
-bool FTP::AddWrapper(FARWrappers::ItemList& il, PluginPanelItem &p,
-					 std::wstring& description, std::wstring& host, 
-					 std::wstring& directory, std::wstring& username)
-{
-	return true;
-}
-
 void FTP::SetBackupMode( void )
 {
     PanelInfo  pi;
@@ -90,7 +75,6 @@ void FTP::SetBackupMode( void )
 void FTP::SetActiveMode( void )
 {
      NeedToSetActiveMode = TRUE;
-     CurrentState        = fcsNormal;
 }
 
 void Backup::add(FTP* ftp)

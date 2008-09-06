@@ -1,241 +1,159 @@
 #include "stdafx.h"
-#pragma hdrstop
-
 #include "ftp_Int.h"
 #include "progress.h"
 
-void Connection::sendrequest(const std::wstring &cmd, const std::wstring &local, const std::wstring &remote)
+Connection::Result Connection::sendrequest(const std::wstring &cmd, const std::wstring &local, const std::wstring &remote, bool asciiMode, FTPProgress& trafficInfo)
 {  //??SaveConsoleTitle _title;
 
-     sendrequestINT(cmd,local,remote );
-     IdleMessage( NULL,0 );
+     Result res = sendrequestINT(cmd, local, remote, asciiMode, trafficInfo);
+     IdleMessage(NULL, 0);
+
+	 return res;
 }
 
-void Connection::sendrequestINT(const std::wstring &cmd, const std::wstring &local, const std::wstring &remote)
+Connection::Result Connection::sendrequestINT(const std::wstring &cmd, const std::wstring &local, const std::wstring &remote, bool asciiMode, FTPProgress& trafficInfo)
 {
-	PROCP(L"cmd: " << cmd << L"local: " << local << L"remote" << remote);
+	PROCP(L"cmd: " << cmd << L"local: " << local << L"remote: " << remote);
 
-	if ( type == TYPE_A )
-		restart_point=0;
+	if(asciiMode)
+		setascii();
+	else
+		setbinary();
+
+	if(type_ == TYPE_A)
+	{
+		BOOST_ASSERT(restart_point == 0);
+	}
+	if(restart_point != 0)
+	{
+		BOOST_ASSERT(resumeSupport_);
+		BOOST_ASSERT(cmd != g_manager.opt.cmdAppe);
+	}
 
 	WIN32_FIND_DATAW	ffi;
-	FHandle				fin;
-	LONG				hi;
-	FTPCurrentStates	oState = CurrentState;
 	bool				oldBrk = getBreakable();
 	__int64				fsz;
 
 	HANDLE ff = FindFirstFileW(local.c_str(), &ffi);
 	if(ff == INVALID_HANDLE_VALUE)
 	{
-		ErrorCode = ERROR_OPEN_FAILED;
-		return;
+		AddCmdLine(L"File not found");
+		return Error;
 	}
 	FindClose(ff);
 
-	if ( is_flag(ffi.dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY) ) {
-		ErrorCode = ERROR_OPEN_FAILED;
+	if(is_flag(ffi.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+	{
 		BOOST_LOG(INF, "local is directory: " << local);
-		if(!ConnectMessage(MNotPlainFile, local, true, MRetry ))
-			ErrorCode = ERROR_CANCELLED;
-		return;
+		AddCmdLine(getMsg(MNotPlainFile));
+		return Error;
 	}
 
-	fin.Handle = Fopen(local.c_str(), L"r");
-	if ( !fin.Handle )
+	boost::shared_ptr<void> fin(Fopen(local.c_str(), L"r"), Fclose);
+	if(fin.get() == 0)
 	{
 		BOOST_LOG(INF, L"!open local");
-		ErrorCode = ERROR_OPEN_FAILED;
-		if(!ConnectMessage( MErrorOpenFile, local, true, MRetry))
-			ErrorCode = ERROR_CANCELLED;
-		return;
+		AddCmdLine(getMsg(MErrorOpenFile));
+		return Error;
 	}
-	fsz = Fsize(fin.Handle);
+	fsz = Fsize(fin.get());
 
-	if ( restart_point && fsz == restart_point) {
-		AddCmdLine( getMsg(MFileComplete) );
-		ErrorCode = ERROR_SUCCESS;
-		return;
+	if(restart_point && fsz == restart_point)
+	{
+		AddCmdLine(getMsg(MFileComplete));
+		return Error;
 	}
 
-	in_addr data_addr;
-	int		port;
-	if(!initDataConnection(data_addr, port))
+	if(!initDataConnection())
 	{
 		BOOST_LOG(INF, L"!initconn");
-		return;
+		return Error;
 	}
 
-	if(getHost().SendAllo)
+	if(getHost()->SendAllo)
 	{
-		if(cmd[0] != g_manager.opt.cmdAppe[0])
+		if(cmd != g_manager.opt.cmdAppe)
 		{
-			unsigned __int64 v = ((__int64)ffi.nFileSizeHigh) * MAXDWORD + ffi.nFileSizeLow;
-			BOOST_LOG(INF, L"ALLO " << v);
-			if(isComplete(command(g_manager.opt.cmdAllo + boost::lexical_cast<std::wstring>(v))))
+			BOOST_LOG(INF, L"ALLO " << fsz);
+			if(command(g_manager.opt.cmdAllo + boost::lexical_cast<std::wstring>(fsz)) == Done)
 			{
 				BOOST_LOG(INF, "!allo");
-				return;
+				AddCmdLine(L"Can not send the ALLO command");
+				return Error;
 			}
 		}
 	}
 
-	if ( restart_point ) {
-		if(!resumeSupport_ && cmd[0] != g_manager.opt.cmdAppe[0] )
-		{
-			AddCmdLine( getMsg(MResumeRestart) );
-			restart_point = 0;
-		} else {
-			BOOST_LOG(INF, L"restart_point " << restart_point);
-
-			if (!Fmove(fin.Handle, restart_point))
-			{
-				ErrorCode = GetLastError();
-				BOOST_LOG(INF, L"!setfilepointer: " << restart_point);
-				if ( !ConnectMessage( MErrorPosition, local, true, MRetry ) )
-					ErrorCode = ERROR_CANCELLED;
-				return;
-			}
-
-			if(cmd[0] != g_manager.opt.cmdAppe[0] &&
-				!isComplete(command(g_manager.opt.cmdRest_ + L" " + boost::lexical_cast<std::wstring>(restart_point))))
-				return;
-
-			TrafficInfo->resume( restart_point );
-		}
-	}
-
-	if(getHost().PassiveMode)
-	{
-		BOOST_LOG(INF, L"pasv");
-		if(!dataconn(data_addr, port))
-			goto abort;
-	}
-
-	if (!remote.empty()) 
-	{
-		BOOST_LOG(INF, "Upload remote: " << remote);
-		if(!isPrelim(command(cmd + L" " + remote)))
-			return;
-	} else
-	{
-		BOOST_LOG(INF, L"!remote");
-		if(isPrelim(command(cmd)))
-		{
-			return;
-		}
-	}
-
-	if( !getHost().PassiveMode )
-	{
-		if(!dataconn(data_addr, port))
-			goto abort;
-	}
-
-	switch (type) {
-	case TYPE_I:
-	case TYPE_L:
-	case TYPE_A: if ( fsz != 0 ) {
-
-		// TODO FTPNotify().Notify( &ni );
-
-		BOOST_LOG(INF, L"Uploading " << local << L"->" << remote << L" from " << restart_point);
-
-		FTPConnectionBreakable _brk( this, false);
-		//-------- READ
-		while( 1 ) {
-
-			hi = 0;
-			BOOST_LOG(INF, L"read " << getHost().IOBuffSize);
-			if ( !ReadFile(fin.Handle,IOBuff.get(), getHost().IOBuffSize,(LPDWORD)&hi,NULL) )
-			{
-				BOOST_LOG(INF, L"pf: !read buff");
-				ErrorCode = GetLastError();
-				goto abort;
-			}
-
-			if ( hi == 0 ) {
-				ErrorCode = GetLastError();
-				break;
-			}
-
-			//-------- SEND
-			LONG  d = 0;
-			char *bufp;
-
-			BOOST_LOG(INF, L"doSend");
-			for ( bufp = IOBuff.get(); hi > 0; hi -= d, bufp += d) {
-
-				BOOST_LOG(INF, L"ndsend " << hi);
-//TODO 				if ( (d=(LONG)nb_send(&dout, bufp,(int)hi, 0)) <= 0 ) {
-// 					BOOST_LOG(INF, L"pf(" << code << L"," << GetSocketErrorSTR() << L"): !send " << d << "!=" << hi);
-// 					code = RPL_TRANSFERERROR;
-// 					goto abort;
-// 				}
-				BOOST_LOG(INF, L"sent " << d);
-
-				if (IOCallback && !TrafficInfo->refresh( (int)d ) ) {
-//					BOOST_LOG(INF, L"pf(" << code << L"," << GetSocketErrorSTR() << L" ): canceled");
-					ErrorCode = ERROR_CANCELLED;
-					goto abort;
-				}
-			}//-- SEND
-			BOOST_LOG(INF, L"sended");
-
-			//Sleep(1);
-
-		}//-- READ
-		if ( IOCallback ) TrafficInfo->refresh(0);
-		BOOST_LOG(INF, L"done");
-
-				 } /*fsz != 0*/
-				 break;
-	}/*SWITCH*/
-
-	//NormExit
-	setBreakable(oldBrk);
-	CurrentState = oState;
-	if(data_peer_.isCreated())
-	{
-		data_peer_.close();
-
-		if(!isComplete(getreply(false)))
-		{
-			ErrorCode = ERROR_WRITE_FAULT;
-		}
-	} else
-		getreply(false);
-
-// 	ni.Starting = FALSE;
-// 	ni.Success  = TRUE;
-	// TODO		FTPNotify().Notify( &ni );
-	return;
-
-abort:
-	setBreakable(oldBrk);
-	CurrentState = oState;
-
-	if ( !cpend ) {
-		BOOST_LOG(INF, L"!!!cpend");
-	}
-
-	int ocode = 0; //code,
-	int	oecode = ErrorCode;
-
-	data_peer_.shutdown(SD_SEND);
-	data_peer_.close();
-
-	if ( !SendAbort(data_peer_) ) {
-		BOOST_LOG(INF, L"!send abort");
-		lostpeer();
-	} else {
+	if(getHost()->AsciiMode)
 		setascii();
-		pwd();
-//		code      = ocode;
-		ErrorCode = oecode;
+	else
+		setbinary();
+
+	if(restart_point)
+	{
+		BOOST_LOG(INF, L"restart_point " << restart_point);
+
+		if(!Fmove(fin.get(), restart_point))
+		{
+			BOOST_LOG(INF, L"!setfilepointer: " << restart_point);
+			AddCmdLine(getMsg(MErrorPosition));
+			return Error;
+		}
+
+		if(command(g_manager.opt.cmdRest_ + L" " + boost::lexical_cast<std::wstring>(restart_point)) != Done)
+			return Error;
+
+		trafficInfo.resume(restart_point);
 	}
 
-// 	ni.Starting = FALSE;
-// 	ni.Success  = FALSE;
-	//TODO	FTPNotify().Notify( &ni );
+	if(getHost()->PassiveMode)
+	{
+		if(!ftpclient_.establishPassiveDataConnection())
+			return Error;
+	}
+	std::wstring s = cmd;
+	if(!remote.empty())
+		s += L' ' + remote;
+	error_code code = ftpclient_.sendCommand(s, false);
+	if(FTPClient::isComplete(code) == false && FTPClient::isPrelim(code) == false)
+		return Error;
+
+	if(!getHost()->PassiveMode)
+	{
+		if(!ftpclient_.establishActiveDataConnection())
+		{
+			BOOST_LOG(ERR, "cannot establish the data connection");
+			return Error;
+		}
+	}
+
+	BOOST_LOG(INF, L"Uploading " << local << L"->" << remote << L" from " << restart_point);
+	FTPConnectionBreakable _brk( this, false);
+
+	error_code uploadResult;
+	uploadResult = ftpclient_.uploadFile(boost::bind(&Connection::uploadFromFile, this, fin.get(), boost::ref(trafficInfo), _1, _2));
+
+	while(FTPClient::isPrelim(code))
+		code = ftpclient_.readOutput();
+
+	setBreakable(oldBrk);
+	if(FTPClient::isComplete(uploadResult))
+		return Done;
+	if(FTPClient::isCanceled(uploadResult))
+		return Cancel;
+	return Error;
 }
+
+error_code Connection::uploadFromFile(HANDLE file, FTPProgress& trafficInfo, std::vector<char> &buffer, size_t* readbytes)
+{
+	error_code code;
+	BOOST_ASSERT(readbytes);
+	DWORD res;
+	if(ReadFile(file, &buffer[0], buffer.size(), &res, NULL) != FALSE)
+		code = error_code(GetLastError(), asio::error::get_system_category());
+	trafficInfo.refresh(this, res);
+	*readbytes = res;
+	return code;
+}
+
+

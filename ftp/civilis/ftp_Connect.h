@@ -5,35 +5,230 @@
 #include "ftp_Lang.h"
 #include "ftp_Cfg.h"
 #include "ftp_var.h"
-#include "socket.h"
+#include "FTPClient.h"
+#include "progress.h"
 
-class Connection;
 class FTPProgress;
 
 const wchar_t quoteMark = L'\x1';
 
-struct ConnectionState
+class CommandsList;
+
+class Connection
 {
+public:
+	enum Result
+	{
+		Done, Error = -2, Cancel = -3
+	};
+	void		setHost(const FtpHostPtr &host);
+	FtpHostPtr& getHost();
+	const FtpHostPtr& getHost() const;
 
-  BOOL      Inited;
-  int       Blocked;
-  int       RetryCount;
-  int       Passive;
-  HANDLE    Object;
 
-  ConnectionState( void ) { Inited = FALSE; }
+    int			empty_(struct fd_set *mask, int sec);
+    Result		getit(const std::wstring &remote, const std::wstring& local, int restartit, wchar_t *mode, FTPProgress& trafficInfo);
+	void		getline(std::string &str, DWORD tm = 0);
+    bool		initDataConnection();
+	error_code	login(const std::wstring& user, const std::wstring& password, const std::wstring& accout = L"");
+    void		lostpeer();
+
+    Result		recvrequestINT(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, wchar_t *mode, FTPProgress& trafficInfo);
+	Result		recvrequest(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, wchar_t *mode, FTPProgress& trafficInfo);
+    Result		reget(const std::wstring &remote, const std::wstring& local);
+	Result		sendrequestINT(const std::wstring &cmd, const std::wstring &local, const std::wstring &remote, bool asciiMode, FTPProgress& trafficInfo);
+	Result		sendrequest(const std::wstring &cmd, const std::wstring &local, const std::wstring &remote, bool asciiMode, FTPProgress& trafficInfo);
+	Result		setpeer_(const std::wstring& site, size_t port, std::wstring &user, std::wstring &pwd, bool reaskPassword);
+
+
+	Result		account(const std::vector<std::wstring> &params);
+	Result		appended(const std::wstring &local, const std::wstring &remote);
+	Result		setascii();
+    Result		setbinary();
+	Result		settype(ftTypes Mode);
+	Result		cd(const std::wstring &dir);
+	Result		cdup();
+	Result		chmod(const std::wstring& file, const std::wstring &mode);
+	Result		disconnect();
+	Result		deleteFile(const std::wstring &filename);
+	Result		ls(const std::wstring &path);
+	Result		get(const std::wstring &remote, const std::wstring& local, FTPProgress& trafficInfo);
+	Result		nlist(const std::wstring &path);
+	Result		idle(const std::wstring &time);
+	Result		makedir(const std::wstring &dir);
+	Result		modtime(const std::wstring& file);
+	Result		newer(const std::wstring &remote, const std::wstring& local);
+	Result		setport();
+	Result		setpeer(const std::wstring& site, const std::wstring& port, const std::wstring &user, const std::wstring &pwd);
+	Result		put(const std::wstring &local, const std::wstring& remote);
+	Result		pwd();
+	Result		quote(const std::vector<std::wstring> &params);
+	Result		rmthelp(const std::wstring &c);
+	Result		rmtstatus(const std::wstring &c);
+	Result		renamefile(const std::wstring& oldfilename, const std::wstring& newfilename);
+	Result		reset();
+	Result		restart(const std::wstring& point);
+	Result		removedir(const std::wstring &dir);
+	Result		setrunique();
+	Result		setsunique();
+	Result		site(const std::vector<std::wstring>& params);
+	Result		sizecmd(const std::wstring& filename);
+	Result		syst();
+	Result		do_umask(const std::wstring &mask);
+	Result		user(const std::wstring& usr, const std::wstring& pwd, const std::wstring &accountcmd);
+
+    void		ResetOutput();
+    void		AddOutput(const char *Data,int Size);
+
+	std::wstring getSystemInfo();
+	__int64		fileSize(const std::wstring &filename);
+
+	void		setBreakable(bool value);
+	bool		getBreakable();
+
+	void		keepAlive();
+
+    BOOL          brk_flag;
+    __int64       restart_point;
+
+    bool			sendport_;   /* use PORT cmd for each data connection */
+    bool           sunique;    /* store files on server with unique name */
+    bool           runique;    /* store local files with unique name */
+
+    ftTypes       type_;          /* file transfer type */
+    
+	std::wstring			userName_;
+	std::wstring			userPassword_;
+	std::wstring			output_;
+    bool          breakable_;
+
+	bool	isConnected()
+	{
+		return ftpclient_.isConnected();
+	}
+
+	const std::wstring& getCurrentDirectory() const;
+	void				setCurrentDirectory(const std::wstring& curdir);
+	std::string			getReply() const
+	{
+		return ftpclient_.getReply();
+	}
+
+	FTP*	getPlugin()
+	{
+		return plugin_;
+	}
+
+	void setPlugin(FTP* ftp)
+	{
+		plugin_ = ftp;
+	}
+
+	WinAPI::Stopwatch& getKeepStopWatch()
+	{
+		return keepAliveStopWatch_;
+	}
+
+	bool isResumeSupport() const
+	{
+		return resumeSupport_;
+	}
+
+	int getRetryCount() const
+	{
+		return retryCount_;
+	}
+
+	void setRetryCount(int count)
+	{
+		retryCount_ = count;
+	}
+
+private:
+	boost::shared_ptr<FTPHost>	pHost_;
+
+	std::wstring	systemInfo_;
+
+	static	int	getFirstDigit(int code)
+	{
+		code /= 100;
+		BOOST_ASSERT(code >= 1 && code <= 9);
+		return code;
+	}
+
+	std::wstring		lastMsg_;
+	std::wstring		startReply_;
+	std::vector<std::wstring> cmdBuff_;
+
+	std::vector<std::wstring> cmdMsg_;
+	WinAPI::Stopwatch	idleStopWatch_;
+
+	static std::auto_ptr<CommandsList>	commandsList_;
+	WinAPI::Stopwatch		keepAliveStopWatch_;
+
+	FTP*			plugin_;
+	bool			resumeSupport_;
+	int				retryCount_;
+	std::wstring	curdir_;
+
+	FTPClient		ftpclient_;
+	std::wstring	currentProcessMessage_;
+
+public:
+//	FTPProgress		trafficInfo_;
+    bool			CmdVisible;
+    bool           IOCallback;
+
+private:
+	void			pushCmdLine(const std::wstring &src, CMDOutputDir direction);
+	int				ConnectMessage(std::wstring message, bool messageTime,
+									const std::wstring &title, const std::wstring &bottom, 
+									bool showcmds, bool error,
+									int button1 = MNone__, int button2 = MNone__, int button3 = MNone__);
+	Result			commandOem(const std::string &str, bool isQuit = false);
+
+  public:
+    Connection();
+    ~Connection();
+
+    void           InitData(const boost::shared_ptr<FTPHost> &p);
+    void           InitCmdBuff();
+	Result			Init(FTP* ftp);
+	Result			command(const std::wstring &str, bool isQuit = false);
+
+	Result			ProcessCommand(const std::wstring& line);
+    void           CheckResume( void );
+    void           AbortAllRequest(int brkFlag);
+
+	std::wstring	GetStartReply() const		{ return startReply_; }
+
+	std::wstring	FromOEM(const std::string &str) const;
+	std::string		toOEM(const std::wstring &str) const;
+
+	void			AddCmdLineOem(const std::string& str, CMDOutputDir direction = ldOut);
+	void			AddCmdLine(const std::wstring &str, CMDOutputDir direction = ldOut);
+
+	int				ConnectMessage(int Msg = MNone__, std::wstring title = L"", bool error = false, int BtnMsg = MNone__,int btn1 = MNone__, int btn2 = MNone__ );
+	int				ConnectMessage(std::wstring msg, std::wstring title = L"", bool error = false, int BtnMsg = MNone__,int btn1 = MNone__, int btn2 = MNone__ );
+	bool			ConnectMessageTimeout(int Msg, const std::wstring& hostname, int BtnMsg);
+
+	error_code      downloadToBufferHandler(FTPProgress& trafficInfo, const std::vector<char> &buffer, size_t bytes_transferred);
+	error_code		downloadToFile(HANDLE file, FTPProgress& trafficInfo, const std::vector<char> &buffer, size_t bytes_transferred);
+	error_code		uploadFromFile(HANDLE file, FTPProgress& trafficInfo, std::vector<char> &buffer, size_t* readbytes);
+	bool			displayWaitingMessage(size_t n);
+
 };
 
 class Command
 {
 public:
-	typedef bool (Connection::* Func0)();
-	typedef bool (Connection::* Func1)(const std::wstring& s1);
-	typedef bool (Connection::* Func2)(const std::wstring& s1, const std::wstring& s2);
-	typedef bool (Connection::* Func3)(const std::wstring& s1, const std::wstring& s2, const std::wstring& s3);
-	typedef bool (Connection::* Func4)(const std::wstring& s1, const std::wstring& s2, const std::wstring& s3, const std::wstring& s4);
-	typedef bool (Connection::* Func5)(const std::wstring& s1, const std::wstring& s2, const std::wstring& s3, const std::wstring& s4, const std::wstring& s5);
-	typedef bool (Connection::* FuncV)(const std::vector<std::wstring> &params);
+	typedef Connection::Result (Connection::* Func0)();
+	typedef Connection::Result (Connection::* Func1)(const std::wstring& s1);
+	typedef Connection::Result (Connection::* Func2)(const std::wstring& s1, const std::wstring& s2);
+	typedef Connection::Result (Connection::* Func3)(const std::wstring& s1, const std::wstring& s2, const std::wstring& s3);
+	typedef Connection::Result (Connection::* Func4)(const std::wstring& s1, const std::wstring& s2, const std::wstring& s3, const std::wstring& s4);
+	typedef Connection::Result (Connection::* Func5)(const std::wstring& s1, const std::wstring& s2, const std::wstring& s3, const std::wstring& s4, const std::wstring& s5);
+	typedef Connection::Result (Connection::* FuncV)(const std::vector<std::wstring> &params);
 
 	Command()
 		: argsCount_(NotInitialized)
@@ -93,7 +288,7 @@ public:
 		return proxy_;
 	}
 
-	int execute(Connection &conn, const std::vector<std::wstring>& params)
+	Connection::Result execute(Connection &conn, const std::vector<std::wstring>& params)
 	{
 		BOOST_ASSERT(argsCount_ != NotInitialized);
 		switch(argsCount_)
@@ -108,7 +303,7 @@ public:
 			return (conn.*func.funcv_)(params);
 		default:
 			BOOST_ASSERT(0);
-			return RPL_ERROR;
+			return Connection::Error;
 		}
 	}
 
@@ -168,296 +363,5 @@ private:
 	typedef List::iterator			iterator;
 	List	list_;
 };
-
-
-
-class Connection
-{
-public:
-	void		setHost(FTPHost* host);
-	FTPHost&	getHost();
-	const FTPHost& getHost() const;
-
-    bool		account(const std::vector<std::wstring> &params);
-    bool		dataconn(in_addr data_addr, int port);
-    bool		do_umask(const std::wstring &mask);
-    int			empty_(struct fd_set *mask, int sec);
-    bool		getit(const std::wstring &remote, const std::wstring& local, int restartit, wchar_t *mode);
-    int			getreply(DWORD tm = 0);
-	void		getline(std::string &str, DWORD tm = 0);
-	bool		hookup(const std::wstring& host, int port);
-    bool		initDataConnection(in_addr &data_addr, int &port);
-	bool		login(const std::wstring& user, const std::wstring& password, const std::wstring& accout = L"");
-    void		lostpeer();
-	bool		makedir(const std::wstring &dir);
-	bool		doport(in_addr data_addr, int port);
-	bool		modtime(const std::wstring& file);
-    bool		newer(const std::wstring &remote, const std::wstring& local);
-	bool		put(const std::wstring &local, const std::wstring& remote);
-    bool		pwd();
-    bool		quit();
-	bool		idle(const std::wstring &time);
-
-    bool		quote(const std::vector<std::wstring> &params);
-    int			recvrequestINT(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, wchar_t *mode );
-	int			recvrequest(const std::wstring& cmd, const std::wstring &local, const std::wstring &remote, wchar_t *mode );
-    bool		reget(const std::wstring &remote, const std::wstring& local);
-	bool		removedir(const std::wstring &dir);
-	bool		renamefile(const std::wstring& oldfilename, const std::wstring& newfilename);
-    bool		reset();
-    bool		restart(const std::wstring& point);
-    bool		rmthelp(const std::wstring &c);
-    bool		rmtstatus(const std::wstring &c);
-	void		sendrequestINT(const std::wstring &cmd, const std::wstring &local, const std::wstring &remote);
-	void		sendrequest(const std::wstring &cmd, const std::wstring &local, const std::wstring &remote);
-    bool		setpeer(const std::wstring& site, const std::wstring& port, const std::wstring &user, const std::wstring &pwd);
-	bool		setpeer_(const std::wstring& site, size_t port, const std::wstring &user, const std::wstring &pwd);
-
-	static bool	startupWSA();
-	static void cleanupWSA();
-
-    bool		setport();
-    bool		setrunique();
-    bool		setsunique();
-
-	bool		appended(const std::wstring &local, const std::wstring &remote);
-	bool		setascii();
-    bool		setbinary();
-	bool		cd(const std::wstring &dir);
-	bool		cdup();
-	bool		chmod(const std::wstring& file, const std::wstring &mode);
-	bool		disconnect();
-	bool		deleteFile(const std::wstring &filename);
-	bool		ls(const std::wstring &path);
-	bool		get(const std::wstring &remote, const std::wstring& local);
-	bool		nlist(const std::wstring &path);
-
-    bool		setebcdic();
-    bool		settype(ftTypes Mode);
-
-    bool		site(const std::vector<std::wstring>& params);
-	bool		sizecmd(const std::wstring& filename);
-    bool		syst();
-	bool		user(const std::wstring& usr, const std::wstring& pwd, const std::wstring &accountcmd);
-
-    bool		nb_connect	(TCPSocket &peer, in_addr &ipaddr, int port, DWORD tm = 0);
-	int 		nb_recv		(TCPSocket &peer, char* buf, int len, DWORD tm = 0);
-    void		nb_send		(TCPSocket &peer, const char* buf, size_t len, int flags, DWORD tm = 0);
-	void		nb_accept	(TCPSocket& listenPeer, TCPSocket& s, sockaddr_in &from, DWORD tm = 0);
-
-
-    int			fgetcSocket(TCPSocket &s, DWORD tm = 0);
-	void		fputsSocket(TCPSocket &s, const std::string &format);
-
-    int			SetType(int type);
-    void		ResetOutput();
-    void		AddOutput(BYTE *Data,int Size);
-
-
-	void		setBreakable(bool value);
-	bool		getBreakable();
-
-	bool		keepAlive();
-
-    sockaddr_in   hisctladdr;
-    BOOL          brk_flag;
-    sockaddr_in   myctladdr;
-    __int64       restart_point;
-    int           portnum;
-
-    /* Lot's of options... */
-    /*
-     * Options and other state info.
-     */
-    bool			sendport_;   /* use PORT cmd for each data connection */
-    int           sunique;    /* store files on server with unique name */
-    int           runique;    /* store local files with unique name */
-	std::wstring	pasv_;   /* passive port for proxy data connection */
-
-    ftTypes       type;          /* file transfer type */
-    int           stru;          /* file transfer structure */
-    
-    int           cpend;         /* flag: if != 0, then pending server reply */
-
-	std::wstring			userName_;
-	std::wstring			userPassword_;
-	std::wstring			output_;
-    int           LastUsedTableNum;
-    TCPSocket		data_peer_;
-	std::wstring	curdir_;
-    int           ErrorCode;
-    bool          breakable_;
-
-	bool	cmdLineAlive()
-	{
-		return isConnected() && cmd_socket_.isCreated();
-	}
-
-	bool	isConnected()
-	{
-		return connected_;
-	}
-
-	std::wstring getSystemInfo() const
-	{
-		return systemInfo_;
-	}
-
-	void setSystemInfo(const std::wstring& info)
-	{
-		systemInfo_ = info;
-	}
-
-	const std::wstring& getCurrentDirectory() const;
-
-	static bool isComplete(int code)
-	{
-		if(code == RPL_ERROR)
-			return false;
-		return getFirstDigit(code) == FTP_RESULT_CODE_COMPLETE;
-	}
-
-	static bool isContinue(int code)
-	{
-		if(code == RPL_ERROR)
-			return false;
-		return getFirstDigit(code) == FTP_RESULT_CODE_CONTINUE;
-	}
-
-	static bool isPrelim(int code)
-	{
-		if(code == RPL_ERROR)
-			return false;
-		return getFirstDigit(code) == FTP_RESULT_CODE_PRELIM;
-	}
-
-	static bool isBadCommand(int code)
-	{
-		if(code == RPL_ERROR)
-			return false;
-		return getFirstDigit(code) == FTP_RESULT_CODE_BADCOMMAND;
-	}
-
-
-	FTP*	getPlugin()
-	{
-		return plugin_;
-	}
-
-	void setPlugin(FTP* ftp)
-	{
-		plugin_ = ftp;
-	}
-
-	WinAPI::Stopwatch& getKeepStopWatch()
-	{
-		return keepAliveStopWatch_;
-	}
-
-	bool isResumeSupport() const
-	{
-		return resumeSupport_;
-	}
-
-	int getRetryCount() const
-	{
-		return retryCount_;
-	}
-
-	void setRetryCount(int count)
-	{
-		retryCount_ = count;
-	}
-
-private:
-	FTPHost*		pHost_;
-	static	bool	socketStartup_;
-
-	TCPSocket		cmd_socket_;
-	bool			connected_;
-	std::wstring	systemInfo_;
-
-	void	setConnected(bool val = true)
-	{
-		connected_ = val;
-	}
-
-	static	int	getFirstDigit(int code)
-	{
-		code /= 100;
-		BOOST_ASSERT(code >= 1 && code <= 9);
-		return code;
-	}
-
-	std::wstring		lastMsg_;
-	std::wstring		startReply_;
-	std::string			replyString_;
-	std::deque<std::wstring> cmdBuff_;
-
-	std::vector<std::wstring> cmdMsg_;
-	boost::scoped_array<char> IOBuff;
-	WinAPI::Stopwatch	idleStopWatch_;
-
-	static CommandsList		commandsList_;
-	WinAPI::Stopwatch		keepAliveStopWatch_;
-
-	FTP*			plugin_;
-	bool			resumeSupport_;
-	int				retryCount_;
-
-public:
-    FTPCurrentStates CurrentState;
-	std::wstring	DirFile;
-	FTPProgress*   TrafficInfo;
-    BOOL           CmdVisible;
-    bool           IOCallback;
-
-	BOOL           LoginComplete;
-
-private:
-    void           InternalError( void );
-    void           CloseCmdBuff( void );
-	void			pushCmdLine(const std::wstring &src, CMDOutputDir direction);
-    bool			SendAbort(TCPSocket &din);
-	void			displayWaitingMessage(size_t curTime, size_t timeout);
-	int				ConnectMessage(std::wstring message, bool messageTime,
-									const std::wstring &title, const std::wstring &bottom, 
-									bool showcmds, bool error,
-									int button1 = MNone__, int button2 = MNone__, int button3 = MNone__);
-
-  public:
-    Connection();
-    ~Connection();
-
-    void           InitData( FTPHost* p,int blocked /*=TRUE,FALSE,-1*/ );
-    void           InitCmdBuff();
-    void           InitIOBuff( void );
-	bool           Init(const std::wstring& Host, size_t Port, const std::wstring& User, const std::wstring& Password, FTP* ftp);
-
-	int            command(const std::string &str, bool isQuit = false);
-	int            command(const std::wstring &str, bool isQuit = false);
-	int            ProcessCommand(const std::wstring& line);
-    void           CheckResume( void );
-    void           AbortAllRequest(int brkFlag);
-
-	std::string		GetReply() const			{ return replyString_; }
-	std::wstring	GetStartReply() const		{ return startReply_; }
-
-	std::wstring	FromOEM(const std::string &str) const;
-	std::string		toOEM(const std::wstring &str) const;
-
-    void           GetState( ConnectionState* p );
-    void           SetState( ConnectionState* p );
-
-    int				GetErrorCode( void )           { return ErrorCode; }
-
-	void			AddCmdLine(const std::string& str, CMDOutputDir direction = ldOut);
-	void			AddCmdLine(const std::wstring &str, CMDOutputDir direction = ldOut);
-
-	int				ConnectMessage(int Msg = MNone__, std::wstring title = L"", bool error = false, int BtnMsg = MNone__,int btn1 = MNone__, int btn2 = MNone__ );
-	int				ConnectMessage(std::wstring msg, std::wstring title = L"", bool error = false, int BtnMsg = MNone__,int btn1 = MNone__, int btn2 = MNone__ );
-	bool			ConnectMessageTimeout(int Msg, const std::wstring& hostname, int BtnMsg);
-};
-
 
 #endif

@@ -109,15 +109,14 @@ int FTP::DisplayUtilsMenu()
 				{
 					if(ShowHosts || !getConnection().isConnected()) 
 						break;
-					FTPHost tmp = chost_;
-					if ( !GetHost( MEditFtpTitle, &tmp, FALSE ) ) 
+					FTPUrl_ urlOld = getConnection().getHost()->url_;
+					if ( !EditHostDlg( MEditFtpTitle, getConnection().getHost(), FALSE ) ) 
 						return true;
 
 					//Reconnect
-					if(!chost_.CmpConnected( &tmp ) )
+					if(!urlOld.compare(getConnection().getHost()->url_))
 					{
-						chost_ = tmp;
-						if ( !FullConnect() )
+						if(!FullConnect(getConnection().getHost()))
 						{
 							BackToHosts();
 							Invalidate();
@@ -125,11 +124,7 @@ int FTP::DisplayUtilsMenu()
 						return true;
 					}
 
-					chost_ = tmp;
-
 					//Change connection paras
-					getConnection().InitData( &chost_,-1 );
-					getConnection().InitIOBuff();
 					Invalidate();
 					return true;
 				}
@@ -173,11 +168,11 @@ int FTP::DisplayUtilsMenu()
 					int saveCmvView;
 					if(ShowHosts)
 						break;
-					saveCmvView = getConnection().getHost().ExtCmdView;
-					getConnection().getHost().ExtCmdView = TRUE;
+					saveCmvView = getConnection().getHost()->ExtCmdView;
+					getConnection().getHost()->ExtCmdView = TRUE;
 					SetLastError(ERROR_SUCCESS);
 					getConnection().ConnectMessage( MNone__,L"", false, MOk);
-					getConnection().getHost().ExtCmdView = saveCmvView;
+					getConnection().getHost()->ExtCmdView = saveCmvView;
 					return true;
 				}
 

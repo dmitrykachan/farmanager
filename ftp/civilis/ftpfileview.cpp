@@ -5,6 +5,13 @@
 #include "ftp_Int.h"
 #include "farwrapper/dialog.h"
 #include "progress.h"
+#include "farwrapper/menu.h"
+
+
+static std::wstring FDigit(__int64 val)
+{
+	return Utils::FDigit(val, g_manager.opt.dDelimit? g_manager.opt.dDelimiter : 0);
+}
 
 static bool updateTime(FTPFileInfo& fileinfo)
 {
@@ -16,6 +23,51 @@ static bool updateTime(FTPFileInfo& fileinfo)
 	if(fileinfo.getLastAccessTime().empty())
 		fileinfo.setLastAccessTime(ft);
 	return true;
+}
+
+static void FileDescriptionToHostCoding( int OpMode,Connection *hConnect, std::wstring nm)
+{
+	if ( !is_flag(OpMode,OPM_DESCR) ) return;
+
+	FILE *SrcFile=_wfopen(nm.c_str(), L"r+b");
+	if ( !SrcFile ) return;
+
+	int   FileSize = (int)Fsize(SrcFile);
+	boost::scoped_array<BYTE> Buf(new BYTE[FileSize*3+1]);
+	size_t   ReadSize = fread(Buf.get(), 1,FileSize,SrcFile);
+	size_t WriteSize = ReadSize; // TODO hConnect->FromOEM( Buf,ReadSize,sizeof(BYTE)*FileSize*3+1 );
+	fflush(SrcFile);
+	fseek(SrcFile,0,SEEK_SET);
+	fflush(SrcFile);
+	fwrite(Buf.get(),1,WriteSize,SrcFile);
+	fflush(SrcFile);
+	fclose(SrcFile);
+}
+
+static void FileDescriptionToLocalCoding(int OpMode, Connection *hConnect, const std::wstring &nm, const FILETIME &tm)
+{
+	if(!is_flag(OpMode,OPM_DESCR))
+		return;
+
+	HANDLE SrcFile = CreateFileW(nm.c_str(), GENERIC_WRITE,0,NULL,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL );
+	DWORD  FileSize;
+
+	if(SrcFile == INVALID_HANDLE_VALUE)
+		return;
+
+	if((FileSize = GetFileSize(SrcFile,NULL)) != INVALID_FILE_SIZE)
+	{
+		boost::scoped_array<unsigned char> buf(new unsigned char[FileSize]);
+		ReadFile(SrcFile, buf.get(),FileSize,&FileSize,NULL);
+		BOOST_ASSERT(0 && "TODO");
+		// TODO DWORD WriteSize = hConnect->toOEM( Buf,FileSize );
+		DWORD WriteSize = FileSize;
+		SetFilePointer(SrcFile, 0, NULL, FILE_BEGIN);
+		WriteFile(SrcFile, buf.get(),WriteSize,&WriteSize,NULL );
+		SetEndOfFile(SrcFile);
+	}
+	SetFileTime(SrcFile,NULL,NULL, &tm);
+	CloseHandle(SrcFile);
 }
 
 // returns the count of error parsed entries.
@@ -73,11 +125,11 @@ size_t FTPFileView::parseFtpDirOutputInt(ServerTypePtr server, FileListPtr &file
 	}
 }
 
-bool FTPFileView::parseFtpDirOutput(FileListPtr &filelist)
+bool FTPFileView::parseFtpDirOutput(const std::wstring& path, FileListPtr &filelist)
 {
 	PROC;
 
-	ServerTypePtr server = getHost().serverType_;
+	ServerTypePtr server = getHost()->serverType_;
 	if(ServerList::isAutodetect(server))
 	{
 		server = ServerList::autodetect(connection_.getSystemInfo());
@@ -98,8 +150,7 @@ bool FTPFileView::parseFtpDirOutput(FileListPtr &filelist)
 	if(errors != 0)
 		BOOST_LOG(ERR, errors << L"listing parsing errors.");
 
-	filelistCache_.add(getCurrentDirectory(), filelist);
-
+	filelistCache_.add(path, filelist);
 
 	return true;
 }
@@ -108,24 +159,19 @@ PanelView::Result FTPFileView::GetFiles(PluginPanelItem *PanelItem, int ItemsNum
 {
 	//Copy received items to internal data and use copy
 	// because FAR delete it on next FCTL_GETPANELINFO
-	FARWrappers::ItemList FilesList(PanelItem, ItemsNumber);
+	FARWrappers::ItemList FilesList(&PanelItem, ItemsNumber);
 
 	return GetFiles(FilesList, Move, destPath, OpMode);
 }
 
-extern void SetupFileTimeNDescription(int OpMode,Connection *hConnect, const std::wstring &nm,FILETIME *tm); // TODO
-
-
-
 PanelView::Result FTPFileView::GetFiles(FARWrappers::ItemList &list, int Move, const std::wstring &destPath, int OpMode)
 {
-		Result rc = getFilesInt(list, Move, destPath, OpMode);
+	Result rc = getFilesInt(list, Move, destPath, OpMode);
 
 	FtpCmdBlock(&getConnection(), false);
-	if(rc == Failed || rc == Canceled)
+	if(rc != Canceled)
 		getFTP()->LongBeepEnd(true);
 
-	BOOST_LOG(INF, L"rc:" << rc);
 	return rc;
 }
 
@@ -139,7 +185,7 @@ PanelView::Result FTPFileView::initFtpCopyInfo(const std::wstring &destPath, int
 		info->destPath.erase(0, 1);
 	}
 
-	info->asciiMode       = getHost().AsciiMode;
+	info->asciiMode       = getHost()->AsciiMode;
 	info->showProcessList = false;
 	info->addToQueque     = false;
 	info->msgCode         = IS_SILENT(opMode) ? ocOverAll : ocNone;
@@ -199,6 +245,101 @@ PanelView::Result FTPFileView::initFtpCopyInfo(const std::wstring &destPath, int
 	return Succeeded;
 }
 
+class MakeRecursiveList
+{
+private:
+	FileList	*list_;
+public:
+	MakeRecursiveList(FileList* list)
+		: list_(list)
+	{
+		BOOST_ASSERT(list);
+	}
+	FTPFileView::WalkerResult operator()(bool enter, FTPFileInfoPtr info, const std::wstring& path)
+	{
+		if(enter)
+		{
+			FTPFileInfoPtr p(new FTPFileInfo(*info));
+			if(!path.empty())
+				p->setFileName(path + NET_SLASH + p->getFileName());
+			list_->push_back(p);
+		}
+		return FTPFileView::OK;
+	}
+};
+
+class MakeList
+{
+private:
+	FileList	*list_;
+public:
+	MakeList(FileList* list)
+		: list_(list)
+	{
+		BOOST_ASSERT(list);
+	}
+	FTPFileView::WalkerResult operator()(bool enter, FTPFileInfoPtr info, const std::wstring& path)
+	{
+		if(enter && info->getType() == FTPFileInfo::directory)
+		{
+			FTPFileInfoPtr p(new FTPFileInfo(*info));
+			if(!path.empty())
+				p->setFileName(path + NET_SLASH + p->getFileName());
+			list_->push_back(p);
+			return FTPFileView::Skip;
+		}
+		return FTPFileView::OK;
+	}
+};
+template<typename Pred>
+PanelView::Result walkInt(FTPFileView& fileview, FTPFileInfoPtr &file, const std::wstring &path, Pred pred)
+{
+	PanelView::Result res = PanelView::Succeeded;
+	if(file->getType() == FTPFileInfo::directory)
+	{
+		FTPFileView::WalkerResult cbstatus = pred(true, file, path);
+		if(cbstatus == FTPFileView::Cancel)
+			return PanelView::Canceled;
+		if(cbstatus == FTPFileView::OK)
+		{
+			boost::shared_ptr<FileList> list(new FileList);
+			std::wstring subpath = path;
+			if(!subpath.empty())
+				subpath += NET_SLASH;
+			subpath += file->getFileName();
+			if(fileview.readFolder(subpath, list))
+			{
+				FileList::iterator itr = list->begin();
+				while(res == PanelView::Succeeded && itr != list->end())
+				{
+					if((*itr)->getFileName() != L"..")
+						res = walkInt(fileview, *itr, subpath, pred);
+					++itr;
+				}
+				cbstatus = pred(false, file, path);
+				if(cbstatus == FTPFileView::Cancel)
+					return PanelView::Canceled;
+			}
+		}
+	} else
+	{
+		if(pred(true, file, path) == FTPFileView::Cancel)
+			return PanelView::Canceled;
+	}
+	return PanelView::Succeeded;
+}
+
+template<typename Pred>
+PanelView::Result walk(FTPFileView& fileview, const PluginPanelItem* panelItems, int itemsNumber, const std::wstring &path, Pred pred)
+{
+	PanelView::Result res = PanelView::Succeeded;
+	for(int i = 0; res && i < itemsNumber; ++i)
+	{
+		res = walkInt(fileview, fileview.getFile(panelItems[i].UserData), path, pred);
+	}
+	return res;
+}
+
 PanelView::Result FTPFileView::getFilesInt(FARWrappers::ItemList &items, int Move, const std::wstring& destPath, int OpMode)
 {
 	PROCP(L"Move: " << Move << L", destPath: " << destPath << L"Mode: " << OpMode);
@@ -234,17 +375,19 @@ PanelView::Result FTPFileView::getFilesInt(FARWrappers::ItemList &items, int Mov
 
 	if(ci.FTPRename)
 	{
-		if(walk(items.items(), static_cast<int>(items.size()), L"", MakeList(&filelist)) != Succeeded)
-			return Failed;
+		Result res = walk(*this, items.items(), static_cast<int>(items.size()), L"", MakeList(&filelist));
+		if(res != Succeeded)
+			return res;
 	}
 	else
 	{
-		if(walk(items.items(), static_cast<int>(items.size()), L"", MakeRecursiveList(&filelist)) != Succeeded)
- 			return Failed;
+		Result res = walk(*this, items.items(), static_cast<int>(items.size()), L"", MakeRecursiveList(&filelist));
+		if(res != Succeeded)
+ 			return res;
 	}
 
-//TODO 	if(ci.showProcessList && !getFTP()->ShowFilesList(&filelist))
-// 		return Failed;
+ 	if(ci.showProcessList && !showFilesList(filelist))
+ 		return Failed;
 
 	if(!ci.FTPRename && ci.addToQueque)
 	{
@@ -256,7 +399,8 @@ PanelView::Result FTPFileView::getFilesInt(FARWrappers::ItemList &items, int Mov
 	getFTP()->longBeep_.reset();
 
 	//Calc full size
-	getConnection().TrafficInfo->Init(MStatusDownload, OpMode, filelist);
+	FTPProgress trafficInfo;
+	trafficInfo.Init(MStatusDownload, OpMode, filelist, FTPProgress::ShowProgress);
 
 	//Copy\Rename each item
 	for(size_t i = 0; i < filelist.size(); i++ )
@@ -329,7 +473,7 @@ PanelView::Result FTPFileView::getFilesInt(FARWrappers::ItemList &items, int Mov
 
 
 		//Init current
-		getConnection().TrafficInfo->initFile(currentFile, DestName);
+		trafficInfo.initFile(&getConnection(), currentFile, DestName);
 
 		//Query overwrite
 		switch(ci.msgCode)
@@ -343,14 +487,14 @@ PanelView::Result FTPFileView::getFilesInt(FARWrappers::ItemList &items, int Mov
 		if(DestAttr != INVALID_FILE_ATTRIBUTES)
 		{
 			ci.msgCode = getFTP()->AskOverwrite(ci.FTPRename ? MRenameTitle : MDownloadTitle, TRUE,
-			                              &findData, &currentFile, ci.msgCode);
+			                              findData, currentFile, ci.msgCode);
 
 			switch( ci.msgCode )
 			{
 			case   ocOverAll:
 			case      ocOver: break;
 			case      ocSkip:
-			case   ocSkipAll: getConnection().TrafficInfo->skip();
+			case   ocSkipAll: trafficInfo.skip();
 				continue;
 			case    ocResume:
 			case ocResumeAll: break;
@@ -381,18 +525,18 @@ PanelView::Result FTPFileView::getFilesInt(FARWrappers::ItemList &items, int Mov
 			} else
 			{
 				selFile_ = DestName;
-				filelistCache_.clear();
+				resetFileCache();
 			}
 		} else
 		{
 			//Do download
-			rc = (downloadFile(curName, DestName,
+			rc = downloadFile(curName, DestName,
 						ci.msgCode == ocResume || ci.msgCode == ocResumeAll,
-						ci.asciiMode) == TRUE)? Succeeded : Failed;
+						ci.asciiMode, trafficInfo);
 			if(rc == Succeeded)
 			{
 				//Process description
-				SetupFileTimeNDescription(OpMode, &getConnection(), DestName, &currentFile.getLastWriteTime());
+				FileDescriptionToLocalCoding(OpMode, &getConnection(), DestName, currentFile.getLastWriteTime());
 
 				//Delete source after download
 				if (Move)
@@ -447,10 +591,267 @@ PanelView::Result FTPFileView::getFilesInt(FARWrappers::ItemList &items, int Mov
 	return Succeeded;
 }
 
-PanelView::PutResult FTPFileView::PutFiles(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode)
+PanelView::Result FTPFileView::PutFiles(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode)
 {
 	PROC;
-	return SucceededPut;
+
+	Result rc = putFilesInt(panelItems, itemsNumber, Move, OpMode);
+	FtpCmdBlock(&getConnection(), false);
+	resetFileCache();
+
+	if(rc == Failed || rc == Canceled)
+		getFTP()->LongBeepEnd(true);
+
+	BOOST_LOG(INF, L"rc" << rc);
+	return rc;
+}
+
+
+class MakeLocalList: boost::noncopyable
+{
+private:
+	FileList *list_;
+public:
+	MakeLocalList(FileList* list)
+		: list_(list)
+	{
+		BOOST_ASSERT(list);
+	}
+	FTPFileView::WalkerResult operator()(bool enter, WIN32_FIND_DATAW file, const std::wstring& path)
+	{
+		if(enter)
+		{
+			FTPFileInfoPtr fileinfo = FTPFileInfoPtr(new FTPFileInfo);
+			std::wstring filename;
+			if(path.empty())
+				fileinfo->setFileName(file.cFileName);
+			else
+				fileinfo->setFileName(path + LOC_SLASH + file.cFileName);
+			fileinfo->setFileSize(file.nFileSizeLow + (static_cast<__int64>(file.nFileSizeHigh) << 32));
+			fileinfo->setWindowsAttribute(file.dwFileAttributes);
+
+			list_->push_back(fileinfo);
+		}
+		return FTPFileView::OK;
+	}
+};
+
+template<typename Pred>
+PanelView::Result localWalk(WIN32_FIND_DATAW &file, const std::wstring &path, Pred& pred)
+{
+	if(is_flag(file.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+	{
+		FTPFileView::WalkerResult cbstatus = pred(true, file, path);
+		if(cbstatus == FTPFileView::Cancel)
+			return FTPFileView::Canceled;
+		if(cbstatus == FTPFileView::OK)
+		{
+			std::wstring subpath = path;
+			if(!subpath.empty())
+				subpath += LOC_SLASH;
+			subpath += file.cFileName;
+
+			WIN32_FIND_DATAW findFile;
+			WinAPI::SmartHandle hFind(WinAPI::SmartHandle(FindFirstFileW((subpath + L"/*").c_str(), &findFile), FindClose));
+
+			if(hFind.get() != INVALID_HANDLE_VALUE)
+			{
+				PanelView::Result res = PanelView::Succeeded;
+
+				do
+				{
+					if(wcscmp(findFile.cFileName, L"..") == 0 || wcscmp(findFile.cFileName, L".") == 0)
+						continue;
+					res = localWalk(findFile, subpath, pred);
+				} while(res == PanelView::Succeeded && FindNextFileW(hFind.get(), &findFile));
+			}
+			cbstatus = pred(false, file, path);
+			if(cbstatus == FTPFileView::Cancel)
+				return PanelView::Canceled;
+		}
+	} else
+	{
+		if(pred(true, file, path) == FTPFileView::Cancel)
+			return PanelView::Canceled;
+	}
+	return PanelView::Succeeded;
+}
+
+template<typename Pred>
+PanelView::Result localWalk(PluginPanelItem* panelItems, int itemsNumber, const std::wstring &path, Pred& pred)
+{
+	PanelView::Result res = PanelView::Succeeded;
+	WIN32_FIND_DATAW f;
+	for(int i = 0; res && i < itemsNumber; ++i)
+	{
+		FARWrappers::convertFindData(f, panelItems[i].FindData);
+		res = localWalk(f, path, pred);
+	}
+	return res;
+}
+
+static int findPanelItem(PluginPanelItem* panelItems, int itemsNumber, const std::wstring &name)
+{
+	for(int j = 0; j < itemsNumber; j++)
+	{
+		if(name == panelItems[j].FindData.lpwszFileName)
+			return j;
+	}
+	return -1;
+}
+
+PanelView::Result FTPFileView::putFilesInt(PluginPanelItem* panelItems, int itemsNumber, int Move, int OpMode)
+{
+	FARWrappers::Screen scr;
+	FTPCopyInfo       ci;
+
+	if(itemsNumber == 0)
+		return Succeeded;
+
+	ci.destPath  = getConnection().getCurrentDirectory();
+
+	ci.asciiMode       = getConnection().getHost()->AsciiMode;
+	ci.addToQueque     = false;
+	ci.msgCode         = is_flag(OpMode, OPM_FIND) ? ocOverAll : ocNone;
+	ci.showProcessList = false;
+	ci.download        = false;
+	ci.uploadLowCase   = g_manager.opt.UploadLowCase;
+
+	if(g_manager.opt.ShowUploadDialog && !IS_SILENT(OpMode))
+	{
+		if(!getFTP()->CopyAskDialog(Move, false, &ci))
+			return Canceled;
+	}
+
+	AddEndSlash(ci.destPath, L'/');
+
+	FileList filelist;
+	Result res = localWalk(panelItems, itemsNumber, L"", MakeLocalList(&filelist));
+	if(res != Succeeded)
+		return res;
+	if(ci.showProcessList && !showFilesList(filelist))
+		return Canceled;
+
+	if(ci.addToQueque)
+	{
+		BOOST_LOG(INF, L"Files added to queue");
+		//TODO		ListToQueque( &il,&ci );
+		return Succeeded;
+	}
+
+	getFTP()->longBeep_.reset();
+
+	FTPProgress trafficInfo;
+	trafficInfo.Init(MStatusUpload, OpMode, filelist, FTPProgress::ShowProgress);
+
+	for(size_t i = 0; i < filelist.size(); ++i)
+	{
+		if(!filelist[i]) // skip non checked
+			continue;
+		const FTPFileInfo& fileinfo = *filelist[i];
+		std::wstring curName = fileinfo.getFileName();
+		FixFTPSlash(curName);
+
+		if(ci.uploadLowCase && !is_flag(fileinfo.getWindowsFileAttribute(), FILE_ATTRIBUTE_DIRECTORY))
+		{
+			size_t n = curName.find_last_of(L'/');
+			if(n == std::wstring::npos)
+				boost::to_lower(curName);
+			else
+				boost::to_lower(std::make_pair(curName.begin()+n+1, curName.end()));
+		}
+		std::wstring destName = ci.destPath + curName;
+
+		if(is_flag(fileinfo.getWindowsFileAttribute(), FILE_ATTRIBUTE_DIRECTORY))
+		{
+			if(createDirectory(curName, OpMode))
+				if(g_manager.opt.UpdateDescriptions)
+				{
+					int index = findPanelItem(panelItems, itemsNumber, curName);
+					if(index != -1)
+						panelItems[index].Flags |= PPIF_PROCESSDESCR;
+				}
+			continue;
+		}
+
+		trafficInfo.initFile(&getConnection(), fileinfo, destName);
+		FTPFileInfoPtr destFileInfo = FTPFileInfoPtr(new FTPFileInfo);
+		bool isDestFileExists = findFile(destName, destFileInfo, true);
+		// TODO add filesize checking if !isFileExist
+		// TODO add processing of connection lost => return false;
+
+		if(isDestFileExists)
+		{
+			if(ci.msgCode == ocOver || ci.msgCode == ocSkip || ci.msgCode == ocResume)
+				ci.msgCode = ocNone;
+			
+			FTPFileInfo fff;
+			ci.msgCode  = getFTP()->AskOverwrite(MUploadTitle, false, *destFileInfo, *filelist[i], ci.msgCode);
+			switch(ci.msgCode)
+			{
+				case   ocOverAll:
+				case      ocOver:
+					break;
+
+				case      ocSkip:
+				case   ocSkipAll:
+					trafficInfo.skip();
+					continue;
+				case    ocResume:
+				case ocResumeAll:
+					break;
+
+				case    ocCancel:
+					return Canceled;
+			}
+		}
+		//Upload
+		Result rc = putFile(curName, destName, 
+			isDestFileExists? (ci.msgCode == ocResume || ci.msgCode == ocResumeAll) : false, ci.asciiMode, trafficInfo);
+		
+		if(rc == Succeeded)
+		{
+			if(g_manager.opt.UpdateDescriptions)
+			{
+				int index = findPanelItem(panelItems, itemsNumber, curName);
+				if(index != -1)
+					panelItems[index].Flags |= PPIF_PROCESSDESCR;
+			}
+			FileDescriptionToHostCoding(OpMode, &getConnection(), curName);
+
+			//Move source
+			if(Move)
+			{
+				SetFileAttributesW(curName.c_str(), 0);
+				::_wremove(curName.c_str());
+			}
+		} else
+		{
+			return rc;
+		}
+	}
+	
+	if(Move)
+		for(size_t i = 0; i < filelist.size(); ++i)
+		{
+			if(!filelist[i]) // skip non checked
+				continue;
+			const FTPFileInfo& fileinfo = *filelist[i];
+
+			if(CheckForEsc(false))
+				return Canceled;
+
+			if(is_flag(fileinfo.getWindowsFileAttribute(), FILE_ATTRIBUTE_DIRECTORY))
+				if(RemoveDirectoryW(fileinfo.getFileName().c_str()))
+				{
+					int index = findPanelItem(panelItems, itemsNumber, fileinfo.getFileName());
+					if(index != -1)
+						panelItems[index].Flags &=~ PPIF_SELECTED;
+						if (g_manager.opt.UpdateDescriptions)
+							panelItems[index].Flags |= PPIF_PROCESSDESCR;
+				}
+		}
+	return Succeeded;
 }
 
 PanelView::CompareResult FTPFileView::Compare(const PluginPanelItem *i1, const PluginPanelItem *i2, unsigned int Mode)
@@ -468,7 +869,7 @@ bool FTPFileView::DeleteFiles(const PluginPanelItem *PanelItem, int ItemsNumber,
 
 	BeepOnLongOperation beep;
 	int res = deleteFilesInt(PanelItem, ItemsNumber, OpMode);
-	filelistCache_.clear();
+	resetFileCache();
 
 	if(res == Canceled || res == Succeeded)
 		return true;
@@ -503,13 +904,16 @@ PanelView::Result FTPFileView::MakeDirectory(std::wstring &name, int OpMode)
 
 	//Try to create
 	if(createDirectory(name, OpMode))
+	{
+		resetFileCache();
 		return Succeeded;
+	}
 
 	if(IS_SILENT(OpMode))
 		return Failed;
 
 	//If connection alive - report error
-	if(getConnection().cmdLineAlive())
+	if(getConnection().isConnected())
 		getConnection().ConnectMessage(MCreateDirError, L"", true, MOk);
 	else
 		getConnection().ConnectMessageTimeout(MConnectionLost, L"", MRetry);
@@ -521,15 +925,14 @@ bool FTPFileView::ProcessEvent(int Event, void *Param)
 {
 	PROCP(Event);
 
-	if(getFTP()->CurrentState == fcsClose || getFTP()->CurrentState == fcsConnecting)
-		return false;
+//TODO	if(getFTP()->CurrentState == fcsClose || getFTP()->CurrentState == fcsConnecting)
+//		return false;
 
 	switch(Event)
 	{
 	case FE_BREAK:
 		break;
 	case FE_CLOSE:
-		getFTP()->CurrentState = fcsClose;
 		break;
 	case FE_REDRAW:
 		if(!selFile_.empty())
@@ -540,7 +943,7 @@ bool FTPFileView::ProcessEvent(int Event, void *Param)
 		}
 	    break;
 	case FE_IDLE:
-		if(getConnection().cmdLineAlive() && getConnection().getKeepStopWatch().isTimeout())
+		if(getConnection().isConnected() && getConnection().getKeepStopWatch().isTimeout())
 		{
 			FTPCmdBlock blocked(getFTP(), true);
 
@@ -593,7 +996,7 @@ bool FTPFileView::ProcessKey(int Key, unsigned int ControlState)
 	//Table
 	if(ControlState==PKF_SHIFT && Key==VK_F7)
 	{
-		getConnection().getHost().codePage_ = getFTP()->SelectTable(getConnection().getHost().codePage_);
+		getConnection().getHost()->codePage_ = getFTP()->SelectTable(getConnection().getHost()->codePage_);
 		getFTP()->Invalidate();
 		return true;
 	}
@@ -615,7 +1018,7 @@ bool FTPFileView::ProcessKey(int Key, unsigned int ControlState)
 	//Reread
 	if (ControlState==PKF_CONTROL && Key=='R')
 	{
-		filelistCache_.clear();
+		resetFileCache();
 		return false;
 	}
 
@@ -631,7 +1034,7 @@ bool FTPFileView::ProcessKey(int Key, unsigned int ControlState)
 
 		std::wstring s;
 		std::wstring path = getConnection().getCurrentDirectory();
-		getHost().MkUrl(s, path.c_str(), FTP_FILENAME(&pi.PanelItems[pi.CurrentItem]) );
+		getHost()->MkUrl(s, path.c_str(), FTP_FILENAME(&pi.PanelItems[pi.CurrentItem]) );
 		QuoteStr(s);
 		FARWrappers::getInfo().Control(getFTP(), FCTL_INSERTCMDLINE, (void*)Unicode::toOem(s).c_str());
 		return true;
@@ -689,8 +1092,8 @@ bool FTPFileView::ProcessKey(int Key, unsigned int ControlState)
 
 			FARWrappers::Screen::fullRestore();
 
-			FARWrappers::getInfo().Control(ANOTHER_PANEL, FCTL_UPDATEPANEL,NULL);
-			FARWrappers::getInfo().Control(ANOTHER_PANEL, FCTL_REDRAWPANEL,NULL);
+			FARWrappers::getInfo().Control(PANEL_PASSIVE, FCTL_UPDATEPANEL,NULL);
+			FARWrappers::getInfo().Control(PANEL_PASSIVE, FCTL_REDRAWPANEL,NULL);
 
 			FARWrappers::Screen::fullRestore();
 		}
@@ -699,10 +1102,86 @@ bool FTPFileView::ProcessKey(int Key, unsigned int ControlState)
 
 	return false;
 }
+
+bool FTPFileView::SetDirectoryStepped(const std::wstring &Dir, bool update)
+{
+	//Empty dir
+	if (Dir.empty())
+		return true;
+
+	//Try direct change
+	if(ftpSetCurrentDirectory(Dir))
+	{
+		if(update)
+			getFTP()->Invalidate();
+		return true;
+	}
+
+	//dir name contains only one name
+	if(Dir.find(L'/') == std::wstring::npos)
+	{
+		//Cancel
+		return false;
+	}
+
+	//Cancel changes in automatic mode
+	if ( IS_SILENT(FP_LastOpMode) )
+		return false;
+
+	//Ask user
+	{  static const wchar_t* MsgItems[] = {
+		getMsg(MAttention),
+		getMsg(MAskDir1),
+		NULL,
+		getMsg(MAskDir3),
+		getMsg(MYes), getMsg(MNo) };
+
+		MsgItems[2] = Dir.c_str();
+		if (FARWrappers::message(MsgItems, 2, FMSG_WARNING|FMSG_LEFTALIGN) != 0 )
+		{
+			SetLastError( ERROR_CANCELLED );
+			return false;
+		}
+	}
+
+	//Try change to directory one-by-one
+	std::wstring str;
+	std::wstring::const_iterator itr = Dir.begin();
+	std::wstring::const_iterator m; 
+
+	do
+	{
+		if(*itr == L'/')
+		{
+			++itr;
+			if(itr == Dir.end()) 
+				break;
+			str = L"/";
+		} else
+		{
+			m = std::find(itr, Dir.end(), L'/');
+			if(m != Dir.end())
+			{
+				str.assign(Dir.begin(), m);
+				itr = m + 1;
+			} else
+				str = Dir;
+		}
+
+		BOOST_LOG(INF, L"Dir: [" << str << L"]");
+		if (!ftpSetCurrentDirectory(str))
+			return false;
+
+		if (update)
+			getFTP()->Invalidate();
+	} while(m != Dir.end());
+
+	return true;
+}
+
 bool FTPFileView::SetDirectory(const std::wstring &dir, int OpMode)
 {
 	PROC;
-
 
 	FARWrappers::Screen scr;
 	std::wstring oldDir = getConnection().getCurrentDirectory();
@@ -728,22 +1207,22 @@ bool FTPFileView::SetDirectory(const std::wstring &dir, int OpMode)
 	if(!getConnection().isConnected())
 		return false;
 
-	if(getFTP()->SetDirectoryStepped(dir, false))
+	if(SetDirectoryStepped(dir, false))
 		return true;
 
 	return false;
 }
 
-bool FTPFileView::readFolder(const std::wstring &path, FileListPtr& filelist)
+bool FTPFileView::readFolder(const std::wstring &path, FileListPtr& filelist, bool useCache)
 {
 	PROC;
 
-	if(!filelistCache_.find(path, filelist))
+	if(!useCache || !filelistCache_.find(path, filelist))
 	{
 		connection_.ls(path);
 
 		filelist.reset(new FileList);
-		if(!parseFtpDirOutput(filelist))
+		if(!parseFtpDirOutput(path, filelist))
 			return false;
 	}
 	return true;
@@ -807,12 +1286,12 @@ void FTPFileView::FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber)
 }
 
 
-const FTPHost& FTPFileView::getHost() const
+const FtpHostPtr& FTPFileView::getHost() const
 {
 	return getConnection().getHost();
 }
 
-FTPHost& FTPFileView::getHost()
+FtpHostPtr& FTPFileView::getHost()
 {
 	return getConnection().getHost();
 }
@@ -826,11 +1305,11 @@ void FTPFileView::copyNamesToClipboard()
 
 	getFTP()->getPanelInfo(pi);
 
-	getHost().MkUrl(FullName, getConnection().getCurrentDirectory(), L"");
+	getHost()->MkUrl(FullName, getConnection().getCurrentDirectory(), L"");
 
 	CopySize = (FullName.size() + 1 + 2 + 2)*pi.SelectedItemsNumber; // slash +	quotes and /r/n
 	for ( CopySize = n = 0; n < pi.SelectedItemsNumber; n++ )
-		CopySize += FTP_FILENAME(&pi.SelectedItems[n]).size();
+		CopySize += FTP_FILENAME(pi.SelectedItems[n]).size();
 
 	CopyData.reserve(CopySize);
 
@@ -839,7 +1318,7 @@ void FTPFileView::copyNamesToClipboard()
 		std::wstring s;
 		s = FullName;
 		AddEndSlash(s, L'/');
-		s += FTP_FILENAME(&pi.SelectedItems[n]);
+		s += FTP_FILENAME(pi.SelectedItems[n]);
 
 		if ( g_manager.opt.QuoteClipboardNames )
 			QuoteStr( s );
@@ -909,15 +1388,13 @@ void FTPFileView::setAttributes()
 
 void FTPFileView::saveURL()
 {  
-	FTPHost h = getHost();
 	std::wstring  str;
 
-	std::wstring path = getConnection().getCurrentDirectory();
+	getHost()->url_.directory_ = getConnection().getCurrentDirectory();
 
-	h.MkUrl(str, path, L"", true);
+	if(getFTP()->EditHostDlg(MSaveFTPTitle, getHost(), FALSE))
+		getHost()->Write();
 
-	if(h.SetHostName(str, L"", L"") && getFTP()->GetHost(MSaveFTPTitle,&h,FALSE))
-		h.Write(getCurrentDirectory());
 }
 
 const FTPFileInfoPtr FTPFileView::getCurrentFile() const
@@ -925,16 +1402,16 @@ const FTPFileInfoPtr FTPFileView::getCurrentFile() const
 	PluginPanelItem curItem;
 	bool res = getFTP()->getCurrentPanelItem(curItem);
 	BOOST_ASSERT(res);
-	return findfile(curItem.UserData);
+	return getFile(curItem.UserData);
 }
 
-const FTPFileInfoPtr FTPFileView::findfile(size_t id) const
+const FTPFileInfoPtr FTPFileView::getFile(size_t id) const
 {
 	BOOST_ASSERT(id >= 1 && id <= filelist_->size());
 	return (*filelist_)[id-1];
 }
 
-FTPFileInfoPtr FTPFileView::findfile(size_t id)
+FTPFileInfoPtr FTPFileView::getFile(size_t id)
 {
 	BOOST_ASSERT(id >= 1 && id <= filelist_->size());
 	return (*filelist_)[id-1];
@@ -942,12 +1419,12 @@ FTPFileInfoPtr FTPFileView::findfile(size_t id)
 
 const std::wstring FTPFileView::getCurrentDirectory() const
 {
-	return getConnection().curdir_;
+	return getConnection().getCurrentDirectory();
 }
 
 void FTPFileView::setCurrentDirectory(const std::wstring& dir)
 {
-	getConnection().curdir_ = dir;
+	getConnection().setCurrentDirectory(dir);
 }
 
 void FTPFileView::selectPanelItem(const std::wstring &item) const
@@ -988,7 +1465,7 @@ bool FTPFileView::reread()
 	std::wstring curfile = getCurrentFile()->getFileName();
 
 	//Reread
-	filelistCache_.clear();
+	resetFileCache();
 	FARWrappers::getInfo().Control(getFTP(), FCTL_UPDATEPANEL, (void*)1);
 
 	bool rc = olddir == getCurrentDirectory();
@@ -1014,33 +1491,32 @@ bool FTPFileView::createDirectory(const std::wstring &dir, int OpMode)
 		name	= dir;
 		if(!iswspace(last))
 		{
-			if(getConnection().makedir(name))
+			if(getConnection().makedir(name) == Connection::Done)
 				break;
 		}
 
 		//Try relative path with end slash
 		name	+= L'/';
-		if(getConnection().makedir(name))
+		if(getConnection().makedir(name) == Connection::Done)
 			break;
 
 		//Try absolute path
-		name = getConnection().curdir_ + L'/';
+		name = getConnection().getCurrentDirectory() + L'/';
 		name.append(dir.begin() + (dir[0] == L'/'), dir.end());
 		if(!iswspace(last)) 
 		{
-			if(getConnection().makedir(name))
+			if(getConnection().makedir(name) == Connection::Done)
 				break;
 		}
 
 		//Try absolute path with end slash
 		name	+= L'/';
-		if(getConnection().makedir(name))
+		if(getConnection().makedir(name) == Connection::Done)
 			break;
 
 		return false;
 	}while(0);
 
-	filelistCache_.clear();
 	if(!IS_SILENT(OpMode)) 
 		selFile_ = name;
 
@@ -1164,7 +1640,7 @@ FTPFileView::Result	FTPFileView::deleteFilesInt(const PluginPanelItem *PanelItem
 					if(!filename.empty())
 						filename += NET_SLASH;
 					filename += info->getFileName();
-					if(connection_->deleteFile(filename))
+					if(connection_->deleteFile(filename) == Connection::Done)
 					{
 						return OK;
 					} else
@@ -1178,7 +1654,7 @@ FTPFileView::Result	FTPFileView::deleteFilesInt(const PluginPanelItem *PanelItem
 				if(!filename.empty())
 					filename += NET_SLASH;
 				filename += info->getFileName();
-				if(connection_->removedir(filename)) 
+				if(connection_->removedir(filename) == Connection::Done)
 				{
 					return OK;
 				} else
@@ -1191,7 +1667,7 @@ FTPFileView::Result	FTPFileView::deleteFilesInt(const PluginPanelItem *PanelItem
 
 	DeleteWalker walker(OpMode, &getConnection());
 
- 	return walk(PanelItem, ItemsNumber, getCurrentDirectory(), walker);
+ 	return walk(*this, PanelItem, ItemsNumber, getCurrentDirectory(), walker);
 }
 
 
@@ -1207,25 +1683,25 @@ bool FTPFileView::removeDirectory(const std::wstring &dir)
 	if(dir == L"." || dir == L".." || dir.empty())
 		return true;
 
-	filelistCache_.clear();
+	resetFileCache();
 
 	//Dir
-	if(getConnection().removedir(dir))
+	if(getConnection().removedir(dir) == Connection::Done)
 		return true;
 
 	//Dir+slash
-	if(getConnection().removedir(dir + L'/'))
+	if(getConnection().removedir(dir + L'/') == Connection::Done)
 		return true;
 
 	//Full dir
 	std::wstring fulldir = getCurrentDirectory() + L'/';
 	fulldir.append(dir, dir[0] == L'/', dir.size());
-	if(getConnection().removedir(fulldir) != RPL_OK)
+	if(getConnection().removedir(fulldir) == Connection::Done)
 		return true;
 
 	//Full dir+slash
 	fulldir += L'/';
-	if(getConnection().removedir(fulldir) != RPL_OK)
+	if(getConnection().removedir(fulldir)  == Connection::Done)
 		return true;
 
 	return false;
@@ -1233,14 +1709,14 @@ bool FTPFileView::removeDirectory(const std::wstring &dir)
 
 bool FTPFileView::deleteFile(const std::wstring& filename)
 {  
-	filelistCache_.clear();
-	return getConnection().deleteFile(filename) != 0;
+	resetFileCache();
+	return getConnection().deleteFile(filename) == Connection::Done;
 }
 
 bool FTPFileView::renameFile(const std::wstring &existing, const std::wstring &New)
 {
-	filelistCache_.clear();
-	return getConnection().renamefile(existing, New);
+	resetFileCache();
+	return getConnection().renamefile(existing, New) == Connection::Done;
 }
 
 
@@ -1249,7 +1725,7 @@ bool FTPFileView::ftpSetCurrentDirectory(const std::wstring& dir)
 	if(dir.empty())
 		return false;
 
-	if(getConnection().cd(dir))
+	if(getConnection().cd(dir) == Connection::Done)
 	{
 		ftpGetCurrentDirectory();
 		return true;
@@ -1273,39 +1749,43 @@ bool FTPFileView::ftpGetCurrentDirectory()
 	std::wstring	dir;
 
 	FARWrappers::Screen scr;
-	if(!getConnection().pwd())
+	if(getConnection().pwd() != Connection::Done)
 		return false;
 
-	std::wstring s = unDupFF(getConnection(), getConnection().GetReply());
+ 	std::wstring s = unDupFF(getConnection(), getConnection().getReply());
 	std::wstring::const_iterator itr = s.begin();
-	Parser::skipNumber(itr, s.end());
 
-	getConnection().curdir_ = getConnection().getHost().serverType_->parsePWD(itr, s.end());
-	return !getConnection().curdir_.empty();
+	const std::wstring &curdir = getConnection().getHost()->serverType_->parsePWD(itr, s.end());
+	setCurrentDirectory(curdir);
+	return !curdir.empty();
 
 }
 
-bool FTPFileView::findFile(const std::wstring& filename, FTPFileInfoPtr& fileinfo)
+bool FTPFileView::findFile(const std::wstring& filename, FTPFileInfoPtr& fileinfo, bool useCache)
 {
-	BOOST_ASSERT(0 && "TODO");
-
-	if(!getConnection().ls(filename))
-		return false;
-
 	FileListPtr filelist(new FileList);
-	if(!parseFtpDirOutput(filelist))
+
+	std::wstring path = getNetPathBranch(filename); 
+	if(!readFolder(path, filelist, useCache))
 		return false;
 
-	if(filelist->size() != 1)
-		return false;
+	std::wstring name = getName(filename);
 
-	fileinfo = *(filelist->begin());
-
-	return true;
+	FileList::const_iterator i = filelist->begin();
+	while(i != filelist->end())
+	{
+		if(name == (*i)->getFileName())
+		{
+			fileinfo = *i;
+			return true;
+		}
+		++i;
+	}
+	return false;
 }
 
 
-FTPFileView::Result FTPFileView::downloadFile(const std::wstring& remoteFile, const std::wstring& newFile, bool reget, bool asciiMode)
+FTPFileView::Result FTPFileView::downloadFile(const std::wstring& remoteFile, const std::wstring& newFile, bool reget, bool asciiMode, FTPProgress& trafficInfo)
 {
 	/* Local file always use '\' as separator.
 	Regardles of remote settings.
@@ -1315,17 +1795,18 @@ FTPFileView::Result FTPFileView::downloadFile(const std::wstring& remoteFile, co
 
 	getConnection().setRetryCount(0);
 
-	int rc;
+	Result rc;
 	do
 	{
 		OperateHidden(NewFile, true);
-		if((rc = downloadFileInt(remoteFile, NewFile, reget, asciiMode)) == Succeeded)
+		rc = downloadFileInt(remoteFile, NewFile, reget, asciiMode, trafficInfo);
+		if(rc == Succeeded)
 		{
 			OperateHidden(NewFile, false);
 			return Succeeded;
 		}
 
-		if(GetLastError() == ERROR_CANCELLED )
+		if(rc == Canceled)
 		{
 			BOOST_LOG(INF, L"GetFileCancelled: op: " << IS_SILENT(FP_LastOpMode));
 			return IS_SILENT(FP_LastOpMode) ? Canceled : Failed;
@@ -1342,24 +1823,30 @@ FTPFileView::Result FTPFileView::downloadFile(const std::wstring& remoteFile, co
 
 		reget = true;
 
-		if(getConnection().keepAlive())
+		if(getConnection().isConnected())
 			continue;
 
 		saveUsedDirNFile();
-		if(!getFTP()->Connect())
+		if(!getFTP()->Connect(getConnection().getHost()))
 			return Failed;
 
 	} while(true);
 }
 
-bool FTPFileView::downloadFileInt(std::wstring remoteFile, const std::wstring& newFile, bool reget, bool asciiMode)
+static PanelView::Result ConnectionResultToPanelResult(Connection::Result res)
+{
+	if(res == Connection::Done)
+		return PanelView::Succeeded;
+	if(res == Connection::Cancel)
+		return PanelView::Canceled;
+	return PanelView::Failed;
+}
+
+
+FTPFileView::Result FTPFileView::downloadFileInt(std::wstring remoteFile, const std::wstring& newFile, bool reget, bool asciiMode, FTPProgress& trafficInfo)
 {
 	PROCP(L"[" << remoteFile << L"]->[" << newFile << L"] " << (reget? L"REGET" : L"NEW") << (asciiMode? L"ASCII" : L"BIN"));
 	
-	//mode
-	if(getConnection().settype(asciiMode? TYPE_A : TYPE_I) == false)
-		return false;
-
 	//Create directory
 	boost::filesystem::wpath path = newFile;
 	try
@@ -1368,7 +1855,7 @@ bool FTPFileView::downloadFileInt(std::wstring remoteFile, const std::wstring& n
 	}
 	catch (fs::basic_filesystem_error<boost::filesystem::wpath>& )
 	{
-		return false;
+		return Failed;
 	}
 
 	//Remote file
@@ -1387,42 +1874,368 @@ bool FTPFileView::downloadFileInt(std::wstring remoteFile, const std::wstring& n
 		getConnection().AddCmdLine(getMsg(MResumeRestart), ldRaw);
 		reget = false;
 	}
-	bool result;
+	Result result;
 	if(reget)
-		result = getConnection().reget(remoteFile, newFile);
+		result = ConnectionResultToPanelResult(getConnection().getit(remoteFile, newFile, 1, L"a+", trafficInfo));
 	else
-		result = getConnection().get(remoteFile, newFile);
+		result = ConnectionResultToPanelResult(getConnection().get(remoteFile, newFile, trafficInfo));
 	getConnection().IOCallback = false;
 
 	return result;
-
 }
 
 void FTPFileView::saveUsedDirNFile()
 {
-	getHost().url_.directory_ = getConnection().getCurrentDirectory();
+	getHost()->url_.directory_ = getConnection().getCurrentDirectory();
 
 	//Save current file to restore
 	selFile_ = getCurrentFile()->getFileName();
 }
 
-__int64  FTPFileView::fileSize(const std::wstring &filename)
-{
-	if(!getConnection().sizecmd(filename))
-	{
-		throw std::exception("file size command is broken");
-		return -1;
-	} else
-	{
-		const std::string& line = getConnection().GetReply();
-		return Parser::parseUnsignedNumber(line.begin()+4, line.end(), 
-			std::numeric_limits<__int64>::max(), false); 
-	}
-}
-
-
 void FTPFileView::setDescriptionFlag(PluginPanelItem* items, int number)
 {
 	for(int i = 0; i < number; ++i)
 		items[i].Flags |= PPIF_PROCESSDESCR;
+}
+
+void resetNotChecked(FileList filelist, const FARWrappers::Menu& menu)
+{
+	BOOST_ASSERT(filelist.size() == menu.size());
+	for(size_t i = 0; i < filelist.size(); ++i)
+		if(!menu.isChecked(i))
+			filelist[i].reset();
+}
+
+bool FTPFileView::showFilesList(FileList& filelist)
+{
+	if(filelist.empty())
+		return false;
+
+	FARWrappers::Menu menu(FMENU_SHOWAMPERSAND);
+	menu.reserve(filelist.size());
+
+	size_t width = 0;
+	size_t sizeWidth = 0;
+	size_t countWidth = 0;
+	for(size_t i = 0; i < filelist.size(); ++i)
+	{
+		const FTPFileInfo& f = *filelist[i];
+		const std::wstring& name = f.getFileName();
+		width = std::max(width, 
+			getName(name).size() + 2*std::count(name.begin(), name.end(), LOC_SLASH));
+		int q = FDigit(123).size();
+		sizeWidth = std::max(sizeWidth, FDigit(f.getFileSize()).size());
+		if(is_flag(f.getWindowsFileAttribute(), FILE_ATTRIBUTE_DIRECTORY))
+		{
+			countWidth = 1;
+		}
+	}
+	width = std::min(std::max(60u, width), WinAPI::getConsoleWidth()-8u);
+	width -= sizeWidth + countWidth + 2;
+
+	std::wstring str;
+	__int64 totalSize = 0;
+	size_t  totalCount = 0;
+	for(size_t i = 0; i < filelist.size(); ++i)
+	{
+		const FTPFileInfo& f = *filelist[i];
+
+		if(!is_flag(f.getWindowsFileAttribute(), FILE_ATTRIBUTE_DIRECTORY))
+		{
+			totalSize += f.getFileSize();
+			totalCount++;
+		}
+		const std::wstring& fullname = f.getFileName();
+
+		str.assign(2*std::count(fullname.begin(), fullname.end(), LOC_SLASH), L' ');
+		std::wstring name = getName(fullname);
+		if(str.size() + name.size() > width)
+		{
+			str.append(name, 0, width - str.size()-1);
+			str += FAR_SBMENU_CHAR;
+		} else
+		{
+			str += name;
+			str.resize(width, L' ');
+		}
+
+		if(sizeWidth)
+		{
+			std::wstring sizeStr = FDigit(f.getFileSize());
+			str += FAR_VERT_CHAR + std::wstring(sizeWidth-sizeStr.size(), L' ') + sizeStr;
+		}
+		if(countWidth)
+		{
+			str += FAR_VERT_CHAR;
+			if(is_flag(f.getWindowsFileAttribute(), FILE_ATTRIBUTE_DIRECTORY))
+			{
+				std::wstring countStr = FDigit(1);
+				str += std::wstring(countWidth-countStr.size(), L' ') + countStr;
+			} else
+				str += std::wstring(countWidth, L' ');
+		}
+
+		menu.addItem(str);
+		menu.setCheck(i);
+	}
+
+	menu.setBottom(getMsg(MListFooter));
+	menu.setHelpTopic(L"FTPFilesList");
+	const int keys[] = {VK_INSERT, VK_F2, 0};
+	menu.setBreakKeys(keys);
+
+	do
+	{
+		__int64 selectedSize = 0;
+		size_t selectedCount = 0;
+		for(size_t i = 0; i < menu.size(); i++)
+		{
+			const FTPFileInfo& f = *filelist[i];
+
+			if(menu.isChecked(i) && !is_flag(f.getWindowsFileAttribute(), FILE_ATTRIBUTE_DIRECTORY))
+			{
+				selectedCount++;
+				selectedSize += f.getFileSize();
+			}
+		}
+		std::wstring title = getMsg(MListTitle);
+		title += L" (";
+		title += FDigit(selectedSize);
+		if(totalSize != selectedSize)
+		{
+			title += L'{';
+			title += FDigit(totalSize);
+			title += L'}';
+		}
+		title += L'/';
+		title += FDigit(selectedCount);
+		if(selectedCount != totalCount)
+		{
+			title += L'{';
+			title += FDigit(totalCount);
+			title += L'}';
+		}
+		title += L')';
+		menu.setTitle(title);
+
+		int n = menu.show();
+		if(n == -1) // ESC presses
+			return false;
+
+		switch(menu.getBreakIndex())
+		{
+		case -1: // Enter is pressed
+			resetNotChecked(filelist, menu);
+			return true;
+		case 0:  // Insert is pressed
+			{
+				bool newvalue = !menu.isChecked(n);
+				menu.setCheck(n, newvalue);
+				if(is_flag(filelist[n]->getWindowsFileAttribute(), FILE_ATTRIBUTE_DIRECTORY))
+				{
+					const std::wstring& name = filelist[n]->getFileName();
+					int level = std::count(name.begin(), name.end(), LOC_SLASH);
+					size_t i;
+					for(i = n+1; i < menu.size(); ++i)
+					{
+						const std::wstring& nam = filelist[i]->getFileName();
+						int lvl = std::count(nam.begin(), nam.end(), LOC_SLASH);
+						if(lvl <= level)
+							break;
+						menu.setCheck(i, newvalue);
+					}
+					menu.select(i);
+				} else
+				{
+					if(static_cast<size_t>(n)+1 < menu.size())
+						menu.select(static_cast<size_t>(n)+1);
+				}
+				break;
+			}
+
+		case 1:  // F2 is pressed
+			resetNotChecked(filelist, menu);
+			saveList(filelist);
+			return true;
+		default:
+			BOOST_ASSERT(0);
+		}
+
+	} while(true);
+}
+
+static std::wstring getOtherPath()
+{
+	PanelInfo pi;
+
+	if(FARWrappers::getShortPanelInfo(pi, false) && pi.PanelType == PTYPE_FILEPANEL && !pi.Plugin)
+		return pi.lpwszCurDir;
+
+	if(FARWrappers::getShortPanelInfo(pi) && pi.PanelType == PTYPE_FILEPANEL && !pi.Plugin)
+		return pi.lpwszCurDir;
+
+	FARWrappers::message(MFLErrCReate, MFLErrGetInfo, FMSG_WARNING);
+	return L"";
+}
+
+
+void FTPFileView::saveList(FileList& filelist)
+{
+	BOOST_ASSERT(0 && "TODO");
+
+	g_manager.opt.sli.path = getOtherPath();
+	AddEndSlash(g_manager.opt.sli.path, LOC_SLASH);
+	g_manager.opt.sli.path += L"ftplist.lst";
+	/*
+	if ( !AskSaveList(&g_manager.opt.sli) )
+	return;
+
+	FILE *f = _wfopen(g_manager.opt.sli.path.c_str(), g_manager.opt.sli.Append ? L"a" : L"w" );
+	if ( !f )
+	{
+	FARWrappers::message(MFLErrCReate, getMsg(MFLErrCReate), FMSG_ERRORTYPE | FMSG_WARNING)
+	return;
+	}
+
+	PluginPanelItem* p;
+	size_t           n;
+	int              level;
+	char             str[1024+2],
+	BasePath[1024+2];
+	std::string		CurrentUrlPath;
+
+	SNprintf( BasePath, sizeof(BasePath),
+	"%s%s%s%s",
+	g_manager.opt.sli.AddPrefix ? "ftp://" : "",
+	g_manager.opt.sli.AddPasswordAndUser ? Message( "%s:%s@",hConnect->userName_, hConnect->UserPassword ) : "",
+	hConnect->hostname,
+	hConnect->curdir_.c_str() );
+	TAddEndSlash( BasePath,'/' );
+
+	if ( g_manager.opt.sli.ListType == sltTree )
+	fprintf( f,"BASE: \"%s\"\n",BasePath );
+
+	for( n = 0; n < il->Count(); n++ )
+	{
+	p = il->Item(n);
+
+	if (p->Reserved[0] == UINT_MAX)
+	continue;
+
+	//URLS --------------------------------------
+	if ( g_manager.opt.sli.ListType == sltUrlList ) {
+	if ( is_flag(p->FindData.dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY) )
+	continue;
+
+	FixFTPSlash( FTP_FILENAME(p) );
+	SNprintf( str,sizeof(str),"%s%s",BasePath,FTP_FILENAME(p) );
+	if ( g_manager.opt.sli.Quote ) QuoteStr( str );
+
+	fprintf( f,"%s\n",str );
+	} else
+	//TREE --------------------------------------
+	if ( g_manager.opt.sli.ListType == sltTree ) {
+	TStrCpy( str, Unicode::utf16ToUtf8(FTP_FILENAME(p)).c_str() );
+
+	FixFTPSlash( str );
+	for( m = str,level = 0;
+	(m=strchr(m,'/')) != NULL;
+	m++,level++ );
+
+	fprintf( f,"%*c", level*2+2, ' ' );
+	m = strrchr( str,'/' );
+
+	if (m) m++; else m = str;
+
+	fprintf( f,"%c%s",
+	is_flag(p->FindData.dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY) ? '/' : ' ', m );
+
+	if ( g_manager.opt.sli.Size ) {
+	level = Max( 1, g_manager.opt.sli.RightBound - 10 - level*2 - 2 - 1 - (int)strlen(m) );
+	fprintf( f,"%*c",level,' ' );
+
+	if ( is_flag(p->FindData.dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY) )
+	fprintf( f,"<DIR>" );
+	else
+	fprintf( f,"%10I64u",
+	((__int64)p->FindData.nFileSizeHigh) * UINT_MAX + ((__int64)p->FindData.nFileSizeLow) );
+	}
+	fprintf( f,"\n" );
+
+	} else
+	//GROUPS ------------------------------------
+	if ( g_manager.opt.sli.ListType == sltGroup )
+	{
+	if ( is_flag(p->FindData.dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY) )
+	continue;
+
+	FixFTPSlash( FTP_FILENAME(p) );
+	SNprintf( str, sizeof(str), "%s%s", BasePath, FTP_FILENAME(p) );
+	if ( !is_flag(p->FindData.dwFileAttributes,FILE_ATTRIBUTE_DIRECTORY) )
+	*strrchr( str,'/' ) = 0;
+
+	if(!boost::iequals(CurrentUrlPath, str))
+	{
+	CurrentUrlPath = str;
+	fprintf( f,"\n[%s]\n", CurrentUrlPath.c_str());
+	}
+	TStrCpy( str, Unicode::utf16ToUtf8(FTP_FILENAME(p)).c_str() );
+	FixFTPSlash( str );
+	m = strrchr(str,'/');
+	if (m) m++; else m = str;
+	fprintf( f," %s", m );
+
+	if ( g_manager.opt.sli.Size ) {
+	level = Max( 1, g_manager.opt.sli.RightBound - 10 - (int)strlen(m) - 1 );
+	fprintf( f,"%*c%10I64u",
+	level,' ',
+	((__int64)p->FindData.nFileSizeHigh) * UINT_MAX + ((__int64)p->FindData.nFileSizeLow) );
+	}
+	fprintf( f,"\n" );
+	}
+	}
+	fclose(f);
+
+	const wchar_t* itms[] = { getMsg(MFLDoneTitle), getMsg(MFLFile), g_manager.opt.sli.path, getMsg(MFLDone), getMsg(MOk) };
+	FMessage( FMSG_LEFTALIGN,NULL,itms,5,1 );
+	*/
+}
+
+PanelView::Result FTPFileView::putFile(const std::wstring &localFile, const std::wstring &remoteFile, bool Reput, bool AsciiMode, FTPProgress& trafficInfo)
+{
+	getConnection().setRetryCount(0);
+	do
+	{
+		std::wstring cmd = ((getConnection().sunique) ? g_manager.opt.cmdPutUniq : g_manager.opt.cmdStor); //STORE or PUT
+		Result rc = ConnectionResultToPanelResult(getConnection().sendrequest(cmd, localFile, remoteFile.empty()? localFile : remoteFile, AsciiMode, trafficInfo));
+			
+		if(rc == Succeeded)
+			return Succeeded;
+
+		if(rc == Canceled)
+			return IS_SILENT(FP_LastOpMode)? Canceled : Failed;
+
+		int num = getConnection().getRetryCount();
+		if ( g_manager.opt.RetryCount > 0 && num >= g_manager.opt.RetryCount )
+			return Failed;
+
+		getConnection().setRetryCount(num+1);
+
+		if (!getConnection().ConnectMessageTimeout(MCannotUpload, remoteFile, MRetry))
+			return Failed;
+
+		Reput = true;
+
+		if(getConnection().isConnected())
+			continue;
+
+		if ( !getFTP()->Connect(getConnection().getHost()) )
+			return Failed;
+	} while(true);
+}
+
+
+void FTPFileView::resetFileCache()
+{
+	filelistCache_.clear();
 }

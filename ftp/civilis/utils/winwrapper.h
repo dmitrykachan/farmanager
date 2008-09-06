@@ -6,7 +6,8 @@
 namespace WinAPI
 {
 	using namespace Unicode;
-	typedef boost::shared_ptr<void> module;
+	typedef boost::shared_ptr<void> SmartHandle;
+	typedef SmartHandle module;
 	typedef FARPROC FarProc;
 
 	std::wstring	getModuleFileName();
@@ -54,7 +55,6 @@ namespace WinAPI
 		size_t	getSecond() const;
 		void	reset();
 		void	setTimeout(size_t timeout);
-		
 	};
 
 

@@ -71,7 +71,7 @@ namespace FARWrappers
 
 	int message(const std::vector<std::wstring> &items, int buttonsNumber, DWORD flags, const wchar_t* helpTopic)
 	{
-		time_t b = time(NULL);
+		time_t startTime = time(NULL);
 		int    rc;
 
 		static size_t lastMsgWidth  = 0;
@@ -105,8 +105,8 @@ namespace FARWrappers
 		lastMsgWidth	= width;
 		lastMsgHeight	= items.size();
 
-//		if(buttons)
-//			g_manager.addWait(time(NULL)-b);
+//TODO 		if(buttons)
+// 			g_manager.addWait(time(NULL)-startTime);
 
 		return rc;
 	}
