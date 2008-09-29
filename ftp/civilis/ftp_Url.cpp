@@ -3,48 +3,34 @@
 #include "ftp_Int.h"
 #include "farwrapper/dialog.h"
 
-void ShowHostError( FTPUrl* p )
+void ShowHostError(FTPUrlPtr &p)
 {
     FARWrappers::message(p->Error);
 }
 
-void FTP::UrlInit(FTPUrl* p)
+void FTP::UrlInit(FTPUrlPtr &p)
 {
-//TODO HOST ASSIGN      p->Host     = chost_;
-      p->Download = false;
-      p->Next     = NULL;
+	p->pHost_ = getConnection().getHost();
+	p->Download = false;
 }
 
-FTPUrl* FTP::UrlItem( int num, FTPUrl* *prev )
-  {  FTPUrl* p,*p1;
-
-     if (prev) *prev = NULL;
-     for( p1 = NULL,p = UrlsList;
-          p && num > 0;
-          p1 = p, p = p->Next )
-          num--;
-
-     if ( num == 0 ) {
-       if (prev) *prev = p1;
-       return p;
-     }
-
- return NULL;
+FTPUrlPtr FTP::UrlItem(size_t num)
+{
+	if(num < urlsQueue_.size())
+		return urlsQueue_[num];
+	else
+	{
+		BOOST_ASSERT("incorrect value of index in the queue");
+		throw "incorrect value of index in the queue";
+	}
 }
 
-void FTP::DeleteUrlItem( FTPUrl* p, FTPUrl* prev )
-  {
-    if ( !p ) return;
-
-    if (prev) prev->Next = p->Next;
-    if (UrlsList == p) UrlsList = p->Next;
-    if (UrlsTail == p) UrlsTail = prev;
-    delete p;
-    QuequeSize--;
+void FTP::DeleteUrlItem(size_t index)
+{
+	urlsQueue_.erase(urlsQueue_.begin() + index);
 }
 
-//------------------------------------------------------------------------
-BOOL PreFill(FTPUrl* p)
+bool PreFill(FTPUrlPtr &p)
 {  
 	wchar_t  ch;
 
@@ -53,16 +39,15 @@ BOOL PreFill(FTPUrl* p)
 		p->SrcPath == L"ftp://")
 		p->Download = true;
 
-	if (p->Download && p->SrcPath[0] != L'/' )
+	if(p->Download && p->SrcPath[0] != L'/')
 	{
-		p->Host.SetHostName(p->SrcPath.c_str(), NULL, NULL);
-		p->SrcPath = p->Host.url_.directory_;
-
-		p->Host.url_.directory_ = L"";
+		p->pHost_->SetHostName(p->SrcPath, L"", L"");
+		p->SrcPath = p->pHost_->url_.directory_;
+		p->pHost_->url_.directory_ = L"";
 	}
 
-	if (p->Host.url_.Host_.empty())
-		return FALSE;
+	if (p->pHost_->url_.Host_.empty())
+		return false;
 
 	if (p->Download)
 	{
@@ -95,7 +80,7 @@ BOOL PreFill(FTPUrl* p)
 	return true;
 }
 
-bool FTP::EditUrlItem( FTPUrl* p )
+bool FTP::EditUrlItem(FTPUrlPtr& p)
 {
 	FARWrappers::Dialog dlg(L"FTPQueueItemEdit");
 
@@ -134,7 +119,7 @@ bool FTP::EditUrlItem( FTPUrl* p )
 			case -1:
 				return false;
 			case idHost:
-				EditHostDlg(MEditFtpTitle, FtpHostPtr(&p->Host), false);
+				EditHostDlg(MEditFtpTitle, p->pHost_, false);
 				break;
 			case idError:
 				ShowHostError(p);

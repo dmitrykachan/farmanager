@@ -87,6 +87,8 @@ public:
 		return hosts_[id-1];
 	}
 
+	void				setSelectedHost(const std::wstring &hostname);
+
 	static const int							ParentDirHostID = 0;
 
 private:
@@ -106,6 +108,7 @@ private:
 
 	FTP*			plugin_;
 	std::wstring	hostsPath_;
+	std::wstring	selectedHost_;
 
 	std::vector<boost::shared_ptr<FTPHost> >	hosts_;
 	FARWrappers::ItemList						itemList_;

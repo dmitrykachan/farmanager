@@ -9,7 +9,7 @@ ItemList::ItemList()
 	list_.reserve(10);
 }
 
-ItemList::ItemList(PluginPanelItem** items, size_t count)
+ItemList::ItemList(PluginPanelItem* items, size_t count)
 {
 	add(items, count);
 }
@@ -22,13 +22,13 @@ PluginPanelItem& ItemList::add(const PluginPanelItem &pi)
 	return *(list_.end()-1);
 }
 
-void ItemList::add(PluginPanelItem **src, size_t count)
+void ItemList::add(PluginPanelItem *src, size_t count)
 {
 	list_.insert(list_.end(), count, PluginPanelItem());
 	std::vector<PluginPanelItem>::iterator itr = list_.end() - count;
 	for(size_t n = 0; n < count; ++n)
 	{
-		copy(*itr, **src);
+		copy(*itr, *src);
 		++src;
 		++itr;
 	}

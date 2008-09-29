@@ -11,18 +11,14 @@ FTP::FTP()
 	hostPanel_.setPlugin(this);
 	FtpFilePanel_.setPlugin(this);
 
-	ShowHosts			= TRUE;
+	ShowHosts			= true;
 	panel_				= &hostPanel_;
-
-	UrlsList			= NULL;
-	QuequeSize			= 0;
 
 	CallLevel			= 0;
 
 	hostPanel_.setCurrentDirectory(g_manager.getRegKey().get(L"LastHostsPath", L""));
 
-	PanelInfo  pi;
-	FARWrappers::getShortPanelInfo(pi);
+	FARWrappers::PanelInfoAuto  pi(true, true);
 	startViewMode_		= pi.ViewMode;
 }
 
@@ -60,19 +56,19 @@ void FTP::End( int rc )
 
 const wchar_t* FTP::CloseQuery()
 {
-	if ( UrlsList != NULL )
+	if(!urlsQueue_.empty())
 		return L"Process queque is not empty";
 	return NULL;
 }
 
-void FTP::SetBackupMode( void )
+void FTP::SetBackupMode(void)
 {
-    PanelInfo  pi;
-    FARWrappers::getInfo().Control(INVALID_HANDLE_VALUE, FCTL_GETPANELINFO, &pi );
+	FARWrappers::PanelInfoAuto  pi(true, true);
+
     ActiveColumnMode = pi.ViewMode;
 }
 
-void FTP::SetActiveMode( void )
+void FTP::SetActiveMode(void)
 {
      NeedToSetActiveMode = TRUE;
 }

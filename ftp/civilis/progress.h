@@ -8,26 +8,26 @@ class InfoItem;
 class FTPProgress
 {
 public:
-	FTPProgress();
-	~FTPProgress();
-
 	enum Show
 	{
 		ShowProgress, ShowIdle, NotDisplay
 	};
 
+	FTPProgress(int tMsg, int OpMode, const std::wstring &source, const std::wstring destination, __int64 size, Show show, Connection *connection);
+	FTPProgress(int tMsg, int OpMode, const FileList &filelist, Show show);
+	~FTPProgress();
+
 	void resume(__int64 size);
 	bool refresh(Connection* connection);
 	bool refresh(Connection* connection, unsigned __int64 size);
-	void Init(int tMsg,int OpMode, const FileList &filelist, Show show);
 	void initFile(Connection* connection, const FTPFileInfo& info, const std::wstring &destName);
 	void initFile();
 
 	void skip();
 	void Waiting(size_t paused);
-	bool isShow() const
+	__int64				getFilePossition() const
 	{
-		return show_ == ShowProgress;
+		return fileSpeed_.getPossition();
 	}
 	
 	class Speed
@@ -142,6 +142,7 @@ public:
 		{
 			fullSize_ = IncorrectFileSize;
 		}
+
 	};
 
 private:
@@ -166,6 +167,7 @@ private:
 	std::wstring		srcFilename_;
 	std::wstring		destFilename_;
 
+	void Init(int tMsg,int OpMode, const FileList &filelist, Show show);
 	__int64				getPossition() const
 	{
 		return totalSpeed_.getPossition() + fileSpeed_.getPossition();

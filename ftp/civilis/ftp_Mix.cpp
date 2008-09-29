@@ -24,7 +24,6 @@ bool WINAPI IsAbsolutePath(const std::wstring &path)
 
 const wchar_t quotes[] = L" \"%,;[]";
 
-// TODO remove
 void WINAPI QuoteStr(std::wstring& str)
 {  
 	if(str.find_first_of(quotes) == std::wstring::npos)
@@ -261,7 +260,7 @@ void WINAPI AddEndSlash(std::wstring& s, wchar_t slash)
 		return;
 
 	if(slash == 0)
-		slash = s.find(L'\\') != std::wstring::npos ? '\\' : '/';
+		slash = s.find(LOC_SLASH) != std::wstring::npos ? LOC_SLASH : NET_SLASH;
 
 	if(*s.rbegin() != slash)
 		s.push_back(slash);
@@ -336,6 +335,25 @@ std::wstring getPathLast(const std::wstring &s)
 		return std::wstring(s.begin()+n+1, s.end());
 }
 
+
+void splitFilename(const std::wstring &path, std::wstring &branch, std::wstring &filename, bool local)
+{
+	size_t n = path.rfind(local? LOC_SLASH : NET_SLASH);
+	if(n == std::wstring::npos)
+	{
+		branch = L"";
+		filename = path;
+	}
+	else
+	{
+		if(n == 0)
+			branch = L"";
+		else
+			branch.assign(path, 0, n);
+		filename.assign(path.begin()+n+1, path.end());
+	}
+}
+
 #ifdef CONFIG_TEST
 BOOST_AUTO_TEST_CASE(testPathProcedures)
 {
@@ -353,6 +371,21 @@ BOOST_AUTO_TEST_CASE(testPathProcedures)
 	BOOST_CHECK(getPathLast(L"abc\\def")== L"def");
 	BOOST_CHECK(getPathLast(L"abc\\\\def")== L"def");
 	BOOST_CHECK(getPathLast(L"abc\\def\\")== L"");
+
+
+	std::wstring path, filename;
+	splitFilename(L"", path, filename);
+	BOOST_CHECK(path == L"" && filename == L"");
+	splitFilename(L"\\", path, filename);
+	BOOST_CHECK(path == L"" && filename == L"");
+	splitFilename(L"abc", path, filename);
+	BOOST_CHECK(path == L"" && filename == L"abc");
+	splitFilename(L"abc\\def", path, filename);
+	BOOST_CHECK(path == L"abc" && filename == L"def");
+	splitFilename(L"abc\\\\def", path, filename);
+	BOOST_CHECK(path == L"abc\\" && filename == L"def");
+	splitFilename(L"abc\\def\\", path, filename);
+	BOOST_CHECK(path == L"abc\\def" && filename == L"");
 }
 
 #endif

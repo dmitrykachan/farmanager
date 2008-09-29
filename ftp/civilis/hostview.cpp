@@ -730,19 +730,19 @@ PanelView::Result HostView::PutFiles(PluginPanelItem* panelItems, int itemsNumbe
 bool HostView::ProcessEvent(int Event, void *Param)
 {
 	PROCP(Event);
-	BOOST_LOG(IMPTDATA, L"Event: " << Event);
+	BOOST_LOG(DBG, L"Event: " << Event);
 
 //TODO	if(plugin_->CurrentState == fcsClose || plugin_->CurrentState == fcsConnecting)
 //		return false;
 
-	PanelInfo pi;
-
 	switch(Event)
 	{
 	case FE_CHANGEVIEWMODE:
-		plugin_->getPanelInfo(pi);
-		BOOST_LOG(INF, L"New ColumnMode " << pi.ViewMode);
-		g_manager.getRegKey().set(L"LastHostsMode", pi.ViewMode);
+		{
+			FARWrappers::PanelInfoAuto  pi(plugin_, true);
+			BOOST_LOG(INF, L"New ColumnMode " << pi.ViewMode);
+			g_manager.getRegKey().set(L"LastHostsMode", pi.ViewMode);
+		}
 		break;
 	case FE_REDRAW:
 		if(!pluginColumnModeSet_)
@@ -756,13 +756,21 @@ bool HostView::ProcessEvent(int Event, void *Param)
 			}
 			pluginColumnModeSet_ = true;
 		}
+		if(!selectedHost_.empty())
+		{
+			const std::wstring s = selectedHost_;
+			selectedHost_.clear(); // prevent the recursion update
+			selectPanelItem(s);
+		}
 
 		break;
 
 	case FE_CLOSE:
-		BOOST_LOG(INF, L"Close notify");
-		plugin_->getPanelInfo(pi);
-		g_manager.getRegKey().set(L"LastHostsMode", pi.ViewMode);
+		{
+			FARWrappers::PanelInfoAuto  pi(plugin_, true);
+			BOOST_LOG(INF, L"Close notify");
+			g_manager.getRegKey().set(L"LastHostsMode", pi.ViewMode);
+		}
 		break;
 
 	case FE_IDLE:
@@ -789,8 +797,7 @@ void HostView::setCurrentDirectory(const std::wstring& dir)
 
 void HostView::selectPanelItem(const std::wstring &item) const
 {
-	PanelInfo pi;
-	plugin_->getPanelInfo(pi);
+	FARWrappers::PanelInfoAuto pi(plugin_, false);
 
 	for(int n = 0; n < pi.ItemsNumber; n++)
 	{
@@ -805,4 +812,10 @@ void HostView::selectPanelItem(const std::wstring &item) const
 	}
 	BOOST_ASSERT(0 && "host not found");
 	return;
+}
+
+
+void HostView::setSelectedHost(const std::wstring& hostname)
+{
+	selectedHost_ = hostname;
 }

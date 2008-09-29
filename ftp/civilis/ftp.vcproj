@@ -932,6 +932,26 @@
 				>
 			</File>
 		</Filter>
+		<Filter
+			Name="common"
+			>
+			<File
+				RelativePath="..\common\unicode\farcolor.hpp"
+				>
+			</File>
+			<File
+				RelativePath="..\common\unicode\farkeys.hpp"
+				>
+			</File>
+			<File
+				RelativePath="..\common\unicode\farversion.hpp"
+				>
+			</File>
+			<File
+				RelativePath="..\common\unicode\plugin.hpp"
+				>
+			</File>
+		</Filter>
 	</Files>
 	<Globals>
 	</Globals>

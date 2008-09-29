@@ -326,7 +326,6 @@ enum {
   MServerType,                     //"S&erver type"
   MUtilsSelectTable,               //"Change c&haracter table..."
   MUtilsServerType,                //"Change ser&ver type..."
-  MDecodeCommands_removed,                 //"Decode co&mmands text" // TODO remove lng
   MResumeRestart,                  //"FAR: Site does not support resuming. Restarting from the beginning."
 
   MAddToSites,                     //"Add to saved s&ites"
@@ -412,7 +411,6 @@ enum {
   MEHTitle,                        //"Extended host options"
   MDupFF,                          //"Dup FF in commands"
   MUndupFF,                        //"UnDup FF in PWD"
-  MEHDecodeCmd_remove,             // TODO remove lng       //"Decode &cmd line commands"
   MSendAllo,                       //"Send ALLO command before upload"
   MUseStartSpaces,              //"Ignore spaces at file name start"
 

@@ -8,9 +8,8 @@
 /* ANY state */
 bool FTP::ExecCmdLineANY(const std::wstring& str, bool Prefix)
 {  
-	bool             iscmd = ShowHosts || Prefix;
-	FTPUrl           ui;
-	QueueExecOptions op;
+	bool      iscmd = ShowHosts || Prefix;
+	FTPUrlPtr ui = FTPUrlPtr(new FTPUrl);
 
 	std::wstring::const_iterator itr = str.begin();
 	Parser::skipNSpaces(itr, str.end());
@@ -30,30 +29,31 @@ bool FTP::ExecCmdLineANY(const std::wstring& str, bool Prefix)
 
 	if(boost::iequals(cmd, L"qadd"))
 	{
-		UrlInit(&ui);
+		UrlInit(ui);
 		if(itr != str.end())
 		{
-			ui.SrcPath.assign(itr, str.end());
-			if(EditUrlItem(&ui))
-				AddToQueque(&ui);
+			ui->SrcPath.assign(itr, str.end());
+			if(EditUrlItem(ui))
+				AddToQueque(ui);
 		}
 		return true;
 	}
 
 	if(boost::iequals(cmd, L"xadd"))
 	{
-		UrlInit(&ui);
+		UrlInit(ui);
 		if(itr != str.end())
 		{
-			ui.SrcPath.assign(itr, str.end());
-			if(EditUrlItem(&ui))
-				AddToQueque(&ui);
+			ui->SrcPath.assign(itr, str.end());
+			if(EditUrlItem(ui))
+				AddToQueque(ui);
 		}
+		QueueExecOptions op;
 		SetupQOpt(&op);
-		if(QuequeSize && WarnExecuteQueue(&op))
+		if(!urlsQueue_.empty() && WarnExecuteQueue(&op))
 		{
 			ExecuteQueue(&op);
-			if(QuequeSize)
+			if(!urlsQueue_.empty())
 				QuequeMenu();
 		}
 
@@ -68,11 +68,12 @@ bool FTP::ExecCmdLineANY(const std::wstring& str, bool Prefix)
 
 	if(boost::iequals(cmd, L"qx"))
 	{
+		QueueExecOptions op;
 		SetupQOpt( &op );
-		if(QuequeSize && WarnExecuteQueue(&op))
+		if(!urlsQueue_.empty() && WarnExecuteQueue(&op))
 		{
 			ExecuteQueue(&op);
-			if(QuequeSize)
+			if(!urlsQueue_.empty())
 				QuequeMenu();
 		}
 		return true;
@@ -175,7 +176,7 @@ bool FTP::DoCommand(const std::wstring& str, int type, DWORD flags)
 	if(type == FCMD_SINGLE_COMMAND)
 		if(boost::istarts_with(str, L"CWD "))
 		{
-			//TODO	resetCache_ = true;
+			FtpFilePanel_.resetFileCache();
 		}
 
 	getConnection().getHost()->ExtCmdView = ext;
@@ -206,14 +207,12 @@ bool FTP::ExecCmdLineFTP(const std::wstring& str, bool Prefix)
 
 	std::wstring::const_iterator itr = s.begin();
 	Parser::skipNSpaces(itr, s.end());
-	if(itr != s.end())
-		++itr;
-	std::wstring cmd(itr, s.end());
+	std::wstring cmd(s.begin(), itr);
 	Parser::skipSpaces(itr, s.end());
 	s.assign(itr, s.end());
 
 	//Switch to hosts
-	if(boost::iequals(cmd, L"TOHOSTS") == 0)
+	if(boost::iequals(cmd, L"TOHOSTS"))
 	{
 		getConnection().disconnect();
 		return true;
@@ -288,27 +287,14 @@ bool FTP::ExecCmdLine(const std::wstring& str, bool wasPrefix)
 	}while(0);
 
 	//processed
-	FARWrappers::getInfo().Control(this, FCTL_SETCMDLINE, (void*)"");
+	FARWrappers::getInfo().Control(this, FCTL_SETCMDLINE, (void*)L"");
 
 	if(isConn && (!getConnection().isConnected()))
 		BackToHosts();
 
-//TODO	if(CurrentState != fcsClose)
-// 		Invalidate();
-// 	else
-// 		FARWrappers::getInfo().Control(0,FCTL_REDRAWPANEL,NULL);
+	Invalidate();
 
-	return TRUE;
-}
-
-template<typename Itr, typename CH>
-Itr skip(Itr i, Itr e, CH ch)
-{
-	while(i != e && *i == ch)
-	{
-		++i;
-	}
-	return i;
+	return true;
 }
 
 int FTP::ProcessCommandLine(wchar_t *CommandLine)
@@ -329,25 +315,23 @@ int FTP::ProcessCommandLine(wchar_t *CommandLine)
 		return false;
 
 	//Connect
-	FTPUrl            ui;
-	QueueExecOptions  op;
+	FTPUrlPtr ui = FTPUrlPtr(new FTPUrl);
 	std::wstring::iterator UrlName = 
 		(*cmdLine.rbegin() != '/' && cmdLine.find(L'/') != std::wstring::npos)? 
 			cmdLine.begin() + cmdLine.rfind(cmdLine, L'/') : cmdLine.end();
 
 	FtpHostPtr h = FtpHostPtr(new FTPHost);
 	h->Init();
-	UrlInit( &ui );
-	SetupQOpt( &op );
+	UrlInit(ui);
 
 	if(UrlName != cmdLine.end())
-		ui.SrcPath = L"ftp://" + cmdLine;
+		ui->SrcPath = L"ftp://" + cmdLine;
 
 	//Get URL
 	BOOST_ASSERT(0 && "TODO");
-	if(!ui.SrcPath.empty())
+	if(!ui->SrcPath.empty())
 	{
-		if (!EditUrlItem(&ui))
+		if (!EditUrlItem(ui))
 		{
 			static const wchar_t* itms[] = 
 			{ 
@@ -362,17 +346,17 @@ int FTP::ProcessCommandLine(wchar_t *CommandLine)
 			UrlName++;
 		} else {
 			//User confirm downloading: execute queque
-			AddToQueque( &ui );
+			AddToQueque(ui);
 
-			if ( QuequeSize &&
-				WarnExecuteQueue(&op) ) {
-					ExecuteQueue(&op);
-					return TRUE;
+			QueueExecOptions  op;
+			SetupQOpt(&op);
+			if (!urlsQueue_.empty() && WarnExecuteQueue(&op) )
+			{
+				ExecuteQueue(&op);
+				return TRUE;
 			}
 
-			delete UrlsList;
-			UrlsList = UrlsTail = NULL;
-			QuequeSize = 0;
+			ClearQueue();
 
 			return FALSE;
 		}
@@ -390,6 +374,6 @@ int FTP::ProcessCommandLine(wchar_t *CommandLine)
 	FARWrappers::Screen::fullRestore();
 
 	if(UrlName != cmdLine.end() && !ShowHosts)
-		selectFile_.assign(UrlName, cmdLine.end()); // TODO selFile
+		FtpFilePanel_.setSelectedFile(std::wstring(UrlName, cmdLine.end()));
 	return true;
 }

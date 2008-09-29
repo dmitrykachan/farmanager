@@ -32,6 +32,8 @@ public:
 
 	FileTime(int year, int month, int day, int hours, int minutes, int seconds, int milliseconds = 0)
 	{
+		dwLowDateTime = 0;
+		dwHighDateTime = 0;
 		setDate(year, month, day);
 		setTime(hours, minutes, seconds, milliseconds);
 	}
@@ -45,13 +47,7 @@ public:
 	SYSTEMTIME getSystemTime() const
 	{
 		SYSTEMTIME st;
-		if(empty())
-		{
-			st = getCurrentSystemTime();
-		} else
-		{
-			FileTimeToSystemTime(this, &st);
-		}
+		FileTimeToSystemTime(this, &st);
 		return st;
 	}
 
@@ -64,7 +60,12 @@ public:
 
 	bool setTime(int hours, int minutes, int seconds, int milliseconds = 0)
 	{
-		SYSTEMTIME st = getSystemTime();
+		SYSTEMTIME st;
+		if(empty())
+			st = getCurrentSystemTime();
+		else
+			FileTimeToSystemTime(this, &st);
+
 		st.wHour = hours;
 		st.wMinute = minutes;
 		st.wSecond = seconds;
@@ -74,7 +75,11 @@ public:
 
 	void setDate(int year, int month, int day)
 	{
-		SYSTEMTIME st = getSystemTime();
+		SYSTEMTIME st;
+		if(empty())
+			st = getCurrentSystemTime();
+		else
+			FileTimeToSystemTime(this, &st);
 		st.wDay = day;
 		st.wMonth = month;
 		st.wYear = year;

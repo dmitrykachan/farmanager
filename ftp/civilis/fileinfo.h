@@ -26,41 +26,8 @@ private:
 	std::wstring		link_;
 	std::wstring		owner_;
 	std::wstring		group_;
-	std::wstring		mode_;
 	DWORD				windowsAttribute_;
-
-	static const int	UnixModeSize = 10;
-
-	static bool oneof(wchar_t test, const wchar_t* valid)
-	{
-		test = std::tolower(test, defaultLocale_);
-		while(*valid)
-		{
-			if(test == *valid)
-				return true;
-			++valid;
-		}
-		return false;
-	}
-
-	static bool checkAttribute(wchar_t test, wchar_t valid)
-	{
-		if(test == '-')
-			return true;
-		if(std::tolower(test, defaultLocale_) == valid)
-			return true;
-		return false;
-	}
-
-	static bool checkAttribute(wchar_t test, wchar_t valid1, wchar_t valid2)
-	{
-		if(test == '-')
-			return true;
-		test = std::tolower(test, defaultLocale_);
-		if(test == valid1 || test == valid2)
-			return true;
-		return false;
-	}
+	std::wstring		secondAttribute_;
 
 public:
 	class exception: public std::exception
@@ -72,8 +39,8 @@ public:
 	};
 
 	FTPFileInfo()
-		: fileSize_(0), type_(undefined)
 	{
+		clear();
 	}
 
 	void clear()
@@ -83,23 +50,8 @@ public:
 		setLastWriteTime(WinAPI::FileTime());
 		setLastAccessTime(WinAPI::FileTime());
 		setCreationTime(WinAPI::FileTime());
-		clearMode();
-		fileName_ = link_ = owner_ = group_ = L"";
-	}
-
-	static bool verifyUnixMode(const std::wstring &u)
-	{
-		return u.size() == UnixModeSize && oneof(u[0], L"-dcbpl")
-			&& checkAttribute(u[1], 'r')
-			&& checkAttribute(u[2], 'w')
-			&& checkAttribute(u[3], 'x', 's')
-			&& checkAttribute(u[4], 'r')
-			&& checkAttribute(u[5], 'w')
-			&& checkAttribute(u[6], 'x', 's')
-			&& checkAttribute(u[7], 'r')
-			&& checkAttribute(u[8], 'w')
-			&& checkAttribute(u[9], 'x', 't')
-		;
+		fileName_ = link_ = owner_ = group_ = secondAttribute_ = L"";
+		windowsAttribute_ = 0;
 	}
 
 	inline void check(bool value, const char* const what)
@@ -110,46 +62,12 @@ public:
 		}
 	}
 
-	void setUnixMode(const_iterator &itr, const const_iterator &itr_end)
-	{
-		check(itr + UnixModeSize <= itr_end, "string size is not enough");
-
-		mode_.assign(itr, itr+UnixModeSize);
-		itr += UnixModeSize;
-		check(verifyUnixMode(mode_), "the unix attribute string is not valid");
-
-		switch(std::tolower(mode_[0], defaultLocale_))
-		{
-		case '-': type_ = file; break;
-		case 'd': type_ = directory; break;
-		case 'l': type_ = symlink; break;
-		case 'b': 
-		case 'c': type_ = specialdevice; break;
-		default:
-			check(false, "unknown type");
-		}
-
-		windowsAttribute_ = 0;
-		if(type_ == directory)
-			windowsAttribute_ |= FILE_ATTRIBUTE_DIRECTORY;
-		else
-			if(type_ == symlink)
-				windowsAttribute_ |= FILE_ATTRIBUTE_REPARSE_POINT;
-		if(mode_[7] != L'-')
-			windowsAttribute_ |= FILE_ATTRIBUTE_READONLY;
-	}
-
-	void clearMode()
-	{
-		mode_ = L"";
-	}
-
-	void setOwner(const std::wstring::const_iterator &itr, const std::wstring::const_iterator &itr_end)
+	void setOwner(const const_iterator &itr, const const_iterator &itr_end)
 	{
 		owner_.assign(itr, itr_end);
 	}
 
-	void setGroup(const std::wstring::const_iterator &itr, const std::wstring::const_iterator &itr_end)
+	void setGroup(const const_iterator &itr, const const_iterator &itr_end)
 	{
 		group_.assign(itr, itr_end);
 	}
@@ -159,13 +77,13 @@ public:
 		fileName_ = name;
 	}
 
-	void setFileName(const std::wstring::const_iterator &itr, std::wstring::const_iterator itr_end, bool symlink = false)
+	void setFileName(const const_iterator &itr, const_iterator itr_end, bool symlink = false)
 	{
 		static const wchar_t link_delimiter[] = L" -> ";
 		const int link_delimiter_size = sizeof(link_delimiter)/sizeof(*link_delimiter)-1;
 		if(symlink)
 		{
-			std::wstring::const_iterator itrlink = 
+			const_iterator itrlink = 
 				std::search(itr, itr_end, 
 						link_delimiter, link_delimiter+link_delimiter_size);
 			if(itrlink != itr_end)
@@ -178,7 +96,18 @@ public:
 		fileName_.assign(itr, itr_end);
 	}
 
-	void setSymlink(const std::wstring::const_iterator &itr, std::wstring::const_iterator itr_end)
+	void setSecondAttribute(const std::wstring &attribute)
+	{
+		secondAttribute_ = attribute;
+	}
+
+	void setSecondAttribute(const const_iterator &itr, const const_iterator &itr_end)
+	{
+		secondAttribute_.assign(itr, itr_end);
+	}
+
+
+	void setSymlink(const const_iterator &itr, const_iterator itr_end)
 	{
 		if(itr == itr_end)
 		{
@@ -217,6 +146,11 @@ public:
 	void setType(Type type)
 	{
 		type_ = type;
+		if(type_ == directory)
+			windowsAttribute_ |= FILE_ATTRIBUTE_DIRECTORY;
+		else
+			if(type_ == symlink)
+				windowsAttribute_ |= FILE_ATTRIBUTE_REPARSE_POINT;
 	}
 
 	const std::wstring& getFileName() const
@@ -227,11 +161,6 @@ public:
 	FileSize getFileSize() const
 	{
 		return fileSize_;
-	}
-
-	const std::wstring& getMode() const
-	{
-		return mode_;
 	}
 
 	WinAPI::FileTime getCreationTime() const
@@ -249,12 +178,12 @@ public:
 		return lastWriteTime_;
 	}
 
-	const std::wstring getOwner() const
+	const std::wstring& getOwner() const
 	{
 		return owner_;
 	}
 
-	const std::wstring getGroup() const
+	const std::wstring& getGroup() const
 	{
 		return group_;
 	}
@@ -262,6 +191,11 @@ public:
 	const std::wstring& getLink() const
 	{
 		return link_;
+	}
+
+	const std::wstring& getSecondAttribute() const
+	{
+		return secondAttribute_;
 	}
 
 	Type getType() const
@@ -297,13 +231,13 @@ typedef std::vector<FTPFileInfoPtr> FileList;
 
 inline std::wostream& operator << (std::wostream& os, const FTPFileInfo& fi)
 {
-	os << L'[' << FTPFileInfo::toText(fi.getType()) << "]   ";
-	if(!fi.getMode().empty())
+	os << L'[' << FTPFileInfo::toText(fi.getType()) << "] ";
+	if(!fi.getSecondAttribute().empty())
 	{
-		os << fi.getMode() << L"   ";
+		os << L'[' << fi.getSecondAttribute() << L"]  ";
 	}
 	else
-		os << L"             ";
+		os << L"[]             ";
 	os << fi.getLastWriteTime() << L"   ";
 	os << fi.getLastAccessTime() << L"   ";
 	os << fi.getCreationTime() << L"   ";
@@ -331,12 +265,12 @@ inline std::wistream& operator >> (std::wistream& is, FTPFileInfo& fi)
 		fi.setType(FTPFileInfo::toType(*itr));
 		++itr;
 		skipString(itr, itr_end, L"]");
-		if(!std::isdigit(*itr, defaultLocale_))
-		{
-			fi.setUnixMode(itr, itr_end);
-			skipSpaces(itr, itr_end);
-		} else
-			fi.clearMode();
+
+		skipString(itr, itr_end, L"[");
+		itr2 = itr;
+		itr = std::find(itr, itr_end, L']');
+		fi.setSecondAttribute(itr2, itr);
+		skipString(itr, itr_end, L"]");
 
 		WinAPI::FileTime ft;
 		parseUnixDateTime(itr, itr_end, ft);
@@ -386,10 +320,10 @@ inline std::wstring getTextDiff(const FTPFileInfo &l, const FTPFileInfo &r)
 		result	<< std::wstring(L"Type: ") << FTPFileInfo::toText(l.getType()) 
 				<< delimiter << FTPFileInfo::toText(r.getType()) << L"\n";
 
-	if(l.getMode() != r.getMode())
+	if(l.getSecondAttribute() != r.getSecondAttribute())
 	{
-		result	<< L"UnixMode: " << l.getMode() 
-				<< delimiter << r.getMode() << L"\n";
+		result	<< L"SecondAttribute: " << l.getSecondAttribute() 
+				<< delimiter << r.getSecondAttribute() << L"\n";
 	}
 
 	if(l.getLastWriteTime() != r.getLastWriteTime())

@@ -59,14 +59,6 @@ void _cdecl CloseUp()
 		ExitProc();
 }
 
-void FTPPluginManager::addWait(size_t tm)
-{
-//TODO 	for(size_t n = 0; n < FTPPanels_.size(); n++)
-// 		if(FTPPanels_[n] && FTPPanels_[n]->getConnection().IOCallback)
-// 			FTPPanels_[n]->getConnection().trafficInfo_.Waiting(tm);
-}
-
-
 void FTPPluginManager::addPlugin(FTP *ftp)
 {
 	for(size_t i = 0; i < FTPPanels_.size(); i++)
@@ -118,7 +110,9 @@ void FTPPluginManager::removePlugin(FTP *ftp)
 	};
 
 	do{
-		if ( (rejectReason = ftp->CloseQuery()) == NULL ) break;
+		rejectReason = ftp->CloseQuery();
+		if(rejectReason == NULL)
+			break;
 
 		itms[2] = rejectReason;
 		if(FARWrappers::message(itms, 2, FMSG_LEFTALIGN|FMSG_WARNING, L"CloseQueryReject") != 1)
@@ -351,7 +345,7 @@ int WINAPI GetMinFarVersionW(void)
 
 
 int WINAPI SetDirectoryW(HANDLE hPlugin, const wchar_t* Dir,int OpMode)
-	{
+{
 	FPOpMode _op(OpMode);
 	FTP*     p = (FTP*)hPlugin;
 

@@ -75,13 +75,14 @@ void Menu::preshow()
 
 int Menu::show(int x, int y)
 {
-	BOOST_ASSERT(!items_.empty());
+//	BOOST_ASSERT(!items_.empty());
 
 	preshow();
 	return getInfo().Menu(getModuleNumber(), x, y, maxHeight_, flags_ | FMENU_USEEXT, 
 				title_.c_str(), bottom_.c_str(), helpTopic_.c_str(),
 				keys_, keys_? &breakIndex_ : 0, 
-				reinterpret_cast<const FarMenuItem*>(&items_[0]), static_cast<int>(items_.size()));
+				items_.empty()? 0 : reinterpret_cast<const FarMenuItem*>(&items_[0]),
+				static_cast<int>(items_.size()));
 }
 
 void Menu::setText(size_t item, const std::wstring &text)

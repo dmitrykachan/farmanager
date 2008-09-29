@@ -40,16 +40,4 @@ namespace FARWrappers
 		BOOST_ASSERT(msgId > 0 && msgId < 1000);
 		return getInfo().GetMsg(getModuleNumber(), msgId);
 	}
-
-	bool getPanelInfo(PanelInfo &pi, bool currentPanel)
-	{
-		return getInfo().Control(currentPanel? PANEL_ACTIVE : PANEL_PASSIVE, FCTL_GETPANELINFO, &pi) != 0;
-	}
-
-	bool getShortPanelInfo(PanelInfo &pi, bool currentPanel)
-	{
-		return getInfo().Control(currentPanel? PANEL_ACTIVE : PANEL_PASSIVE, FCTL_GETPANELSHORTINFO, &pi) != 0;
-	}
-
-
 }

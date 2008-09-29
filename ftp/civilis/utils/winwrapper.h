@@ -56,8 +56,6 @@ namespace WinAPI
 		void	reset();
 		void	setTimeout(size_t timeout);
 	};
-
-
 }
 
 #endif

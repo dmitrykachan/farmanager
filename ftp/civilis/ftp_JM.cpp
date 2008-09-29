@@ -112,7 +112,7 @@ void WINAPI LogCmd(const std::wstring &src, CMDOutputDir out)
 		Ftrunc(LogFile,FILE_BEGIN);
 
 	//-- RAW
-	if( out == ldRaw )
+	if(out == ldRaw)
 	{
 		//TODO Write PluginNumber
 		if (src.find_first_of(L"\n\r") != std::wstring::npos)

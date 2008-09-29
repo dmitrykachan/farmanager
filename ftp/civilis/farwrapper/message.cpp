@@ -105,9 +105,6 @@ namespace FARWrappers
 		lastMsgWidth	= width;
 		lastMsgHeight	= items.size();
 
-//TODO 		if(buttons)
-// 			g_manager.addWait(time(NULL)-startTime);
-
 		return rc;
 	}
 
