@@ -155,7 +155,7 @@ bool FTP::EditHostDlg(int title, FtpHostPtr& p, bool ToDescription)
 		addLabel	( 5, 5,									getMsg(MUser))->
 		addEditor	(18, 5,70,		&p->url_.username_, 0,	FTP_USERHISTORY)->
 		addLabel	( 5, 6,									getMsg(MPassword))->
-		addEditor	(18, 6,70,		&p->url_.password_)-> // TODO FDI_PSWEDIT
+		addPasswordEditor(18, 6,70, &p->url_.password_)->
 		addLabel	( 5, 7,									getMsg(MHostDescr))->
 		addEditor	(18, 7,70,		&p->hostDescription_, idDescription)->
 		addHLine	( 3, 8)->

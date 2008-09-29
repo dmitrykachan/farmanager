@@ -107,8 +107,7 @@ Connection::Result Connection::recvrequestINT(const std::wstring& cmd, const std
 	while(FTPClient::isPrelim(code))
 		code = ftpclient_.readOutput();
 
-	// TODO обрабока если ошибка возникла...
-	BOOST_LOG(ERR, L"end downloading. Downloading time is " << timer.getPeriod() << L". Data size is " << output_.size() << L". Reserved size is " << output_.capacity());
+	BOOST_LOG(ERR, L"end downloading. Downloading time is " << timer.getPeriod() << L". Data size is " << trafficInfo.getFilePossition());
 
 	trafficInfo.refresh(this, 0);
 

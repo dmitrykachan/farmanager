@@ -46,7 +46,7 @@ public:
 		cacheList_[possition_].used	= true;
 		cacheList_[possition_].key		= key;
 		cacheList_[possition_].value	= value;
-		++possition_;
+		possition_ = (possition_ + 1)% size;
 	}
 
 	bool		find(const Key& key, Value &value)

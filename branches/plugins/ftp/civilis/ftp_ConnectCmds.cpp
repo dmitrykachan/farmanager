@@ -37,7 +37,8 @@ Connection::Result Connection::appended(const std::wstring &local, const std::ws
 	if(local.empty())
 		return Error;
 
-	Result res = Done;//TODOsendrequest(g_manager.opt.cmdAppe, local, remote.empty()? local : remote, getHost()->AsciiMode);
+	FTPProgress trafficInfo(MStatusUpload, 0, local, remote, 0, FTPProgress::ShowProgress, this);
+	Result res = sendrequest(g_manager.opt.cmdAppe, local, remote.empty()? local : remote, getHost()->AsciiMode, trafficInfo);
 
 	restart_point = 0;
 	return res;
@@ -130,20 +131,21 @@ Connection::Result Connection::put(const std::wstring &local, const std::wstring
 		return Error;
 
 	cmd = ((sunique) ? g_manager.opt.cmdPutUniq : g_manager.opt.cmdStor); //STORE or PUT
-	Result res = Done;//TODOsendrequest(cmd, local, remote.empty()? local : remote, getHost()->AsciiMode);
+	FTPProgress trafficInfo(MStatusUpload, 0, local, remote, 0, FTPProgress::ShowProgress, this);
+	Result res = sendrequest(cmd, local, remote.empty()? local : remote, getHost()->AsciiMode, trafficInfo);
 	restart_point = 0;
 	return res;
 }
 
 Connection::Result Connection::reget(const std::wstring &remote, const std::wstring& local)
 {
-	FTPProgress trafficInfo;
-	// TODO
+	FTPProgress trafficInfo(MStatusDownload, OPM_SILENT, remote, local, 1, FTPProgress::ShowProgress, this);
 	return getit(remote, local, 1, L"a+", trafficInfo);
 }
 
-Connection::Result Connection::get(const std::wstring &remote, const std::wstring& local, FTPProgress& trafficInfo)
+Connection::Result Connection::get(const std::wstring &remote, const std::wstring& local)
 {
+	FTPProgress trafficInfo(MStatusDownload, OPM_SILENT, remote, local, 1, FTPProgress::ShowProgress, this);
 	return getit(remote, local, 0, restart_point ? L"r+" : L"w", trafficInfo);
 }
 
@@ -152,8 +154,7 @@ Connection::Result Connection::get(const std::wstring &remote, const std::wstrin
  */
 Connection::Result Connection::newer(const std::wstring &remote, const std::wstring& local)
 {
-	FTPProgress trafficInfo;
-	//TODO
+	FTPProgress trafficInfo(MStatusDownload, OPM_SILENT, remote, local, 1, FTPProgress::ShowProgress, this);
 	return getit(remote, local, -1, L"w", trafficInfo);
 }
 
@@ -237,9 +238,7 @@ Connection::Result Connection::renamefile(const std::wstring& oldfilename, const
 Connection::Result Connection::ls(const std::wstring &path)
 {
 	ResetOutput();
-	FTPProgress trafficInfo;
-	trafficInfo.Init(MStatusDownload, OPM_SILENT, FileList(), FTPProgress::NotDisplay);
-	trafficInfo.initFile();
+	FTPProgress trafficInfo(MStatusDownload, OPM_SILENT, L"listing", L"", 1, FTPProgress::NotDisplay, this);
 	if(!getHost()->ExtList)
 		return recvrequest(g_manager.opt.cmdList, g_MemoryFile, path, L"w", trafficInfo);
 	else
@@ -255,8 +254,7 @@ Connection::Result Connection::ls(const std::wstring &path)
 Connection::Result Connection::nlist(const std::wstring &path)
 {
 	ResetOutput();
-	FTPProgress trafficInfo;
-	trafficInfo.Init(MStatusDownload, OPM_SILENT, FileList(), FTPProgress::NotDisplay);
+	FTPProgress trafficInfo(MStatusDownload, OPM_SILENT, L"listing", L"", 1, FTPProgress::NotDisplay, this);
 	return recvrequest(g_manager.opt.cmdNList, g_MemoryFile, path, L"w", trafficInfo);
 }
 
@@ -473,11 +471,10 @@ Connection::Result Connection::modtime(const std::wstring& file)
 	Result res = command(g_manager.opt.cmdMDTM + L" " + file);
 	if(res == Done)
 	{
-//TODO		int yy, mo, day, hour, min, sec;
-// 			sscanf( replyString_.c_str(),
-// 			g_manager.opt.fmtDateFormat.c_str(),
-// 			&yy, &mo, &day, &hour, &min, &sec);
-		return Done;
+		int yy, mo, day, hour, min, sec;
+		swscanf(getReplyW().c_str(),
+			g_manager.opt.fmtDateFormat.c_str(),
+			&yy, &mo, &day, &hour, &min, &sec);
 	}
 	return res;
 }

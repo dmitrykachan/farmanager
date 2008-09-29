@@ -11,9 +11,6 @@
 
 bool FTP::processArrowKeys(int key)
 {
-	PanelRedrawInfo	ri;
-	PanelInfo	pi, otherPi;
-	
 	switch(key)
 	{
 		case  VK_END:
@@ -25,16 +22,14 @@ bool FTP::processArrowKeys(int key)
 			return false;
 	}
 			
-	//Get info
-	if(!getPanelInfo(pi))
-		return false;
+	FARWrappers::PanelInfoAuto	pi(this, false);
+	FARWrappers::PanelInfoAuto	otherPi(false, true);
 
 	//Skip self processing for QView work correctly
-	if (!FARWrappers::getShortPanelInfo(otherPi, false) ||
-		(otherPi.PanelType == PTYPE_QVIEWPANEL || otherPi.PanelType == PTYPE_TREEPANEL))
+	if (otherPi.PanelType == PTYPE_QVIEWPANEL || otherPi.PanelType == PTYPE_TREEPANEL)
 		return false;
 
-	//Get current
+	PanelRedrawInfo	ri;
 	ri.TopPanelItem = pi.TopPanelItem;
 	switch(key)
 	{
@@ -46,7 +41,7 @@ bool FTP::processArrowKeys(int key)
 
 	//Move cursor
 	if (!(ri.CurrentItem == pi.CurrentItem || ri.CurrentItem < 0 || ri.CurrentItem >= pi.ItemsNumber))
-		FARWrappers::getInfo().Control(this,FCTL_REDRAWPANEL,&ri);
+		FARWrappers::getInfo().Control(this, FCTL_REDRAWPANEL, &ri);
 	return true;
 }
 

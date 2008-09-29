@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE(listing_test)
 
 
 	std::wstringstream ss;
-	ss << L"[d]   drws--s---   2007-06-04 14:11:00   2007-06-04 14:11:00   2007-06-04 14:11:00         4096   [      lion]   [     users]   [   file.name]   [  ]";
+	ss << L"[d]   [drws--s---]   2007-06-04 14:11:00   2007-06-04 14:11:00   2007-06-04 14:11:00         4096   [      lion]   [     users]   [   file.name]   [  ]";
 
 	FTPFileInfo ff;
 	{
@@ -147,9 +147,9 @@ BOOST_AUTO_TEST_CASE(listing_test)
 						updateTime(info);
 						filesinfo.push_back(info);
 					}
-					catch (std::exception &)
+					catch (std::exception &e)
 					{
-						BOOST_ASSERT(0);
+						printf("%s\n", e.what());
 					}
 
 				}

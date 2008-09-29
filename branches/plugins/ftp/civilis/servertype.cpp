@@ -123,6 +123,7 @@ public:
 	}
 };
 
+ // EPLF: see http://pobox.com/~djb/proto/eplf.txt
 class EPLFServer: public ServerType
 {
 public:
@@ -133,7 +134,7 @@ public:
 		FTPFileInfo& fileinfo) const;
 	virtual bool			acceptServerInfo(const std::wstring &str) const
 	{
-		return false; //TODO
+		return str.find(L"UNIX") != std::wstring::npos;
 	}
 	virtual ServerTypePtr clone() const
 	{
@@ -297,6 +298,55 @@ public:
 	}
 };
 
+static bool oneof(wchar_t test, const wchar_t* valid)
+{
+	test = std::tolower(test, defaultLocale_);
+	while(*valid)
+	{
+		if(test == *valid)
+			return true;
+		++valid;
+	}
+	return false;
+}
+
+static bool verifyUnixAttribute(const std::wstring &u)
+{
+	return u.size() == 10 
+		&& oneof(u[0], L"-dcbpl")
+		&& oneof(u[1], L"-r")
+		&& oneof(u[2], L"-w")
+		&& oneof(u[3], L"-xs")
+		&& oneof(u[4], L"-r")
+		&& oneof(u[5], L"-w")
+		&& oneof(u[6], L"-xs")
+		&& oneof(u[7], L"-r")
+		&& oneof(u[8], L"-w")
+		&& oneof(u[9], L"-xt");
+}
+
+static void parseUnixAttribute(ServerType::const_iterator& itr, const ServerType::const_iterator &itr_end, FTPFileInfo &fileinfo)
+{
+	const int	UnixModeSize = 10;
+	Parser::check(itr_end - itr >= UnixModeSize, "the unix attribute is too small");
+	const std::wstring attribute(itr, itr+UnixModeSize);
+	itr += UnixModeSize;
+	Parser::check(verifyUnixAttribute(attribute), "the unix attribute string is not valid");
+	fileinfo.setSecondAttribute(attribute);
+
+	switch(std::tolower(attribute[0], defaultLocale_))
+	{
+	case '-': fileinfo.setType(FTPFileInfo::file); break;
+	case 'd': fileinfo.setType(FTPFileInfo::directory); break;
+	case 'l': fileinfo.setType(FTPFileInfo::symlink); break;
+	case 'b': 
+	case 'c': fileinfo.setType(FTPFileInfo::specialdevice); break;
+	default:
+		Parser::check(false, "unknown type");
+	}
+}
+
+
 void VxWorksServer::parseListingEntry(const_iterator itr, 
 									  const const_iterator &itr_end,
 									  FTPFileInfo& fileinfo) const
@@ -305,7 +355,7 @@ void VxWorksServer::parseListingEntry(const_iterator itr,
 	std::wstring::const_iterator itr2;
 
 	skipSpaces(itr, itr_end);
-	fileinfo.setUnixMode(itr, itr_end);
+	parseUnixAttribute(itr, itr_end, fileinfo);
 	skipSpaces(itr, itr_end);
 	skipNumber(itr, itr_end);
 
@@ -340,7 +390,7 @@ void UnixServer::parseListingEntry(const_iterator itr,
 	if(std::isdigit(*itr, defaultLocale_))
 		skipNumber(itr, itr_end);
 
-	fileinfo.setUnixMode(itr, itr_end);
+	parseUnixAttribute(itr, itr_end, fileinfo);
 	checkString(itr, itr_end, "+");
 	skipSpaces(itr, itr_end);
 	skipNumber(itr, itr_end);
@@ -392,7 +442,7 @@ void QNXServer::parseListingEntry(const_iterator itr,
 
 	skipSpaces(itr, itr_end);
 
-	fileinfo.setUnixMode(itr, itr_end);
+	parseUnixAttribute(itr, itr_end, fileinfo);
 	checkString(itr, itr_end, "+");
 	skipSpaces(itr, itr_end);
 	skipNumber(itr, itr_end);
@@ -458,7 +508,7 @@ VMSServer::entry VMSServer::getEntry(const_iterator &itr, const const_iterator &
 
 
 
-static unsigned int parseVMSAttribute(VMSServer::const_iterator itr, 
+static void parseVMSAttribute(VMSServer::const_iterator itr, 
 									  const VMSServer::const_iterator &itr_end)
 {
 	static const boost::array<wchar_t, 4> attributes = {L'r', L'w', L'e', L'd'};
@@ -470,7 +520,6 @@ static unsigned int parseVMSAttribute(VMSServer::const_iterator itr,
 		Parser::check(i != attributes.end(), "invalid VMS attribute");
 		++itr;
 	}
-	return 0; //TODO
 }
 
 void VMSServer::setFileName(const const_iterator &itr, const const_iterator &itr_end, FTPFileInfo &fileinfo) const
@@ -551,6 +600,7 @@ void VMSServer::parseListingEntry(const_iterator itr,
 
 	// attribute
 	skipString(itr, itr_end, L"(");
+	const_iterator attr_itr = itr;
 	for(int i = 0; i < 4; i++)
 	{
 		itr2 = std::find(itr, itr_end, (i == 3)? L')' : L',');
@@ -558,27 +608,117 @@ void VMSServer::parseListingEntry(const_iterator itr,
 		parseVMSAttribute(itr, itr2);
 		itr = itr2 + 1;
 	}
+	fileinfo.setSecondAttribute(attr_itr, itr2);
 }
 
+static bool isOctalDigit(wchar_t c)
+{
+	return c >= L'0' && c <= '7';
+}
+
+static void parseEPLFAttribute(ServerType::const_iterator &itr, const ServerType::const_iterator itr_end, FTPFileInfo& fileinfo)
+{
+	Parser::check(itr+3 == itr_end && 
+		isOctalDigit(*itr) && isOctalDigit(*(itr+1)) && isOctalDigit((*itr+2)),
+		"the octal number is expected");
+	fileinfo.setSecondAttribute(itr, itr_end);
+}
+
+
+// Easily Parsed LIST Format:  http://cr.yp.to/ftp/list/eplf.html
 void EPLFServer::parseListingEntry(const_iterator itr, 
 									  const const_iterator &itr_end,
 									  FTPFileInfo& fileinfo) const
 {
-	BOOST_ASSERT(false && "please implement me");
+	Parser::check(itr != itr_end && *itr == L'+', "Invalid entry. The '+' should be in the begin of the line.");
+
+	const_iterator itr_tab = find(itr, itr_end, L'\t');
+	Parser::check(itr_tab != itr_end, "Invalid entry. The '\\t' is not found.");
+
+	fileinfo.setLastWriteTime(WinAPI::FileTime());
+	++itr;
+	while(itr != itr_tab)
+	{
+		const wchar_t info = *itr;
+		++itr;
+		switch(info)
+		{
+			// date
+		case L'm':
+			{
+				size_t n = Parser::parseUnsignedNumber<size_t>(itr, itr_tab, false);
+				time_t time = n;
+
+				struct tm *t = gmtime(&time);
+				if(t == 0)
+				{
+					fileinfo.setLastWriteTime(WinAPI::FileTime());
+				} else
+				{
+					fileinfo.setLastWriteTime(
+						WinAPI::FileTime(t->tm_year+1900, t->tm_mon+1,
+										t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec));
+				}
+			}
+			break;
+		case L'/':
+			fileinfo.setType(FTPFileInfo::directory);
+			break;
+		case L'r':
+			fileinfo.setType(FTPFileInfo::file);
+		    break;
+		case L's':
+			fileinfo.setFileSize(Parser::parseUnsignedNumber<__int64>(itr, itr_tab, false));
+		    break;
+		case L'i':
+			itr = find(itr, itr_tab, ',');
+			break;
+		case L'u':
+			if(itr != itr_tab)
+			{
+				Parser::check(*itr == 'p', "Invalid entry. The fact is unknown.");
+				++itr;
+				const_iterator attr_itr = itr;
+				Parser::skipNumber(itr, itr_tab);
+				fileinfo.setSecondAttribute(attr_itr, itr);
+			}
+			break;
+		default:
+			Parser::check(false, "Invalid entry. The fact is unknown.");
+		}
+		if(itr != itr_tab)
+		{
+			Parser::check(*itr == L',', "Invalid entry. The ',' is missing.");
+			++itr;
+		}
+	}
+
+	Parser::check(fileinfo.getType() != FTPFileInfo::undefined, "The type of entry is not set");
+	fileinfo.setFileName(itr_tab+1, itr_end);
+	fileinfo.setLastAccessTime(fileinfo.getLastWriteTime());
+	fileinfo.setCreationTime(fileinfo.getLastWriteTime());
 }
 
 void CMSServer::parseListingEntry(const_iterator itr, 
 									  const const_iterator &itr_end,
 									  FTPFileInfo& fileinfo) const
 {
-	BOOST_ASSERT(false && "please implement me");
+	fileinfo.setFileName(itr, itr_end);
 }
 
 void MacOsTCPServer::parseListingEntry(const_iterator itr, 
 									  const const_iterator &itr_end,
 									  FTPFileInfo& fileinfo) const
 {
-	BOOST_ASSERT(false && "please implement me");
+	Parser::check(itr != itr_end, "Empty entry");
+	const_iterator itr_e = itr_end;
+	if(*(itr_e-1) == L'/')
+	{
+		--itr_e;
+		fileinfo.setType(FTPFileInfo::directory);
+	} else
+		fileinfo.setType(FTPFileInfo::file);
+	fileinfo.setFileName(itr, itr_e);
 }
 
 void VxWorksDosServer::parseListingEntry(const_iterator itr, 
@@ -755,7 +895,31 @@ void PCTPCServer::parseListingEntry(const_iterator itr,
 									   const const_iterator &itr_end,
 									   FTPFileInfo& fileinfo) const
 {
-	BOOST_ASSERT(false && "please implement me");
+	using namespace Parser;
+	skipSpaces(itr, itr_end);
+	if(checkString(itr, itr_end, L"<DIR>", false))
+	{
+		fileinfo.setType(FTPFileInfo::directory);
+		skipSpaces(itr, itr_end);
+	} else
+	{
+		fileinfo.setType(FTPFileInfo::file);
+		fileinfo.setFileSize(parseUnsignedNumber<FTPFileInfo::FileSize>(itr, itr_end));
+	}
+	const_iterator itr2 = std::find(itr, itr_end, L' ');
+	fileinfo.setFileName(itr, itr2);
+	itr = itr2;
+
+	skipSpaces(itr, itr_end);
+	skipWord(itr, itr_end);
+	Month mon = parseMonth(itr, itr_end);
+	int	  day = parseUnsignedNumberRange(itr, itr_end, 1, 31);
+
+	WinAPI::FileTime ft;
+	parseTime(itr, itr_end, ft);
+	int   year = parseUnsignedNumberRange(itr, itr_end, 1900, 2099);
+	ft.setDate(year, mon, day);
+	fileinfo.setLastWriteTime(ft);
 }
 
 
@@ -911,11 +1075,5 @@ bool ServerType::isValidEntry(const const_iterator &itr, const const_iterator &i
 			return search(first_, last_, mess.begin(), mess.end()) != last_;
 		}
 	}check(itr, itr_end);
-	/*
-	//Check special skip strings
-	if ( StrCmp( Line.c_str(), "Directory ", 10 ) == 0 &&
-	strchr( Line.c_str()+10,'[' ) != NULL )
-	continue;
-	*/
 	return std::find_if(skippedMsg.begin(), skippedMsg.end(), check) == skippedMsg.end();
 }

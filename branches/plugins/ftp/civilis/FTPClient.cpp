@@ -326,7 +326,7 @@ error_code FTPClient::login(const std::wstring &user, const std::wstring &passwo
 	return code;
 }
 
-std::string FTPClient::getReply() const
+const std::string& FTPClient::getReply() const
 {
 	return replyString_;
 }
@@ -376,7 +376,7 @@ bool FTPClient::sendPasv()
 		return false;
 	}
 
-	std::string reply = getReply();
+	const std::string& reply = getReply();
 	size_t ofs = reply.find('(');
 
 	unsigned int a1, a2, a3, a4, p1, p2;

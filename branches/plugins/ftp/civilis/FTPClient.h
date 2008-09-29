@@ -53,7 +53,7 @@ public:
 
 	error_code connect(const std::string &host, int port = defaultPort);
 
-	bool isConnected()
+	bool isConnected() const
 	{
 		BOOST_ASSERT(cmdsocket_.is_open() == connected_);
 		return connected_;
@@ -85,7 +85,7 @@ public:
 	error_code		sendCommandOem(const std::string& command, bool waitFullProcess = true);
 	error_code		sendCommand(const std::wstring& command, bool waitFullProcess = true, bool dontDisplay = false);
 	error_code      readOutput();
-	std::string     getReply() const;
+	const std::string& getReply() const;
 	void			close();
 	void            setBufferSize(size_t size);
 

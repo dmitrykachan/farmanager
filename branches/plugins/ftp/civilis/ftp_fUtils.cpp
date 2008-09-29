@@ -20,12 +20,6 @@ void FTP::LongBeepCreate( void )
 	}
 }
 
-// TODO remove
-int FTP::ExpandList(FARWrappers::ItemList &panelItem, FARWrappers::ItemList* il, bool FromPlugin, LPVOID Param)
-{
-	return 0;
-}
-
 void copy(FAR_FIND_DATA& f, const WIN32_FIND_DATAW &w)
 {
 	f.dwFileAttributes	= w.dwFileAttributes;
@@ -51,6 +45,8 @@ void FTP::BackToHosts()
 
     ShowHosts		= true;
 	panel_			= &hostPanel_;
+
+	hostPanel_.setSelectedHost(getConnection().getHost()->getIniFilename());
 
     FARWrappers::getInfo().Control(this, FCTL_SETVIEWMODE, &num);
 }

@@ -16,7 +16,6 @@ namespace utf8
 
 	void	pushChar(std::string &str, char32 c);
 	char32	nextChar(std::string::const_iterator &itr, const std::string::const_iterator &itr_end);
-	char32	nextChar(const char* &str);
 	
 	class exception: public std::exception
 	{

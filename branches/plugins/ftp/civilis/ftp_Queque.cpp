@@ -6,7 +6,7 @@
 #include "farwrapper/dialog.h"
 #include "farwrapper/menu.h"
 
-int AskDeleteQueue( void )
+static int AskDeleteQueue()
 {
 	const wchar_t* MsgItems[] =
 	{
@@ -19,19 +19,11 @@ int AskDeleteQueue( void )
 }
 
 void FTP::ClearQueue()
-{  
-	FTPUrl* p, *p1;
-
-	for(p = UrlsList; p; p = p1)
-	{
-       p1 = p->Next;
-       delete p;
-     }
-     UrlsList = UrlsTail = NULL;
-     QuequeSize = 0;
+{
+	urlsQueue_.clear();
 }
 
-bool FTP::WarnExecuteQueue( QueueExecOptions* op )
+bool FTP::WarnExecuteQueue(QueueExecOptions* op)
 {
 	FARWrappers::Dialog dlg(L"FTPProcessQueue");
 
@@ -58,76 +50,17 @@ bool FTP::WarnExecuteQueue( QueueExecOptions* op )
 	return true;
 }
 
-void FTP::SetupQOpt( QueueExecOptions* op )
+void FTP::SetupQOpt(QueueExecOptions* op)
 {
 	op->RestoreState    = g_manager.opt.RestoreState;
 	op->RemoveCompleted = g_manager.opt.RemoveCompleted;
 }
 
-const wchar_t* FTP::InsertCurrentToQueue()
+const wchar_t* FTP::InsertSelectedToQueue(bool download)
 {
-	PanelInfo   pi, api;
-	FARWrappers::ItemList backup,il;
-	FTPCopyInfo ci;
-
-	if(!getPanelInfo(pi) || !FARWrappers::getShortPanelInfo(api, false))
-		return getMsg(MErrGetPanelInfo);
-
-	if( pi.SelectedItemsNumber <= 0 ||
-		pi.SelectedItemsNumber == 1 && !is_flag(pi.SelectedItems[0]->Flags,PPIF_SELECTED) )
-		return getMsg(MErrNoSelection);
-
-	backup.add(pi.SelectedItems, pi.SelectedItemsNumber);
-
-	BOOL rc = ExpandList(backup, &il, TRUE );
-	FARWrappers::Screen::fullRestore();
-	if ( !rc )
-		return GetLastError() == ERROR_CANCELLED ? NULL : getMsg(MErrExpandList);
-
-	ci.download = true;
-	if ( api.PanelType != PTYPE_FILEPANEL || api.Plugin )
-		ci.destPath = L"";
-	else
-		ci.destPath = api.lpwszCurDir;
-
-//TODO	ListToQueque( &il, &ci );
-
-	return NULL;
+	return FtpFilePanel_.InsertSelectedToQueue(download);
 }
 
-const wchar_t* FTP::InsertAnotherToQueue()
-{
-	FARWrappers::ItemList backup,il;
-	PanelInfo       pi;
-	FTPCopyInfo     ci;
-
-	if (ShowHosts )
-		return getMsg(MQErrUploadHosts);
-
-	if (!FARWrappers::getPanelInfo(pi, false))
-		return getMsg(MErrGetPanelInfo);
-
-	if ( pi.SelectedItemsNumber <= 0 ||
-		pi.SelectedItemsNumber == 1 && !is_flag(pi.SelectedItems[0]->Flags,PPIF_SELECTED) )
-		return getMsg(MErrNoSelection);
-
-	if ( pi.PanelType != PTYPE_FILEPANEL || pi.Plugin )
-		return getMsg(MErrNotFiles);
-
-	backup.add(pi.SelectedItems, pi.SelectedItemsNumber);
-
-	BOOL rc = ExpandList( backup, &il, FALSE );
-	FARWrappers::Screen::fullRestore();
-	if ( !rc )
-		return GetLastError() == ERROR_CANCELLED ? NULL : getMsg(MErrExpandList);
-
-	ci.download = FALSE;
-	ci.destPath = panel_->getCurrentDirectory();
-
-//TODO	ListToQueque( &il, &ci );
-
-	return NULL;
-}
 
 void FTP::InsertToQueue( void )
 {
@@ -142,8 +75,7 @@ void FTP::InsertToQueue( void )
 	menu.setHelpTopic(L"FTPQueueAddItem");
 
 	int      sel;
-	const wchar_t* err;
-	FTPUrl   tmp;
+	FTPUrlPtr tmp = FTPUrlPtr(new FTPUrl);
 
 	do
 	{
@@ -152,237 +84,184 @@ void FTP::InsertToQueue( void )
 		if(sel == -1)
 			return;
 
-		err = NULL;
 		switch( sel )
 		{
 		case 0: 
-			UrlInit( &tmp );
-			if ( EditUrlItem( &tmp ) )
+			UrlInit(tmp);
+			if(EditUrlItem(tmp))
 			{
-				AddToQueque( &tmp );
+				AddToQueque(tmp);
 				return;
 			}
 			break;
-		case 1: 
-			err = InsertCurrentToQueue();
-			if ( !err && GetLastError() != ERROR_CANCELLED ) return;
-			break;
-		case 2: err = InsertAnotherToQueue();
-			if ( !err && GetLastError() != ERROR_CANCELLED) return;
-			break;
+		case 1:
+		case 2:
+			{
+				const wchar_t* err = InsertSelectedToQueue(sel == 1);
+				if(err == NULL)
+					return;
+				const wchar_t* itms[] = { getMsg(MQErrAdding), err, getMsg(MOk) };
+				FARWrappers::message(itms, 1, FMSG_WARNING);
+				break;
+			}
 		}
-		if ( err )
-		{
-			const wchar_t* itms[] = { getMsg(MQErrAdding), err, getMsg(MOk) };
-			FARWrappers::message(itms, 1, FMSG_WARNING);
-		}
-	}while(1);
+	} while(1);
 }
 
-void FTP::QuequeMenu( void )
+void FTP::QuequeMenu()
 {
-	BOOST_ASSERT(0 && "TODO: Not implemented");
-/*
-	int              n,
-		num;
-	int              Breaks[] = { VK_DELETE, VK_INSERT, VK_F4, VK_RETURN, 0 },
-		BNumber;
-	FarMenuItem     *mi = NULL;
-	FTPUrl*          p,*p1;
-	char             str1[ FAR_MAX_PATHSIZE ],
-		str2[ FAR_MAX_PATHSIZE ],
-		str3[ FAR_MAX_PATHSIZE ];
 	QueueExecOptions exOp;
-
-	SetupQOpt( &exOp );
-	num = -1;
-	do{
-		mi = (FarMenuItem *)_Realloc( mi, (QuequeSize+1)*sizeof(FarMenuItem) );
-		MemSet( mi, 0, QuequeSize*sizeof(FarMenuItem) );
-
-		for( p = UrlsList,n = 0; p; p = p->Next, n++ ) 
+	SetupQOpt(&exOp);
+	int selected = -1;
+	do 
+	{
+		FARWrappers::Menu menu(FMENU_SHOWAMPERSAND);
+		menu.reserve(urlsQueue_.size());
+		std::wstring line;
+		for(std::vector<FTPUrlPtr>::const_iterator itr = urlsQueue_.begin(); itr != urlsQueue_.end(); itr++)
 		{
-			StrCpy( str1, p->SrcPath.c_str(),    20 );
-			StrCpy( str2, p->DestPath.c_str(),   20 );
-			StrCpy( str3, p->FileName.cFileName, 20 );
-			SNprintf( mi[n].Text, sizeof(mi[n].Text),
-				"%c%c %-20s%c%-20s%c%-20s",
-				p->Download ? '-' : '<', p->Download ? '>' : '-',
-				str1, FAR_VERT_CHAR,
-				str2, FAR_VERT_CHAR,
-				str3 );
+			line = (*itr)->Download? L"-> " : L"<- ";
+			line.append((*itr)->SrcPath, 0, 20);
+			line.resize(3+20, L' ');
+			line += FAR_VERT_CHAR;
+
+			line.append((*itr)->DestPath, 0, 20);
+			line.resize(3+41, L' ');
+			line += FAR_VERT_CHAR;
+
+			line.append((*itr)->fileName_, 0, 20);
+			line.resize(3+62, L' ');
+
+			/*
 			if ( p->Error[0] )
-				mi[n].Checked = TRUE;
+			mi[n].Checked = TRUE;
+			*/
+			menu.addItem(line);
 		}
+		line = getMsg(MQMenuTitle);
+		line += L": ";
+		line += boost::lexical_cast<std::wstring>(urlsQueue_.size());
+		line += L' ';
+		line += getMsg(MQMenuItems);
 
-		//Title
-		char title[ FAR_MAX_PATHSIZE ];
-		SNprintf( title, sizeof(title), "%s: %d %s", getMsg(MQMenuTitle), n, getMsg(MQMenuItems) );
+		menu.setTitle(line);
+		menu.setBottom(getMsg(MQMenuFooter));
+		menu.setHelpTopic(L"FTPQueue");
 
-		//Menu
-		if ( num != -1 && num < QuequeSize ) mi[num].Selected = TRUE;
+		const static int breaks[] = {VK_DELETE, VK_INSERT, VK_F4, VK_RETURN, 0};
+		menu.setBreakKeys(breaks);
 
-		n = FARWrappers::getInfo().Menu( FP_Info->ModuleNumber,-1,-1,0,FMENU_SHOWAMPERSAND,
-			title,
-			getMsg(MQMenuFooter),
-			"FTPQueue", Breaks, &BNumber, mi, QuequeSize );
-		//key ESC
-		if ( BNumber == -1 &&
-			n == -1 )
-			goto Done;
+		if(selected != -1 && selected < static_cast<int>(menu.size()))
+			menu.select(selected);
 
-		//key Enter
-		if ( BNumber == -1 ) {
-			//??
-			goto Done;
+		selected = menu.show();
+		switch(menu.getBreakIndex())
+		{
+		case -1:
+			return;
+		case 0:
+			if(!urlsQueue_.empty())
+			{
+				
+				switch(AskDeleteQueue())
+				{
+				case -1:
+				case  2:
+					break;
+				case 0:
+					if(selected != -1)
+						DeleteUrlItem(selected);
+					break;
+				case 1:
+					urlsQueue_.clear();
+				    break;
+				default:
+					BOOST_ASSERT("incorrect case");
+				}
+			}
+			break;
+		case 1:
+			InsertToQueue();
+			break;
+		case 2:
+		{
+			if(selected != -1)
+			{
+				FTPUrlPtr p = UrlItem(selected);
+				EditUrlItem(p);
+			}
+			break;
 		}
-
-		//Set selected
-		if ( num != -1 ) mi[num].Selected = FALSE;
-		num = n;
-
-		//Process keys
-		switch( BNumber ) {
-			/ *DEL* /
-		 case 0: if ( QuequeSize )
-					 switch( AskDeleteQueue() ) {
-		 case -1:
-		 case  2: break;
-		 case  0: p = UrlItem( n, &p1 );
-			 DeleteUrlItem( p, p1 );
-			 break;
-		 case  1: ClearQueue();
-			 break;
-				 }
-				 break;
-				 / *Ins* /
-		 case 1: InsertToQueue();
-			 break;
-			 / *F4* /
-		 case 2: p = UrlItem( n, NULL );
-			 if (p)
-				 EditUrlItem( p );
-			 break;
-			 / *Return* /
-		 case 3: if ( QuequeSize &&
-					 WarnExecuteQueue(&exOp) ) {
-						 ExecuteQueue(&exOp);
-						 if ( !QuequeSize )
-							 goto Done;
-				 }
-				 break;
+		case 3:
+			if(!urlsQueue_.empty() && WarnExecuteQueue(&exOp))
+			{
+				ExecuteQueue(&exOp);
+				if(urlsQueue_.empty())
+					return;
+			}
+			break;
 		}
-
-	}while(1);
-Done:
-	_Del( mi );
-*/
+	} while(true);
 }
 
-void FTP::AddToQueque(FTPUrl* item, int pos)
+void FTP::AddToQueque(FTPUrlPtr &pUrl)
 {
-	FTPUrl* p, *p1,*newi;
-
-     newi = new FTPUrl;
-//  TODO HOST  ASSIGN
-//     *newi = *item;
-
-     if ( pos == -1 ) pos = QuequeSize;
-     p = UrlItem( pos, &p1 );
-     if (p1) p1->Next = newi;
-     newi->Next = p;
-     if (p == UrlsList) UrlsList = newi;
-
-     QuequeSize++;
+	urlsQueue_.push_back(pUrl);
 }
 
-void FTP::AddToQueque(FTPFileInfo& fileName, const std::wstring& path, bool Download)
+void FTP::AddToQueque(FTPFileInfo& file, const std::wstring& path, bool Download)
 {
-	FTPUrl* p = new FTPUrl;
+	FTPUrlPtr p = FTPUrlPtr(new FTPUrl);
 
-//TODO HOST ASSIGN	p->Host	= chost_;
-	p->Download = Download;
+	p->pHost_    = getConnection().getHost();
+	p->Download	 = Download;
+	p->DestPath  = path;
 
-
-
-	BOOST_ASSERT(0 && "Not implemented");
-/*
-	String  str;
-	char   *m;
-	int     num;
-	FTPUrl* p = new FTPUrl;
-
-	p->Next     = NULL;
-	p->FileName = *FileName;
-	p->Error.Null();
-	p->DestPath = Path;
-
-	if ( Download )
-		m = strrchr( FileName->cFileName, '/' );
-	else
-		m = strrchr( FileName->cFileName, '\\' );
-	if ( m ) {
-		*m = 0;
-		p->DestPath.Add( m );
-		MemMove( FileName->cFileName, m+1, m-FileName->cFileName );
+	std::wstring branch;
+	splitFilename(file.getFileName(), branch, p->fileName_, !Download);
+	if(!branch.empty())
+	{
+		AddEndSlash(p->DestPath, Download? LOC_SLASH : NET_SLASH);
+		p->DestPath += branch;
+		AddEndSlash(p->DestPath, Download? LOC_SLASH : NET_SLASH);
 	}
+	std::wstring srcpath;
+	if(Download)
+	{
+		srcpath = getConnection().getCurrentDirectory();
+		AddEndSlash(srcpath, NET_SLASH);
+		srcpath += file.getFileName();
+	} else
+	{
+		FARWrappers::PanelInfoAuto pi(false, true);
+		srcpath = pi.lpwszCurDir;
 
-	if ( Download ) {
-		GetCurPath( p->SrcPath );
-		AddEndSlash( p->SrcPath, '/' );
-		str.printf( "%s%s", p->SrcPath.c_str(), FileName->cFileName );
-		FixLocalSlash( p->DestPath );
-		AddEndSlash( p->DestPath, '\\' );
-
-		num = str.Chr( '/' );
-	} else {
-		PanelInfo pi;
-		FarWrapper::getPanelInfo(pi, false);
-		p->SrcPath = pi.CurDir;
-
-		AddEndSlash( p->SrcPath, '\\' );
-		str.printf( "%s%s", p->SrcPath.c_str(), FileName->cFileName );
-		FixLocalSlash(str);
-		AddEndSlash( p->DestPath, '/' );
-
-		num = str.Chr( '\\' );
+		AddEndSlash(srcpath, LOC_SLASH);
+		srcpath += file.getFileName();
 	}
+	splitFilename(srcpath, p->SrcPath, p->fileName_, !Download);
 
-	if ( num != -1 ) {
-		TStrCpy( p->FileName.cFileName, str.c_str()+num+1 );
-		str.SetLength( num );
-		p->SrcPath = str;
-	} else {
-		TStrCpy( p->FileName.cFileName, str.c_str() );
-		p->SrcPath.Null();
-	}
-
-	if (!UrlsList) UrlsList = p;
-	if (UrlsTail)  UrlsTail->Next = p;
-	UrlsTail = p;
-	QuequeSize++;
-*/
+	urlsQueue_.push_back(p);
 }
 
 void FTP::ListToQueque(const FileList& filelist, const FTPCopyInfo& ci)
 {
-	for(size_t n = 0; n < filelist.size(); n++ )
+	for(size_t n = 0; n < filelist.size(); n++)
 	{
-		//Skip dirs
-		if(filelist[n]->getType() == FTPFileInfo::directory)
-			continue;
+		if(filelist[n])
+		{
+			//Skip dirs
+			if(filelist[n]->getType() == FTPFileInfo::directory)
+				continue;
 
-		//Skip deselected in list
-		// TODO if (il->at(n).Reserved[0] == UINT_MAX )
-		//	continue;
-
-		AddToQueque(*filelist[n], ci.destPath, ci.download);
+			AddToQueque(*filelist[n], ci.destPath, ci.download);
+		}
 	}
 }
 
 void FTP::ExecuteQueue(QueueExecOptions* op)
 {
-	if(!QuequeSize)
+	if(urlsQueue_.empty())
 		return;
 
 	FTPUrl_  url = getConnection().getHost()->url_;

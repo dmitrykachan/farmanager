@@ -20,7 +20,7 @@ void CommandsList::init()
 	add(L"delete",	&Connection::deleteFile);
 	add(L"dir",		&Connection::ls);
 	add(L"disconnect", &Connection::disconnect);
-//TODO	add(L"get",		&Connection::get);
+	add(L"get",		&Connection::get);
 	add(L"idle",	&Connection::idle);
 	add(L"image",	&Connection::setbinary);
 	add(L"ls",		&Connection::ls);
@@ -34,7 +34,7 @@ void CommandsList::init()
 	add(L"pwd",		&Connection::pwd);
 	add(L"quit",	&Connection::disconnect, false, false);
 	add(L"quote",	&Connection::quote);
-//TODO	add(L"recv",	&Connection::get);
+	add(L"recv",	&Connection::get);
 	add(L"reget",	&Connection::reget);
 	add(L"rstatus",	&Connection::rmtstatus);
 	add(L"rhelp",	&Connection::rmthelp);
@@ -76,18 +76,29 @@ void Connection::InitData(const boost::shared_ptr<FTPHost> &p)
     CmdVisible = true;
 }
 
-void Connection::AddOutput(const char *Data,int Size)
+void appendFromOem(std::wstring &output, const char* data, int size, int codePage)
 {
-	if(Size == 0)
+
+}
+
+void Connection::AddOutput(const char *data, int size)
+{
+	if(size == 0)
 		return;
 
-	// TODO optimize
-	output_ += FromOEM(std::string(Data, Data+Size));
+	boost::scoped_array<wchar_t> result(new wchar_t[size]);
+	int res = ::MultiByteToWideChar(getHost()->codePage_, 0, data, size, result.get(), size);
+	BOOST_ASSERT(res > 0);
+	if(res == 0)
+	{
+		throw std::exception((std::string("MultiByteToWideChar fails: ") + boost::lexical_cast<std::string>(res)).c_str());
+	}
+	output_.append(result.get(), size);
 }
 
 void Connection::ResetOutput()
 {
-	output_ = L"";
+	output_.clear();
 }
 
 std::wstring Connection::FromOEM(const std::string &str) const

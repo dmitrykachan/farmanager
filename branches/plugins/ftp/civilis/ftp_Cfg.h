@@ -135,7 +135,7 @@ struct Options // : public OptionsPlugin
 //Configurable
 	std::wstring	CmdLogFile;  //Log file where FTP commands placed                           "" (none)
   int     CmdLogLimit;                   //Limit of cmd log file (*1000 bytes)                          100 (100.000 bytes)
-  BOOL    CloseDots;                     //Switch on ".." to hosts                                      TRUE
+	bool	CloseDots;                     //Switch on ".." to hosts                                      TRUE
   BOOL    QuoteClipboardNames;           //Quote names placed to clipboard
   BOOL    SetHiddenOnAbort;              //Set hidden attribute on uncomplete files
 

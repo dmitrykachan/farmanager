@@ -47,22 +47,18 @@ static void SetTitles(wchar_t *cols[], const wchar_t* fmt, int cn)
 
 void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 {  
-	PROCP((ShowHosts? L"HOSTS": L"FTP") << L"cc:"  << CallLevel 
-		<< " pi:" << pi << L"hC");
-	PanelInfo thisPInfo = { 0 };
+	PROCP((ShowHosts? L"HOSTS": L"FTP") << L"cc:"  << CallLevel << " pi:" << pi << L"hC");
 	static int inside = 0;
 
 	inside++;
-	memset( pi, 0, sizeof(*pi) );
+	memset(pi, 0, sizeof(*pi));
 	pi->StructSize = sizeof(*pi);
 
-	//---------------- FLAGS
 	if(ShowHosts)
 		pi->Flags = OPIF_SHOWPRESERVECASE | OPIF_USEHIGHLIGHTING;
 	else
 		pi->Flags = OPIF_ADDDOTS | OPIF_USEFILTER | OPIF_USESORTGROUPS | OPIF_USEHIGHLIGHTING |	OPIF_SHOWPRESERVECASE;
 
-	//---------------- HOST, CURDIR
 	pi->HostFile = NULL;
 	static std::wstring curPath;
 
@@ -88,8 +84,8 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 	//---------------- FORMAT
 	static std::wstring Format;
 
-	if ( ShowHosts )
-		Format = L"//Hosts/"; // TODO
+	if(ShowHosts)
+		Format = L"//Hosts/";
 	else
 		Format = L"//" + getConnection().getHost()->url_.Host_ + L"/";
 
@@ -221,7 +217,7 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 
 	//---------------- PANEL MODES
 	//HOSTST
-	if (ShowHosts)
+	if(ShowHosts)
 	{
 		static struct PanelMode PanelModesArray[10] = {0};
 		static wchar_t *ColumnTitles[4] = { NULL };
@@ -231,9 +227,7 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 			usrLen  = 0,
 			dirLen   = 0,
 			hstLen = 0;
-
-		if(!thisPInfo.PanelItems)
-			getPanelInfo(thisPInfo);
+		FARWrappers::PanelInfoAuto thisPInfo(this, false);
 
 		for(int n = 0; n < thisPInfo.ItemsNumber; n++ )
 		{

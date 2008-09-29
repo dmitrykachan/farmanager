@@ -269,15 +269,40 @@ std::wstring FCps4(__int64 val)
 	return s;
 }
 
-
-FTPProgress::FTPProgress()
-	: show_(NotDisplay)
-{
-}
-
-
 FTPProgress::~FTPProgress()
 {}
+
+FTPProgress::FTPProgress(int tMsg, int OpMode, const FileList &filelist, Show show)
+{
+	Init(tMsg, OpMode, filelist, show);
+}
+
+FTPProgress::FTPProgress(int tMsg, int OpMode, const std::wstring &source, const std::wstring destination, __int64 size, Show show, Connection *connection)
+{
+	lastSize_ = totalComplete_ = totalSkipped_ = 0;
+	averageCps_[0] = averageCps_[1] = averageCps_[2] = 0;
+	titleMsg_	= tMsg;
+	show_		= show;
+
+	if(show_ == ShowProgress && is_flag(OpMode, OPM_FIND))
+		show_ = NotDisplay;
+	else
+		if(is_flag(OpMode, OPM_VIEW) || is_flag(OpMode, OPM_EDIT))
+			show_ = g_manager.opt.ShowSilentProgress? ShowProgress : NotDisplay;
+
+	totalSpeed_.start(size);
+	totalFiles_		= 1;
+
+	fileSpeed_.start(size);
+	lastSize_		= 0;
+
+	lastTime_.reset();
+
+	srcFilename_		= source;
+	destFilename_		= destination.empty()? source : destination;
+	refresh(connection);
+}
+
 
 void FTPProgress::Init(int tMsg, int OpMode, const FileList &filelist, Show show)
 {
@@ -375,31 +400,9 @@ bool FTPProgress::refresh(Connection* connection, unsigned __int64 size)
 {
 	std::wstring	str;
 
-//TODO 
-/*
-if(IOCallback)
-	trafficInfo_.refresh(bytes_transferred);
-
-	//Show Quite progressing
-	if(g_manager.opt.ShowIdle && remote.empty())
-	{
-	std::wstring str;
-	if (stopwatch.isTimeout())
-	{
-	str = getMsg(MReaded) + Size2Str(totalValue);
-	SetLastError( ERROR_SUCCESS );
-	IdleMessage(str.c_str(),g_manager.opt.ProcessColor );
-	stopwatch.reset();
-	if ( CheckForEsc(FALSE) ) {
-	ErrorCode = ERROR_CANCELLED;
-	goto abort;
-	}
-	}
-*/
-
 	fileSpeed_.progress(size);
 
-	BOOST_LOG(ERR, L"refresh size: " << size << L" downloaded: " << fileSpeed_.getPossition() << L" of " << fileSpeed_.getSize()
+	BOOST_LOG(DBG, L"refresh size: " << size << L" downloaded: " << fileSpeed_.getPossition() << L" of " << fileSpeed_.getSize()
 		<< L"\nTotal pos: " << totalSpeed_.getPossition() << L" pos2: " << getPossition() << L"size: " << totalSpeed_.getSize());
 
 	// file is fully processed
@@ -887,7 +890,6 @@ void FTPProgress::initFile(Connection* connection, const FTPFileInfo& info, cons
 	fileSpeed_.start(info.getFileSize());
 	lastSize_			= 0;
 
-	averageCps_[0] = 0; averageCps_[1] = 0; averageCps_[2] = 0;
 	lastTime_.reset();
 
 	srcFilename_		= info.getFileName();
@@ -911,7 +913,7 @@ void FTPProgress::skip()
 {
 	totalSpeed_.progress(fileSpeed_.getSize());
 	++totalSkipped_;
-	BOOST_ASSERT(totalFiles_ < totalSkipped_ + totalComplete_);
+	BOOST_ASSERT(totalFiles_ > totalSkipped_ + totalComplete_);
 
 	fileSpeed_.clear();
 }
@@ -920,7 +922,6 @@ void FTPProgress::skip()
 
 void progress_test_()
 {
-	FTPProgress progress;
 	Connection con;
 
 	FileList list;
@@ -931,8 +932,7 @@ void progress_test_()
 	info->setFileSize(128);
 	list.push_back(info);
 
-	progress.Init(MStatusDownload, 0, list, FTPProgress::ShowProgress);
-
+	FTPProgress progress(MStatusDownload, 0, list, FTPProgress::ShowProgress);
 	progress.initFile(&con, *info, L"destnnn");
 	progress.refresh(&con, 100);
 }

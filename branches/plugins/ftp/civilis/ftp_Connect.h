@@ -52,7 +52,7 @@ public:
 	Result		disconnect();
 	Result		deleteFile(const std::wstring &filename);
 	Result		ls(const std::wstring &path);
-	Result		get(const std::wstring &remote, const std::wstring& local, FTPProgress& trafficInfo);
+	Result		get(const std::wstring &remote, const std::wstring& local);
 	Result		nlist(const std::wstring &path);
 	Result		idle(const std::wstring &time);
 	Result		makedir(const std::wstring &dir);
@@ -78,7 +78,7 @@ public:
 	Result		user(const std::wstring& usr, const std::wstring& pwd, const std::wstring &accountcmd);
 
     void		ResetOutput();
-    void		AddOutput(const char *Data,int Size);
+    void		AddOutput(const char *data, int size);
 
 	std::wstring getSystemInfo();
 	__int64		fileSize(const std::wstring &filename);
@@ -102,16 +102,20 @@ public:
 	std::wstring			output_;
     bool          breakable_;
 
-	bool	isConnected()
+	bool	isConnected() const
 	{
 		return ftpclient_.isConnected();
 	}
 
 	const std::wstring& getCurrentDirectory() const;
 	void				setCurrentDirectory(const std::wstring& curdir);
-	std::string			getReply() const
+	const std::string&  getReply() const
 	{
 		return ftpclient_.getReply();
+	}
+	std::wstring  getReplyW() const
+	{
+		return FromOEM(ftpclient_.getReply());
 	}
 
 	FTP*	getPlugin()

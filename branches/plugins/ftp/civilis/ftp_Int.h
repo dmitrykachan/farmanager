@@ -80,8 +80,6 @@ public:
 	void readCfg();
 	void WriteCfg();
 	void InvalidateAll();
-	void addWait(size_t tm);
-
 
 	const WinAPI::RegKey& getRegKey() const
 	{
@@ -102,6 +100,7 @@ extern	FTPPluginManager g_manager;
 std::wstring getPathBranch(const std::wstring &s);
 std::wstring getNetPathBranch(const std::wstring &s);
 std::wstring getPathLast(const std::wstring &s);
+void splitFilename(const std::wstring &path, std::wstring &branch, std::wstring &filename, bool local = true);
 
 inline bool IS_SILENT(int v)
 {

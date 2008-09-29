@@ -36,7 +36,7 @@ namespace Parser
 	template<typename T1, typename T2>
 	static void skipNumber(T1& itr, const T2 &itr_end, bool skipspaces = true)
 	{
-		check(itr != itr_end && std::isdigit(*itr, defaultLocale_), "there are not the number");
+		check(itr != itr_end && std::isdigit(*itr, defaultLocale_), "the number is expected");
 		while(itr != itr_end && std::isdigit(*itr, defaultLocale_))
 			++itr;
 		if(skipspaces)
@@ -172,7 +172,7 @@ namespace Parser
 				return static_cast<Month>(i+1);
 			}
 		}
-		throw exception("unknown mount");
+		throw exception("unknown month");
 	}
 
 	template<typename I1, typename I2, typename T>
@@ -232,7 +232,7 @@ namespace Parser
 	{
 		using namespace Parser;
 		int year, day, month;
-		year = parseUnsignedNumberRange(itr, itr_end, 1900, 2100);
+		year = parseUnsignedNumberRange(itr, itr_end, 1600, 2100);
 		skipString(itr, itr_end, L"-");
 		month = parseUnsignedNumberRange(itr, itr_end, 1, 12);
 		skipString(itr, itr_end, L"-");
@@ -255,7 +255,7 @@ namespace Parser
 			int day = parseUnsignedNumberRange(itr, itr_end, 1, 31);
 			std::wstring::const_iterator itr_save = itr;
 			int year;
-			if(!checkUnsignedNumberRange(itr, itr_end, year, 1900, 2100))
+			if(!checkUnsignedNumberRange(itr, itr_end, year, 1600, 2100))
 			{
 				year = WinAPI::FileTime::getCurrentSystemTime().wYear;
 				itr = itr_save;
@@ -271,6 +271,7 @@ namespace Parser
 			parseTime(itr, itr_end, ft);
 	}
 
+	// 04-26-01  05:28PM
 	static void parseWindowsDate(std::wstring::const_iterator &itr, 
 		const std::wstring::const_iterator &itr_end, WinAPI::FileTime &ft, bool skipspaces = true)
 	{

@@ -44,6 +44,7 @@ public:
 	FTPFileInfoPtr	getFile(size_t id);
 	bool			readFolder(const std::wstring &path, FileListPtr& filelist, bool useCache = true);
 	void			resetFileCache();
+	void			setSelectedFile(const std::wstring& filename);
 
 	Connection& getConnection()
 	{
@@ -54,6 +55,7 @@ public:
 	{
 		return connection_;
 	}
+	const wchar_t* FTPFileView::InsertSelectedToQueue(bool download);
 
 private:
 	typedef std::pair<FileListPtr, std::wstring> FileListCacheItem;
@@ -108,5 +110,4 @@ private:
 	bool			showFilesList(FileList& filelist);
 	void			saveList(FileList& filelist);
 	Result			putFile(const std::wstring &localFile, const std::wstring &remoteFile, bool Reput, bool AsciiMode, FTPProgress& trafficInfo);
-
 };

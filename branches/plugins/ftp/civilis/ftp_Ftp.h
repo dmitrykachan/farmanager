@@ -6,14 +6,15 @@
 
 struct FTPUrl
 {
-	FTPHost       Host;
+	FtpHostPtr		pHost_;
 	std::wstring	SrcPath;
 	std::wstring	DestPath;
 	std::wstring	Error;
 	std::wstring  fileName_;
 	bool			Download;
-	FTPUrl*       Next;
 };
+
+typedef boost::shared_ptr<FTPUrl> FTPUrlPtr;
 
 struct FTPCopyInfo: boost::noncopyable
 {
@@ -32,8 +33,8 @@ struct FTPCopyInfo: boost::noncopyable
 
 struct QueueExecOptions: boost::noncopyable
 {
-  BOOL      RestoreState;
-  BOOL      RemoveCompleted;
+	bool RestoreState;
+	bool RemoveCompleted;
 };
 
 class FTP;
@@ -70,28 +71,21 @@ class FTP: boost::noncopyable
 {
     friend class FTPCmdBlock;
 private:
-    int         ShowHosts;
+    bool         ShowHosts;
     int			startViewMode_;
     int         ActiveColumnMode;
     BOOL        NeedToSetActiveMode;
-    FTPUrl*     UrlsList, *UrlsTail;
-    int         QuequeSize;
+	std::vector<FTPUrlPtr> urlsQueue_;
 
 	HostView	hostPanel_;
 	FTPFileView	FtpFilePanel_;
 
 public:
 	PanelView*			panel_;
-	std::wstring		selectFile_;
 
 	std::wstring panelTitle_;
 	WinAPI::Stopwatch	longBeep_;
     int         CallLevel;
-
-	bool getPanelInfo(PanelInfo &pi) const
-	{
-		return FARWrappers::getInfo().Control(const_cast<FTP*>(this), FCTL_GETPANELINFO, &pi) != 0;
-	}
 
 	const HostView* getHostPanel() const
 	{
@@ -100,8 +94,8 @@ public:
 	
 	bool getCurrentPanelItem(PluginPanelItem &item) const
 	{
-		PanelInfo pi;
-		getPanelInfo(pi);
+		FARWrappers::PanelInfoAuto  pi(this, false);
+
 		if(pi.ItemsNumber > 0 && pi.CurrentItem < pi.ItemsNumber)
 		{
 			item = pi.PanelItems[pi.CurrentItem];
@@ -111,9 +105,7 @@ public:
 	}
 	std::wstring getCurrentFile() const
 	{
-		PanelInfo pi;
-		getPanelInfo(pi);
-
+		FARWrappers::PanelInfoAuto  pi(this, false);
 		if(pi.ItemsNumber > 0 && pi.CurrentItem < pi.ItemsNumber)
 		{
 			return pi.PanelItems[pi.CurrentItem].FindData.lpwszFileName;
@@ -131,6 +123,10 @@ public:
 	{
 		return FtpFilePanel_.getConnection();
 	}
+	const Connection& getConnection() const
+	{
+		return FtpFilePanel_.getConnection();
+	}
 	int       Connect(FtpHostPtr& host);
 
 private:
@@ -140,10 +136,8 @@ private:
 	bool		DoCommand(const std::wstring& str, int type, DWORD flags);
     bool		DoFtpConnect(FtpHostPtr& host);
 
-    int       ExpandList(FARWrappers::ItemList &panelItem, FARWrappers::ItemList* il, bool FromPlugin, LPVOID Param = NULL );
     void      InsertToQueue( void );
-    const wchar_t*  InsertCurrentToQueue();
-    const wchar_t*  InsertAnotherToQueue();
+    const wchar_t*  InsertSelectedToQueue(bool activePanel);
 
   public:
     FTP();
@@ -161,7 +155,10 @@ private:
 
     void      LongBeepEnd(bool DoNotBeep = false);
     void      LongBeepCreate( void );
-    BOOL      FTPMode( void )           { return !ShowHosts && getConnection().isConnected(); }
+    bool      FTPMode() const
+	{
+		return !ShowHosts && getConnection().isConnected();
+	}
 
 	static	Backup	backups_;
 
@@ -170,13 +167,13 @@ private:
 
     const wchar_t*  CloseQuery();
 
-    FTPUrl*   UrlItem( int num, FTPUrl* *prev );
-    void      UrlInit( FTPUrl* p );
-    void      DeleteUrlItem( FTPUrl* p, FTPUrl* prev );
-    bool      EditUrlItem( FTPUrl* p );
+    FTPUrlPtr UrlItem(size_t num);
+    void      UrlInit(FTPUrlPtr &p);
+    void      DeleteUrlItem(size_t index);
+    bool      EditUrlItem(FTPUrlPtr& p);
 
-	void      AddToQueque(FTPFileInfo& fileName, const std::wstring& path, bool Download);
-    void      AddToQueque(FTPUrl* p,int pos = -1);
+	void      AddToQueque(FTPFileInfo& file, const std::wstring& path, bool Download);
+    void      AddToQueque(FTPUrlPtr &pUrl);
     void      ListToQueque(const FileList& il, const FTPCopyInfo& ci);
     void      ClearQueue();
 

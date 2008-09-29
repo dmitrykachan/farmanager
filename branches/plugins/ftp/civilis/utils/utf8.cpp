@@ -179,12 +179,5 @@ namespace utf8
 		return next_char(itr, itr_end);
 	}
 
-	char32 nextChar(const char* &str)
-	{
-		BOOST_ASSERT("not implementet yet");
-		return 0;
-//		return next_char(str);
-	}
-
 } // namespace utf8
 } // namespace Unicode

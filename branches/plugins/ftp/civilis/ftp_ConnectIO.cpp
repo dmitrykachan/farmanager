@@ -6,8 +6,14 @@
 
 Connection::Result Connection::reset()
 {
-	BOOST_ASSERT(0 && "Not implemented");
-	return Done;
+	error_code  code = ftpclient_.readOutput();
+
+	if(FTPClient::isComplete(code))
+		return Done;
+	if(FTPClient::isCanceled(code))
+		return Cancel;
+
+	return Error;
 }
 
 void Connection::AbortAllRequest(int BrkFlag)

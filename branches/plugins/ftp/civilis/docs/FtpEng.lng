@@ -320,7 +320,6 @@
 "S&erver type"
 "Change c&haracter table..."
 "Change ser&ver type..."
-"Decode co&mmands text"
 "FAR: Site does not support resuming. Restarting from the beginning."
 "Add to saved s&ites"
 "Remove from saved s&ites"
@@ -404,7 +403,6 @@
 "Extended host options"
 "Du&p FF in commands"
 "&UnDup FF from PWD"
-"Decode &cmd line commands"
 "Send &ALLO before upload"
 "Use spaces at file name start"
 
