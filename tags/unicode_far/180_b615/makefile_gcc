@@ -1,0 +1,240 @@
+OBJDIR = ./GCC/obj
+EXEDIR = ./GCC
+EXENAME = Far.exe
+EXEFULLNAME = $(EXEDIR)/$(EXENAME)
+DEF = far.def
+DEPFILE = far.gcc.dep
+
+SRCS = 	cddrv.cpp \
+	CFileMask.cpp \
+	chgmmode.cpp \
+	chgprior.cpp \
+	clipboard.cpp \
+	cmdline.cpp \
+	cmem.cpp \
+	config.cpp \
+	constitle.cpp \
+	copy.cpp \
+	ctrlobj.cpp \
+	cvtname.cpp \
+	del.cpp \
+	delete.cpp \
+	dialog.cpp \
+	dizlist.cpp \
+	dlgedit.cpp \
+	edit.cpp \
+	editor.cpp \
+	eject.cpp \
+	execute.cpp \
+	farexcpt.cpp \
+	farqueue.cpp \
+	farrtl.cpp \
+	farwinapi.cpp \
+	ffolders.cpp \
+	fileattr.cpp \
+	fileedit.cpp \
+	filefilter.cpp \
+	filefilterparams.cpp \
+	filelist.cpp \
+	FileMasksProcessor.cpp \
+	FileMasksWithExclude.cpp \
+	fileowner.cpp \
+	filepanels.cpp \
+	filestr.cpp \
+	filetype.cpp \
+	fileview.cpp \
+	findfile.cpp \
+	flink.cpp \
+	flmodes.cpp \
+	flplugin.cpp \
+	flshow.cpp \
+	flupdate.cpp \
+	fnparce.cpp \
+	foldtree.cpp \
+	frame.cpp \
+	gettable.cpp \
+	global.cpp \
+	grabber.cpp \
+	help.cpp \
+	hilight.cpp \
+	history.cpp \
+	hmenu.cpp \
+	hotplug.cpp \
+	infolist.cpp \
+	interf.cpp \
+	iswind.cpp \
+	keybar.cpp \
+	keyboard.cpp \
+	language.cpp \
+	local.cpp \
+	localOEM.cpp \
+	lockscrn.cpp \
+	macro.cpp \
+	main.cpp \
+	manager.cpp \
+	menubar.cpp \
+	message.cpp \
+	mix.cpp \
+	mkdir.cpp \
+	mktemp.c \
+	modal.cpp \
+	namelist.cpp \
+	new.cpp \
+	options.cpp \
+	palette.cpp \
+	panel.cpp \
+	plist.cpp \
+	plognmn.cpp \
+	plugapi.cpp \
+	plugins.cpp \
+	PluginA.cpp \
+	PluginW.cpp \
+	poscache.cpp \
+	print.cpp \
+	qsortex.c \
+	qsort.c \
+	qview.cpp \
+	rdrwdsk.cpp \
+	RefreshFrameManager.cpp \
+	registry.cpp \
+	savefpos.cpp \
+	savescr.cpp \
+	scantree.cpp \
+	scrbuf.cpp \
+	scrobj.cpp \
+	scrsaver.cpp \
+	setattr.cpp \
+	setcolor.cpp \
+	stddlg.cpp \
+	strdup.c \
+	strftime.cpp \
+	strmix.cpp \
+	strncat.c \
+	strncpy.c \
+	syntax.cpp \
+	TPreRedrawFunc.cpp \
+	tvar.cpp \
+	TVMStack.cpp \
+	syslog.cpp \
+	treelist.cpp \
+	udlist.cpp \
+	UnicodeString.cpp \
+	usermenu.cpp \
+	viewer.cpp \
+	vmenu.cpp \
+	xlat.cpp \
+	imports.cpp \
+	hook_wow64.c
+
+OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(filter %.cpp,$(SRCS))) $(patsubst %.c,$(OBJDIR)/%.o,$(filter %.c,$(SRCS))) $(OBJDIR)/far.rc.o
+MAP = $(patsubst %.exe,%.map,$(EXEFULLNAME))
+
+CXX = g++
+CC = gcc
+RM = rm -f
+CP = cp -f
+M4 = m4 -P
+MV = mv -f
+MKDIR = mkdir -p
+WINDRES = windres
+DEFINES = -D FAR_ALPHA_VERSION -D UNICODE -D _UNICODE
+CCFLAGS = -mno-cygwin -pipe -Os $(DEFINES) -funsigned-char -fomit-frame-pointer -fno-exceptions -fno-rtti -Wall -Wno-missing-braces -Wno-unknown-pragmas -Wno-switch
+CFLAGS = -mno-cygwin -pipe -Os $(DEFINES) -funsigned-char -fomit-frame-pointer -fno-exceptions -Wall -Wno-missing-braces -Wno-unknown-pragmas -Wno-switch
+LNKFLAGS = -mno-cygwin -s -lmpr -lwinspool
+
+.PHONY: all
+all: lng depfile
+	@$(MAKE) -f makefile_gcc build
+
+.PHONY: lng
+lng:
+	@echo generating language files
+	@tools/lng.generator.exe -nc -i lang.ini farlang.templ
+	@$(MKDIR) $(EXEDIR)
+	@$(CP) FarEng.lng $(EXEDIR)
+	@$(CP) FarRus.lng $(EXEDIR)
+
+.PHONY: depfile
+depfile:
+	@tools/gawk -f ./scripts/mkdep.awk -v compiler=gcc mkdep.list > $(DEPFILE)
+
+.PHONY: build
+build: $(EXEFULLNAME) $(EXEDIR)/FarEng.hlf $(EXEDIR)/FarRus.hlf
+
+$(EXEFULLNAME): Far.exe.manifest far.rc copyright.inc farversion.inc $(OBJDIR)/headers.hpp.gch/c $(OBJDIR)/headers.hpp.gch/c++ $(OBJS) $(DEF)
+	@echo linking $@
+	@$(MKDIR) $(EXEDIR)
+	@$(CXX) -o $(EXENAME) $(OBJS) $(LNKFLAGS) -Xlinker -Map -Xlinker $(MAP)
+	@$(MV) $(EXENAME) $(EXEDIR)
+
+$(OBJDIR)/%.o: %.c
+	@echo compiling $<
+	@$(MKDIR) $(OBJDIR)
+	@$(CC) $(CFLAGS) -c -include $(OBJDIR)/headers.hpp -o $@ $<
+
+$(OBJDIR)/hook_wow64.o: hook_wow64.c
+	@echo compiling $<
+	@$(MKDIR) $(OBJDIR)
+	@$(CC) $(CFLAGS) -fno-strict-aliasing -c -include $(OBJDIR)/headers.hpp -o $@ $<
+
+$(OBJDIR)/%.o: %.cpp
+	@echo compiling $<
+	@$(MKDIR) $(OBJDIR)
+	@$(CXX) $(CCFLAGS) -c -include $(OBJDIR)/headers.hpp -o $@ $<
+
+$(OBJDIR)/headers.hpp.gch/c: headers.hpp 
+	@echo making precompiled headers for C
+	@$(MKDIR) $(OBJDIR)/headers.hpp.gch 
+	@$(CC) -x c-header -c $(CFLAGS) -o $(OBJDIR)/headers.hpp.gch/c headers.hpp
+
+$(OBJDIR)/headers.hpp.gch/c++: headers.hpp 
+	@echo making precompiled headers for C++
+	@$(MKDIR) $(OBJDIR)/headers.hpp.gch 
+	@$(CXX) -x c++-header -c $(CCFLAGS) -o $(OBJDIR)/headers.hpp.gch/c++ headers.hpp
+
+$(OBJDIR)/far.rc.o: far.rc far.ico
+	@echo compiling resource file
+	@$(MKDIR) $(OBJDIR)
+	@$(WINDRES) -i $< -o $@
+
+Far.exe.manifest: Far.exe.manifest.m4 farversion.m4 vbuild.m4
+	@echo generating $@
+	@tools/m4 -P Far.exe.manifest.m4 > Far.exe.manifest
+
+far.rc: far.rc.m4 farversion.m4 vbuild.m4 res.hpp Far.exe.manifest
+	@echo generating $@
+	@tools/m4 -P far.rc.m4 > far.rc
+
+copyright.inc: copyright.inc.m4 farversion.m4 vbuild.m4
+	@echo generating $@
+	@tools/m4 -P copyright.inc.m4 | tools/gawk -f ./scripts/enc.awk > copyright.inc
+
+farversion.inc: farversion.inc.m4 farversion.m4 vbuild.m4
+	@echo generating $@
+	@tools/m4 -P farversion.inc.m4 > farversion.inc
+
+$(EXEDIR)/FarEng.hlf: FarEng.hlf.m4 farversion.m4 vbuild.m4
+	@echo generating $@
+	@tools/gawk -f ./scripts/mkhlf.awk FarEng.hlf.m4 | tools/m4 -P > $@
+
+$(EXEDIR)/FarRus.hlf: FarRus.hlf.m4 farversion.m4 vbuild.m4
+	@echo generating $@
+	@tools/gawk -f ./scripts/mkhlf.awk FarRus.hlf.m4 | tools/m4 -P > $@
+
+ifeq ($(MAKECMDGOALS),build)
+include $(DEPFILE)
+endif
+
+.PHONY: clean
+clean:
+	@echo cleaning
+	@$(RM) $(OBJS)
+	@$(RM) $(DEPFILE)
+	@$(RM) $(OBJDIR)/headers.hpp.gch/c $(OBJDIR)/headers.hpp.gch/c++
+	@$(RM) $(EXEFULLNAME) $(MAP)
+	@$(RM) Far.exe.manifest far.rc copyright.inc farversion.inc
+	@$(RM) FarEng.lng $(EXEDIR)/FarEng.lng
+	@$(RM) FarRus.lng $(EXEDIR)/FarRus.lng
+	@$(RM) lang.hpp lang.ini
+	@$(RM) $(EXEDIR)/FarEng.hlf
+	@$(RM) $(EXEDIR)/FarRus.hlf
