@@ -94,23 +94,8 @@ public:
 	
 	bool getCurrentPanelItem(PluginPanelItem &item) const
 	{
-		FARWrappers::PanelInfoAuto  pi(this, false);
-
-		if(pi.ItemsNumber > 0 && pi.CurrentItem < pi.ItemsNumber)
-		{
-			item = pi.PanelItems[pi.CurrentItem];
-			return true;
-		} else
-			return false;
-	}
-	std::wstring getCurrentFile() const
-	{
-		FARWrappers::PanelInfoAuto  pi(this, false);
-		if(pi.ItemsNumber > 0 && pi.CurrentItem < pi.ItemsNumber)
-		{
-			return pi.PanelItems[pi.CurrentItem].FindData.lpwszFileName;
-		}
-		return L"";
+		FARWrappers::getCurrentItem(true, item);
+		return true;
 	}
 
 	bool		EditHostDlg(int title, FtpHostPtr& p, bool ToDescription);
@@ -143,12 +128,12 @@ private:
     FTP();
     ~FTP();
 
-	BOOL      FullConnect(FtpHostPtr& host);
+	bool      FullConnect(FtpHostPtr& host);
 
     void      GetOpenPluginInfo(struct OpenPluginInfo *Info);
     int       ProcessCommandLine(wchar_t *CommandLine);
     int       ProcessKey(int Key,unsigned int ControlState);
-    int       ProcessShortcutLine(char *Line);
+    bool      ProcessShortcutLine(const wchar_t *Line);
 
     void      Invalidate(bool clearSelection = false);
 	void      BackToHosts();

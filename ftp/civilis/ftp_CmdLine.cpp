@@ -82,11 +82,11 @@ bool FTP::ExecCmdLineANY(const std::wstring& str, bool Prefix)
 }
 
 /* HOSTS state */
-bool FTP::ExecCmdLineHOST(const std::wstring &str, bool prefix)
+bool FTP::ExecCmdLineHOST(const std::wstring &str, bool /*prefix*/)
 {
 	if(boost::iequals(str, L"EXIT") || boost::iequals(str, L"QUIT"))
 	{
-		FARWrappers::getInfo().Control(this, FCTL_CLOSEPLUGIN, NULL);
+		FARWrappers::getInfo().Control(this, FCTL_CLOSEPLUGIN, 0, NULL);
 		return true;
 	}
 
@@ -166,6 +166,9 @@ bool FTP::DoCommand(const std::wstring& str, int type, DWORD flags)
 			res = getConnection().ProcessCommand(m);
 		}
 		break;
+	default:
+		BOOST_ASSERT(0);
+		return false;
 	}
 
 	if ( (res == Connection::Done && is_flag(flags, FCMD_SHOW_MSG)) ||
@@ -279,15 +282,15 @@ bool FTP::ExecCmdLine(const std::wstring& str, bool wasPrefix)
 		//Unprocessed
 		if(prefix)
 		{
-			FARWrappers::getInfo().Control(this, FCTL_SETCMDLINE, (void*)L"");
+			FARWrappers::getInfo().Control(this, FCTL_SETCMDLINE, 0, reinterpret_cast<LONG_PTR>(L""));
 			FARWrappers::getInfo().ShowHelp(FARWrappers::getModuleName(), L"FTPCommandLineHelp", FHELP_SELFHELP);
 			return true;
 		} else
 			return false;
-	}while(0);
+	}while(false);
 
 	//processed
-	FARWrappers::getInfo().Control(this, FCTL_SETCMDLINE, (void*)L"");
+	FARWrappers::getInfo().Control(this, FCTL_SETCMDLINE, 0, reinterpret_cast<LONG_PTR>(L""));
 
 	if(isConn && (!getConnection().isConnected()))
 		BackToHosts();
@@ -311,7 +314,7 @@ int FTP::ProcessCommandLine(wchar_t *CommandLine)
 	if(cmdLine[0] != L'/')
 		return ExecCmdLine(cmdLine, true);
 
-	if(url.parse(cmdLine))
+	if(url.parse(L"ftp:"+cmdLine))
 		return false;
 
 	//Connect
@@ -374,6 +377,6 @@ int FTP::ProcessCommandLine(wchar_t *CommandLine)
 	FARWrappers::Screen::fullRestore();
 
 	if(UrlName != cmdLine.end() && !ShowHosts)
-		FtpFilePanel_.setSelectedFile(std::wstring(UrlName, cmdLine.end()));
+		FtpFilePanel_.setCurrentFile(std::wstring(UrlName, cmdLine.end()));
 	return true;
 }

@@ -71,7 +71,6 @@ namespace FARWrappers
 
 	int message(const std::vector<std::wstring> &items, int buttonsNumber, DWORD flags, const wchar_t* helpTopic)
 	{
-		time_t startTime = time(NULL);
 		int    rc;
 
 		static size_t lastMsgWidth  = 0;

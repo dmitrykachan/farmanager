@@ -111,6 +111,8 @@ void Menu::select(size_t n)
 {
 	if(selectedItem_ == n)
 		return;
+	if(n >= items_.size() || n < 0)
+		return;
 	if(selectedItem_ != no_selected_items)
 		clr_flag(items_[selectedItem_].Flags, MIF_SELECTED);
 

@@ -104,7 +104,7 @@ Connection::Result Connection::setpeer(const std::wstring& site, const std::wstr
 	{
 		try
 		{
-			nport = htons(boost::lexical_cast<int>(port));
+			nport = htons(boost::lexical_cast<u_short>(port));
 		}
 		catch(boost::bad_lexical_cast &)
 		{
@@ -261,7 +261,7 @@ Connection::Result Connection::nlist(const std::wstring &path)
 /*
  * Send new user information (re-login)
  */
-Connection::Result Connection::user(const std::wstring& usr, const std::wstring& pwd, const std::wstring &accountcmd)
+Connection::Result Connection::user(const std::wstring& usr, const std::wstring& pwd, const std::wstring &/*accountcmd*/)
 {
 	error_code code = login(usr, pwd);
 	if(FTPClient::isCanceled(code))
@@ -375,7 +375,7 @@ Connection::Result Connection::disconnect()
 {
 	if (!isConnected())
 		return Done;
-	Result res = command(g_manager.opt.cmdQuit, true);
+	Result res = command(g_manager.opt.cmdQuit);
 	ftpclient_.close();
 	return res;
 }

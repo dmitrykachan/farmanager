@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "utils/uniconverts.h"
 
 #pragma hdrstop
 
@@ -48,7 +49,7 @@ int FTP::Connect(FtpHostPtr& host)
 	PROC;
 	FARWrappers::Screen scr;
 
-	LogCmd(L"-------- CONNECTING (plugin: " TOUNICODE(__DATE__) L", " TOUNICODE(__TIME__) L") --------",ldInt );
+	LogCmd(this, L"-------- CONNECTING (plugin: " TOUNICODE(__DATE__) L", " TOUNICODE(__TIME__) L") --------", ldInt);
 
 	getConnection().disconnect();
 
@@ -67,7 +68,7 @@ int FTP::Connect(FtpHostPtr& host)
 			//Set start FTP mode
 			ShowHosts			= false;
 			panel_				= &FtpFilePanel_;
-			FARWrappers::getInfo().Control(PANEL_PASSIVE, FCTL_REDRAWPANEL, NULL);
+			FARWrappers::getInfo().Control(PANEL_PASSIVE, FCTL_REDRAWPANEL, 0, 0);
 
 			//Set base directory
 			if(!getConnection().getHost()->url_.directory_.empty())
@@ -82,23 +83,16 @@ int FTP::Connect(FtpHostPtr& host)
 	catch (std::exception &exc)
 	{
 		std::string s = exc.what();
-	}
-/* TODO
-	catch (ConnectionError &e)
-	{
-		BOOST_LOG(ERR, L"!Connected");
-		getConnection().AddCmdLine(e.whatw(), ldRaw);
-		getConnection().ConnectMessage(MCannotConnect, getConnection().getHost()->url_.Host_, true, MOk );
-		IdleMessage( NULL,0 );
+		getConnection().AddCmdLine(Unicode::AsciiToUtf16(s), ldInt);
+		getConnection().ConnectMessage(MCannotConnect, getConnection().getHost()->url_.Host_, true, MOk);
+		IdleMessage(NULL, 0);
 		BackToHosts();
-		
 		return false;
 	}
-*/
 	return true;
 }
 
-BOOL FTP::FullConnect(FtpHostPtr& host)
+bool FTP::FullConnect(FtpHostPtr& host)
 {
 	if(Connect(host))
 	{
@@ -107,18 +101,18 @@ BOOL FTP::FullConnect(FtpHostPtr& host)
 			bool isSaved = FARWrappers::Screen::isSaved();
 
 			FARWrappers::Screen::fullRestore();
-			FARWrappers::getInfo().Control(this,FCTL_SETVIEWMODE, &startViewMode_);
-			FARWrappers::getInfo().Control(this,FCTL_UPDATEPANEL, NULL);
+			FARWrappers::getInfo().Control(this, FCTL_SETVIEWMODE, startViewMode_, 0);
+			FARWrappers::getInfo().Control(this, FCTL_UPDATEPANEL, 0, 0);
 
 			PanelRedrawInfo ri;
 			ri.CurrentItem = ri.TopPanelItem = 0;
-			FARWrappers::getInfo().Control(this,FCTL_REDRAWPANEL,&ri);
+			FARWrappers::getInfo().Control(this,FCTL_REDRAWPANEL, 0, reinterpret_cast<LONG_PTR>(&ri));
 			if(isSaved)
 				FARWrappers::Screen::save();
 
-			return TRUE;
+			return true;
 		}
 	}
 
-	return FALSE;
+	return false;
 }

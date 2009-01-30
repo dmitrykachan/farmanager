@@ -170,7 +170,7 @@ private:
 	std::vector<ItemValue>		info_;
 
 	FarDialogItem& addItem(DialogItemTypes type, int x1, int y1, int x2, int y2, 
-							DWORD flag, ItemValue& info)
+							DWORD flag, const ItemValue& info)
 	{
 		FarDialogItem item;
 		item.Type	= type;

@@ -89,52 +89,59 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 	else
 		Format = L"//" + getConnection().getHost()->url_.Host_ + L"/";
 
-	Format += pi->CurDir + ( *pi->CurDir == '/' || *pi->CurDir == '\\' );
+	Format += pi->CurDir + ( *pi->CurDir == LOC_SLASH || *pi->CurDir == NET_SLASH);
 
 	pi->Format = Format.c_str();
-	//---------------- INFO LINES
-	static struct InfoPanelLine InfoLines[7];
-	
-	memset( InfoLines, 0, sizeof(InfoLines) );
-	//Client
-	Utils::safe_wcscpy(InfoLines[0].Text, getMsg(MFtpInfoFTPClient));
+
+	static InfoPanelLine InfoLines[7];
+	std::memset(&InfoLines, 0, sizeof(InfoLines));
+	InfoLines[0].Text = getMsg(MFtpInfoFTPClient);
 	InfoLines[0].Separator = TRUE;
 
-	Utils::safe_wcscpy(InfoLines[1].Text, getMsg(MFtpInfoHostName));
+	InfoLines[1].Text = getMsg(MFtpInfoHostName);
 	if(!ShowHosts)
-		Utils::safe_wcscpy(InfoLines[1].Data, getConnection().getHost()->url_.toString());
+	{
+		static std::wstring host;
+		host = getConnection().getHost()->url_.toString();
+		InfoLines[1].Data = host.c_str();
+	}
 
-	Utils::safe_wcscpy(InfoLines[2].Text, getMsg(MFtpInfoHostDescr));
+	InfoLines[2].Text = getMsg(MFtpInfoHostDescr);
 	if(!ShowHosts)
-		Utils::safe_wcscpy(InfoLines[2].Data, getConnection().getHost()->hostDescription_);
+	{
+		static std::wstring hostDescription;
+		hostDescription = getConnection().getHost()->hostDescription_;
+		InfoLines[2].Data = hostDescription.c_str();
+	}
 
-	Utils::safe_wcscpy(InfoLines[3].Text, getMsg(MFtpInfoHostType));
+	InfoLines[3].Text = getMsg(MFtpInfoHostType);
 	if(getConnection().isConnected())
 	{
-		Utils::safe_wcscpy(InfoLines[2].Data, getConnection().getSystemInfo());
+		static std::wstring sysInfo;
+		sysInfo = getConnection().getSystemInfo();
+		InfoLines[3].Data = sysInfo.c_str();
 	}
-	else
-		InfoLines[3].Data[0] = 0;
 
 	//Titles
-	Utils::safe_wcscpy(InfoLines[4].Text, getMsg(MFtpInfoFtpTitle));
+	InfoLines[4].Text = getMsg(MFtpInfoFtpTitle);
 	InfoLines[4].Separator = TRUE;
 
-	InfoLines[5].Text[0] = 0;
 	if (getConnection().isConnected())
-		Utils::safe_wcscpy(InfoLines[5].Data, getConnection().GetStartReply());
-	else
-		InfoLines[5].Data[0] = 0;
+	{
+		static std::wstring repl = getConnection().GetStartReply();
+		size_t index = repl.find_first_of(L"\n\r");
+		if(index != std::wstring::npos)
+			repl.resize(index);
+		InfoLines[5].Data = repl.c_str();
+	}
 
-	wchar_t* m = wcspbrk(InfoLines[5].Data, L"\n\r"); if (m) *m = 0;
-
-	Utils::safe_wcscpy(InfoLines[6].Text, getMsg(MResmResume));
+	InfoLines[6].Text = getMsg(MResmResume);
 	if(getConnection().isConnected())
-		Utils::safe_wcscpy(InfoLines[6].Data, getMsg(getConnection().isResumeSupport()? MResmSupport:MResmNotSupport));
+		InfoLines[6].Data = getMsg(getConnection().isResumeSupport()? MResmSupport:MResmNotSupport);
 	else
-		Utils::safe_wcscpy(InfoLines[6].Data, getMsg(MResmNotConnected));
+		InfoLines[6].Data = getMsg(MResmNotConnected);
 
-	pi->InfoLines       = InfoLines;
+	pi->InfoLines = InfoLines;
 	pi->InfoLinesNumber = 7;
 
 	if(!g_manager.opt.ReadDescriptions)
@@ -174,44 +181,26 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 	if(ShowHosts) 
 	{
 		/*
-		HOSTSTS
-		Hostspath
+		HOST: HostsPath
 		*/
 		ShortcutData = L"HOST:" + panel_->getCurrentDirectory();
 	} else {
 		/*
 		FTP
-		Host
-		1
-		AskLogin    + 3
-		AsciiMode   + 3
-		PassiveMode + 3
-		UseFirewall + 3
-		HostTable
-		1
-		User
-		1
-		Password
-		1
-		ExtCmdView + 3
-		IOBuffSize (atoi)
-		1
-		FFDup + '0'
-		1
+		AskLogin+3   AsciiMode+3  PassiveMode+3  ExtCmdView+3  FFDup + 3
+		Host   1   User   1   Password   1  ServerName 1 codePage 1
 		*/
-		ShortcutData = L"FTP:" + getConnection().getHost()->url_.Host_ + 
-			L'\x1' + static_cast<wchar_t>(getConnection().getHost()->AskLogin+3) + 
-					 static_cast<wchar_t>(getConnection().getHost()->AsciiMode+3) +
-					 static_cast<wchar_t>(getConnection().getHost()->PassiveMode+3) +
-					 static_cast<wchar_t>(getConnection().getHost()->UseFirewall+3) +
-					 getConnection().getHost()->serverType_->getName() +
-			L'\x1' + boost::lexical_cast<std::wstring>(getConnection().getHost()->codePage_) +
+		ShortcutData = std::wstring(L"FTP:") +
+			static_cast<wchar_t>(getConnection().getHost()->AskLogin+3) +
+			static_cast<wchar_t>(getConnection().getHost()->AsciiMode+3) +
+			static_cast<wchar_t>(getConnection().getHost()->PassiveMode+3) +
+			static_cast<wchar_t>(getConnection().getHost()->ExtCmdView+3) +
+			static_cast<wchar_t>(getConnection().getHost()->FFDup+3) +
+			getConnection().getHost()->url_.Host_ + 
 			L'\x1' + getConnection().getHost()->url_.username_ +
 			L'\x1' + getConnection().getHost()->url_.password_ +
-			L'\x1' + static_cast<wchar_t>(getConnection().getHost()->ExtCmdView+3) + 
-			         boost::lexical_cast<std::wstring>(getConnection().getHost()->IOBuffSize) +
-			L'\x1' + static_cast<wchar_t>('0'+getConnection().getHost()->FFDup) +
-			L'\x1';
+			L'\x1' + getConnection().getHost()->serverType_->getName() +
+			L'\x1' + boost::lexical_cast<std::wstring>(getConnection().getHost()->codePage_);
 	}
 	pi->ShortcutData = ShortcutData.c_str();
 
@@ -227,19 +216,16 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 			usrLen  = 0,
 			dirLen   = 0,
 			hstLen = 0;
-		FARWrappers::PanelInfoAuto thisPInfo(this, false);
 
-		for(int n = 0; n < thisPInfo.ItemsNumber; n++ )
+		for(size_t n = 1; n <= hostPanel_.hostCount(); n++ )
 		{
-			if(thisPInfo.PanelItems[n].UserData != HostView::ParentDirHostID)
-			{
-				const FtpHostPtr& p = hostPanel_.findhost(thisPInfo.PanelItems[n].UserData);
-				if (!p) continue;
-				descrLen	= std::max(descrLen, p->hostDescription_.size());
-				usrLen		= std::max(usrLen,   p->url_.username_.size());
-				dirLen		= std::max(dirLen,   p->url_.directory_.size());
-				hstLen		= std::max(hstLen,   p->url_.Host_.size());
-			}
+			const FtpHostPtr& p = hostPanel_.findhost(n);
+			if(!p)
+				continue;
+			descrLen	= std::max(descrLen, p->hostDescription_.size());
+			usrLen		= std::max(usrLen,   p->url_.username_.size());
+			dirLen		= std::max(dirLen,   p->url_.directory_.size());
+			hstLen		= std::max(hstLen,   p->url_.Host_.size());
 		}
 		ColumnTitles[0] = const_cast<wchar_t*>(getMsg(MHostColumn));
 
@@ -249,12 +235,15 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 
 		//==2
 		size_t num = 1;
-		size_t n   = (thisPInfo.PanelRect.right-thisPInfo.PanelRect.left)/2;
+
+		PanelInfo info = FARWrappers::getPanelInfo(true);
+
+		size_t n   = (info.PanelRect.right-info.PanelRect.left)/2;
 		size_t columnCount = (usrLen? 1 : 0) + (dirLen? 1 : 0) + (descrLen? 1 : 0);
 		if(columnCount != 0)
 		{
 			size_t sumLen = hstLen + usrLen + dirLen + descrLen + columnCount;
-			size_t panelWidth = thisPInfo.PanelRect.right-thisPInfo.PanelRect.left;
+			size_t panelWidth = info.PanelRect.right-info.PanelRect.left;
 			if(sumLen > panelWidth)
 			{
 				hstLen = std::min(panelWidth/2, hstLen);
@@ -309,7 +298,7 @@ void FTP::GetOpenPluginInfo(struct OpenPluginInfo *pi)
 			PanelModesArray[3].ColumnTypes   = L"C0,Z";
 			PanelModesArray[3].ColumnWidths  = const_cast<wchar_t*>(ModeSz2.c_str());
 			ModeSz2 = boost::lexical_cast<std::wstring>(
-				std::min( static_cast<size_t>(thisPInfo.PanelRect.right-thisPInfo.PanelRect.left)/2,hstLen)
+				std::min( static_cast<size_t>(info.PanelRect.right-info.PanelRect.left)/2,hstLen)
 				) + L",0";
 		}
 		PanelModesArray[3].ColumnTitles  = ColumnTitles2;

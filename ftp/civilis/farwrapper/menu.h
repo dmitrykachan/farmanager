@@ -44,7 +44,7 @@ public:
 	int     getBreakIndex() const;
 
 private:
-	enum { no_selected_items = UINT_MAX, reserveSize = 10 };
+	enum { no_selected_items = INT_MAX, reserveSize = 10 };
 	std::vector<FarMenuItemEx>	items_;
 	const wchar_t**				conststrings_;
 	std::vector<std::wstring>	strings_;

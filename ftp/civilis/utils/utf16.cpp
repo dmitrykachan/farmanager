@@ -14,16 +14,16 @@ namespace utf16
 		return (wc & 0xfffff800) == 0xd800;
 	}
 
-	void pushChar(std::wstring &wstr, wchar_t wc)
+	void pushChar(std::wstring &wstr, char32 wc)
 	{
 		if(wc < 0xFFFF)
 		{
-			wstr.push_back(wc);
+			wstr.push_back(static_cast<wchar_t>(wc));
 		} 
 		else
 		{
-			wstr.push_back((wc >> 10) + 0xd7c0);
-			wstr.push_back((wc & 0x3ff) | 0xdc00);
+			wstr.push_back(static_cast<wchar_t>((wc >> 10) + 0xd7c0));
+			wstr.push_back(static_cast<wchar_t>((wc & 0x3ff) | 0xdc00));
 		}
 	}
 

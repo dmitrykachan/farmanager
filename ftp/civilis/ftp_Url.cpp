@@ -39,7 +39,7 @@ bool PreFill(FTPUrlPtr &p)
 		p->SrcPath == L"ftp://")
 		p->Download = true;
 
-	if(p->Download && p->SrcPath[0] != L'/')
+	if(p->Download && p->SrcPath[0] != NET_SLASH)
 	{
 		p->pHost_->SetHostName(p->SrcPath, L"", L"");
 		p->SrcPath = p->pHost_->url_.directory_;
@@ -51,11 +51,11 @@ bool PreFill(FTPUrlPtr &p)
 
 	if (p->Download)
 	{
-		ch = '/';
+		ch = NET_SLASH;
 	} else 
 	{
 		FixLocalSlash(p->SrcPath);
-		ch = '\\';
+		ch = LOC_SLASH;
 	}
 
 	if(p->fileName_.find_first_of(L"\\/") != std::wstring::npos)

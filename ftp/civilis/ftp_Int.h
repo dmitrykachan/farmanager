@@ -12,8 +12,7 @@ extern int					FP_LastOpMode;
 
 
 //[ftp_FAR.cpp]
-extern FTP     *WINAPI OtherPlugin( FTP *p );
-extern size_t   WINAPI PluginPanelNumber( FTP *p );
+extern FTP     *WINAPI OtherPlugin(FTP *p);
 
 //[ftp_Config.cpp]
 extern int      WINAPI Config( void );
@@ -48,7 +47,7 @@ extern std::wstring Size2Str(__int64 sz);
 extern __int64  Str2Size(std::wstring str);
 extern void     WINAPI QuoteStr(std::wstring &str);
 
-extern void     WINAPI LogCmd(const std::wstring &src,CMDOutputDir out);
+extern void     WINAPI LogCmd(FTP* ftp, const std::wstring &src,CMDOutputDir out);
 extern bool     WINAPI IsCmdLogFile( void );
 extern std::wstring WINAPI GetCmdLogFile();
 
@@ -100,6 +99,7 @@ extern	FTPPluginManager g_manager;
 std::wstring getPathBranch(const std::wstring &s);
 std::wstring getNetPathBranch(const std::wstring &s);
 std::wstring getPathLast(const std::wstring &s);
+std::wstring getNetPathLast(const std::wstring &s);
 void splitFilename(const std::wstring &path, std::wstring &branch, std::wstring &filename, bool local = true);
 
 inline bool IS_SILENT(int v)

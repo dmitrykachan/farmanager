@@ -67,18 +67,13 @@ Connection::Connection()
 
 Connection::~Connection()
 {
-	AbortAllRequest(0);
+	AbortAllRequest();
 }
 
 void Connection::InitData(const boost::shared_ptr<FTPHost> &p)
 {
 	setHost(p);
     CmdVisible = true;
-}
-
-void appendFromOem(std::wstring &output, const char* data, int size, int codePage)
-{
-
 }
 
 void Connection::AddOutput(const char *data, int size)

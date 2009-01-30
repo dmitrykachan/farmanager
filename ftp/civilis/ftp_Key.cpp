@@ -21,27 +21,29 @@ bool FTP::processArrowKeys(int key)
 		default:
 			return false;
 	}
-			
-	FARWrappers::PanelInfoAuto	pi(this, false);
-	FARWrappers::PanelInfoAuto	otherPi(false, true);
+
+	PanelInfo otherInfo = FARWrappers::getPanelInfo(false);
 
 	//Skip self processing for QView work correctly
-	if (otherPi.PanelType == PTYPE_QVIEWPANEL || otherPi.PanelType == PTYPE_TREEPANEL)
+	if (otherInfo.PanelType == PTYPE_QVIEWPANEL || otherInfo.PanelType == PTYPE_TREEPANEL)
 		return false;
 
+	PanelInfo info = FARWrappers::getPanelInfo(true);
 	PanelRedrawInfo	ri;
-	ri.TopPanelItem = pi.TopPanelItem;
+	ri.TopPanelItem = info.TopPanelItem;
 	switch(key)
 	{
-		case   VK_END: ri.CurrentItem = pi.ItemsNumber-1;   break;
-		case  VK_HOME: ri.CurrentItem = 0;                  break;
-		case    VK_UP: ri.CurrentItem = pi.CurrentItem - 1; break;
-		case  VK_DOWN: ri.CurrentItem = pi.CurrentItem + 1; break;
+		case   VK_END: ri.CurrentItem = info.ItemsNumber-1;   break;
+		case  VK_HOME: ri.CurrentItem = 0;                    break;
+		case    VK_UP: ri.CurrentItem = info.CurrentItem - 1; break;
+		case  VK_DOWN: ri.CurrentItem = info.CurrentItem + 1; break;
+		default:
+		return false;
 	}
 
 	//Move cursor
-	if (!(ri.CurrentItem == pi.CurrentItem || ri.CurrentItem < 0 || ri.CurrentItem >= pi.ItemsNumber))
-		FARWrappers::getInfo().Control(this, FCTL_REDRAWPANEL, &ri);
+	if (!(ri.CurrentItem == info.CurrentItem || info.CurrentItem < 0 || info.CurrentItem >= info.ItemsNumber))
+		FARWrappers::getInfo().Control(this, FCTL_REDRAWPANEL, 0, reinterpret_cast<LONG_PTR>(&ri));
 	return true;
 }
 
@@ -130,7 +132,7 @@ int FTP::DisplayUtilsMenu()
 					break;
 				BackToHosts();
 				Invalidate();
-					return true;
+				return true;
 
 			//Dir listing
 			case  2: 
@@ -153,7 +155,7 @@ int FTP::DisplayUtilsMenu()
 					_close(file);
 					FARWrappers::getInfo().Viewer(path.string().c_str(), 
 						(std::wstring(getMsg(MDirTitle)) + L": " + panelTitle_ + L" {" + path.string() + L'}').c_str(),
-						0,0,-1,-1,VF_NONMODAL|VF_DELETEONCLOSE );
+						0,0,-1,-1,VF_NONMODAL|VF_DELETEONCLOSE, CP_AUTODETECT);
 				}
 				return true;
 
@@ -174,7 +176,7 @@ int FTP::DisplayUtilsMenu()
 			// Show LOG
 			case  5: 
 				if(IsCmdLogFile())
-					FARWrappers::getInfo().Viewer(GetCmdLogFile().c_str(), getMsg(MLogTitle),0,0,-1,-1,VF_NONMODAL|VF_ENABLE_F6 );
+					FARWrappers::getInfo().Viewer(GetCmdLogFile().c_str(), getMsg(MLogTitle),0,0,-1,-1,VF_NONMODAL|VF_ENABLE_F6, CP_AUTODETECT);
 				return true;
 
 			// Add\Remove sites list

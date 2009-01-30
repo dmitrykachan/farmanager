@@ -233,8 +233,7 @@ void FTP::AddToQueque(FTPFileInfo& file, const std::wstring& path, bool Download
 		srcpath += file.getFileName();
 	} else
 	{
-		FARWrappers::PanelInfoAuto pi(false, true);
-		srcpath = pi.lpwszCurDir;
+		srcpath = FARWrappers::getCurrentDirectory(false);
 
 		AddEndSlash(srcpath, LOC_SLASH);
 		srcpath += file.getFileName();
@@ -438,7 +437,7 @@ void FTP::ExecuteQueueINT( QueueExecOptions* op )
 				ci.DestPath = Unicode::utf8ToUtf16(p->DestPath.c_str());
 			else
 				GetCurPath( ci.DestPath );
-			AddEndSlash( ci.DestPath, '/' );
+			AddEndSlash( ci.DestPath, NET_SLASH);
 			ci.DestPath += Unicode::utf8ToUtf16(PointToName(p->FileName.cFileName));
 
 			__int64 fsz = FtpFileSize( hConnect, Unicode::utf16ToUtf8(ci.DestPath).c_str());

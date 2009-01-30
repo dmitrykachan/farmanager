@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "progress.h"
 
+#pragma warning( disable : 240)
+#pragma warning( disable : 4100)
+#include "utils/sregexp.h"
+
 #include "ftp_JM.h"
 #include "ftp_Connect.h"
 #include "ftp_Int.h"
@@ -530,7 +534,7 @@ void FTPProgress::formatLine(int num, std::vector<std::wstring> &lines, std::wst
 			{
 			case fCharacter:
 				BOOST_ASSERT(mc.size() == 1);
-				lines[num].push_back(boost::lexical_cast<int>(std::wstring(mc[0].begin(), mc[0].end())));
+				lines[num].push_back(boost::lexical_cast<wchar_t>(std::wstring(mc[0].begin(), mc[0].end())));
 				break;
 			case fRightFiller:
 				BOOST_ASSERT(mc.size() == 1 && mc[0].length() == 1);

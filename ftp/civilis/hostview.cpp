@@ -249,7 +249,7 @@ bool HostView::GetFindData(PluginPanelItem **pPanelItem,int *pItemsNumber, int O
 }
 
 
-bool HostView::SetDirectory(const std::wstring &Dir,int OpMode)
+bool HostView::SetDirectory(const std::wstring &Dir,int /*OpMode*/)
 {
 	PROC;
 	BOOST_ASSERT(plugin_);
@@ -262,7 +262,7 @@ bool HostView::SetDirectory(const std::wstring &Dir,int OpMode)
 		if(oldDir.empty() || oldDir == L"\\")
 		{
 			BOOST_LOG(INF, L"Close plugin");
-			FARWrappers::getInfo().Control(plugin_, FCTL_CLOSEPLUGIN, NULL);
+			FARWrappers::getInfo().Control(plugin_, FCTL_CLOSEPLUGIN, 0, 0);
 			return true;
 		}
 
@@ -277,10 +277,11 @@ bool HostView::SetDirectory(const std::wstring &Dir,int OpMode)
 		BOOST_LOG(INF, L"Set to root");
 		return true;
 	}
-	
-	//Directory
-	setCurrentDirectory(getCurrentDirectory() + L'\\' + Dir);
-	BOOST_LOG(INF, L"InDir");
+
+	if(Dir[0] == L'\\')
+		setCurrentDirectory(Dir);
+	else
+		setCurrentDirectory(getCurrentDirectory() + L'\\' + Dir);
 
 	return true;
 }
@@ -291,7 +292,7 @@ bool InsertHostsCmd(FTP* ftp, bool full)
 	const FtpHostPtr&  p = ftp->getSelectedHost();
 
 	std::wstring m = full? p->url_.toString() : p->url_.Host_;
-	return FARWrappers::getInfo().Control(ftp, FCTL_INSERTCMDLINE, (void*)m.c_str());
+	return FARWrappers::getInfo().Control(ftp, FCTL_INSERTCMDLINE, 0, reinterpret_cast<LONG_PTR>(m.c_str()));
 }
 
 bool HostView::ProcessKey(int Key, unsigned int ControlState)
@@ -367,8 +368,8 @@ bool HostView::ProcessKey(int Key, unsigned int ControlState)
 		p->MkINIFile();
 		if (p->Write())
 		{
-			FARWrappers::getInfo().Control(plugin_,FCTL_UPDATEPANEL,NULL);
-			FARWrappers::getInfo().Control(plugin_,FCTL_REDRAWPANEL,NULL);
+			FARWrappers::getInfo().Control(plugin_, FCTL_UPDATEPANEL, 0, 0);
+			FARWrappers::getInfo().Control(plugin_, FCTL_REDRAWPANEL, 0, 0);
 		}
 
 		return true;
@@ -464,10 +465,10 @@ PanelView::CompareResult HostView::Compare(const PluginPanelItem *i1, const Plug
 	return static_cast<CompareResult>(n);
 }
 
-void HostView::FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber)
+void HostView::FreeFindData(PluginPanelItem *PanelItem, int ItemsNumber)
 {
 	PROC;
-	BOOST_ASSERT(PanelItem == itemList_.items() && ItemsNumber == itemList_.size());
+	BOOST_ASSERT(PanelItem == itemList_.items() && static_cast<size_t>(ItemsNumber) == itemList_.size());
 	itemList_.clear();
 	columndata_.reset();
 }
@@ -739,20 +740,20 @@ bool HostView::ProcessEvent(int Event, void *Param)
 	{
 	case FE_CHANGEVIEWMODE:
 		{
-			FARWrappers::PanelInfoAuto  pi(plugin_, true);
-			BOOST_LOG(INF, L"New ColumnMode " << pi.ViewMode);
-			g_manager.getRegKey().set(L"LastHostsMode", pi.ViewMode);
+			int viewMode = FARWrappers::getPanelInfo().ViewMode;
+			BOOST_LOG(INF, L"New ColumnMode " << viewMode);
+			g_manager.getRegKey().set(L"LastHostsMode", viewMode);
 		}
 		break;
 	case FE_REDRAW:
 		if(!pluginColumnModeSet_)
 		{
 			if(g_manager.opt.PluginColumnMode != -1)
-				FARWrappers::getInfo().Control(plugin_, FCTL_SETVIEWMODE,&g_manager.opt.PluginColumnMode);
+				FARWrappers::getInfo().Control(plugin_, FCTL_SETVIEWMODE, g_manager.opt.PluginColumnMode, 0);
 			else
 			{
 				int num = g_manager.getRegKey().get(L"LastHostsMode", 2);
-				FARWrappers::getInfo().Control(plugin_, FCTL_SETVIEWMODE, &num);
+				FARWrappers::getInfo().Control(plugin_, FCTL_SETVIEWMODE, num, 0);
 			}
 			pluginColumnModeSet_ = true;
 		}
@@ -767,9 +768,8 @@ bool HostView::ProcessEvent(int Event, void *Param)
 
 	case FE_CLOSE:
 		{
-			FARWrappers::PanelInfoAuto  pi(plugin_, true);
 			BOOST_LOG(INF, L"Close notify");
-			g_manager.getRegKey().set(L"LastHostsMode", pi.ViewMode);
+			g_manager.getRegKey().set(L"LastHostsMode", FARWrappers::getPanelInfo().ViewMode);
 		}
 		break;
 
@@ -784,7 +784,7 @@ bool HostView::ProcessEvent(int Event, void *Param)
 	return false;
 }
 
-const std::wstring HostView::getCurrentDirectory() const
+const std::wstring& HostView::getCurrentDirectory() const
 {
 	return hostsPath_;
 }
@@ -797,16 +797,17 @@ void HostView::setCurrentDirectory(const std::wstring& dir)
 
 void HostView::selectPanelItem(const std::wstring &item) const
 {
-	FARWrappers::PanelInfoAuto pi(plugin_, false);
-
-	for(int n = 0; n < pi.ItemsNumber; n++)
+	PanelInfo info = FARWrappers::getPanelInfo();
+	FARWrappers::PanelItem it(true);
+	for(int n = 0; n < info.ItemsNumber; n++)
 	{
-		if(item == pi.PanelItems[n].FindData.lpwszFileName)
+		it.getPanelItem(n);
+		if(item == it.get().FindData.lpwszFileName)
 		{
 			PanelRedrawInfo pri;
 			pri.CurrentItem  = n;
-			pri.TopPanelItem = pi.TopPanelItem;
-			FARWrappers::getInfo().Control(plugin_, FCTL_REDRAWPANEL, &pri);
+			pri.TopPanelItem = info.TopPanelItem;
+			FARWrappers::getInfo().Control(plugin_, FCTL_REDRAWPANEL, 0, reinterpret_cast<LONG_PTR>(&pri));
 			return;
 		}
 	}

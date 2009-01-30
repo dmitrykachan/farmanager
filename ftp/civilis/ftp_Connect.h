@@ -81,7 +81,7 @@ public:
     void		AddOutput(const char *data, int size);
 
 	std::wstring getSystemInfo();
-	__int64		fileSize(const std::wstring &filename);
+	Connection::Result fileSize(const std::wstring &filename, __int64 &size);
 
 	void		setBreakable(bool value);
 	bool		getBreakable();
@@ -189,7 +189,7 @@ private:
 									const std::wstring &title, const std::wstring &bottom, 
 									bool showcmds, bool error,
 									int button1 = MNone__, int button2 = MNone__, int button3 = MNone__);
-	Result			commandOem(const std::string &str, bool isQuit = false);
+	Result			commandOem(const std::string &str);
 
   public:
     Connection();
@@ -198,11 +198,11 @@ private:
     void           InitData(const boost::shared_ptr<FTPHost> &p);
     void           InitCmdBuff();
 	Result			Init(FTP* ftp);
-	Result			command(const std::wstring &str, bool isQuit = false);
+	Result			command(const std::wstring &str);
 
 	Result			ProcessCommand(const std::wstring& line);
     void           CheckResume( void );
-    void           AbortAllRequest(int brkFlag);
+    void           AbortAllRequest();
 
 	std::wstring	GetStartReply() const		{ return startReply_; }
 

@@ -59,10 +59,7 @@ public:
 		return connected_;
 	}
 
-	void sendAbort()
-	{
-		// TODO
-	}
+	void sendAbort();
 
 	static bool isComplete(const error_code& code)
 	{

@@ -54,7 +54,6 @@ struct FTPHost: public boost::noncopyable
 	BOOL    FFDup;                         // Duplicate FF char on string sent to server
 	BOOL    UndupFF;                       // Remove FF duplicate from PWD
 	BOOL    SendAllo;                      // Send allo before upload
-	BOOL    UseStartSpaces;					// TODO should be used // Ignore spaces from start of file name
 
 	FTPUrl_			url_;
 	bool			Folder;

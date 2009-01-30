@@ -35,8 +35,8 @@ void copy(FAR_FIND_DATA& f, const WIN32_FIND_DATAW &w)
 
 void FTP::Invalidate(bool clearSelection)
 {
-	FARWrappers::getInfo().Control(this, FCTL_UPDATEPANEL, reinterpret_cast<void*>(clearSelection));
-	FARWrappers::getInfo().Control(this, FCTL_REDRAWPANEL, NULL);
+	FARWrappers::getInfo().Control(this, FCTL_UPDATEPANEL, clearSelection, 0);
+	FARWrappers::getInfo().Control(this, FCTL_REDRAWPANEL, 0, 0);
 }
 
 void FTP::BackToHosts()
@@ -48,5 +48,5 @@ void FTP::BackToHosts()
 
 	hostPanel_.setSelectedHost(getConnection().getHost()->getIniFilename());
 
-    FARWrappers::getInfo().Control(this, FCTL_SETVIEWMODE, &num);
+    FARWrappers::getInfo().Control(this, FCTL_SETVIEWMODE, num, 0);
 }

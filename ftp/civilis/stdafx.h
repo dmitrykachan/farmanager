@@ -35,7 +35,7 @@
 #include <boost/test/auto_unit_test.hpp>
 #endif
 
-
+#define BOOST_LEXICAL_CAST_ASSUME_C_LOCALE
 #include <boost/assert.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/numeric/conversion/cast.hpp>
@@ -88,7 +88,6 @@
 #include <shlwapi.h>
 
 #include "utils/winwrapper.h"
-#include "utils/sregexp.h"
 #include "utils/regkey.h"
 
 #include "farwrapper/info.h"

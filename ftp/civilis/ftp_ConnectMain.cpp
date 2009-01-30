@@ -10,7 +10,7 @@ void Connection::lostpeer()
 {
 	if(isConnected())
 	{
-		AbortAllRequest(FALSE);
+		AbortAllRequest();
 	}
 }
 
@@ -28,7 +28,6 @@ static void parseCommandLine(const std::wstring &line, std::vector<std::wstring>
 	{
 		Normal, InQuote, Screen
 	} state = Normal;
-	bool inQuote = false;
 	while(itr != line.end())
 	{
 		token = L"";
@@ -99,40 +98,34 @@ BOOST_AUTO_TEST_CASE(TestParseCommandLine)
 
 Connection::Result Connection::ProcessCommand(const std::wstring &line)
 {  
-	Result res = Error;
+	ResetOutput();
+	std::vector<std::wstring> vec;
+	parseCommandLine(line, vec);
 
-	do
+	if(vec.empty()) 
 	{
-		ResetOutput();
-		std::vector<std::wstring> vec;
-		parseCommandLine(line, vec);
+		AddCmdLine(L"Incorrect parameters", ldInt);
+		return Error;
+	}
 
-		if(vec.empty()) 
-		{
-			SetLastError( ERROR_INVALID_PARAMETER );
-			break;
-		}
+	Command cmd;
+	if(!commandsList_->find(vec[0], cmd))
+	{
+		BOOST_LOG(INF, L"!cmd");
+		AddCmdLine(L"Unknown command", ldInt);
+		return Error;
+	}
 
-		Command cmd;
-		if(!commandsList_->find(vec[0], cmd))
-		{
-			BOOST_LOG(INF, L"!cmd");
-			SetLastError( ERROR_INVALID_PARAMETER );
-			break;
-		}
+	if(cmd.getMustConnect() && !isConnected())
+	{
+		BOOST_LOG(INF, L"!connected");
+		AddCmdLine(L"This command is valid when the connection is active", ldInt);
+		return Error;
+	}
 
-		if(cmd.getMustConnect() && !isConnected())
-		{
-			BOOST_LOG(INF, L"!connected");
-			//TODO SetLastError(ERROR_INTERNET_CONNECTION_ABORTED);
-			break;
-		}
-
-		brk_flag  = FALSE;
-//		code      = 0;
-		res = cmd.execute(*this, vec);
-
-	}while( 0 );
+	brk_flag  = FALSE;
+	
+	Result res = cmd.execute(*this, vec);
 
 	brk_flag = FALSE;
 

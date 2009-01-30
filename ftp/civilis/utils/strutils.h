@@ -90,7 +90,6 @@ static std::wstring FDigit(__int64 val, wchar_t delimiter = 0)
 		if(delimiter && i != 0 && i % 3 == 0)
 			--n;
 		str[n] = static_cast<wchar_t>(val % 10) + L'0';
-		int d = val % 10;
 		val /= 10;
 
 		++i;

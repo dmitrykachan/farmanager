@@ -120,19 +120,19 @@ namespace utf8
 			str.push_back(static_cast<unsigned char>(c));
 			break;
 		case 2:
-			str.push_back((c >> 6)   | 0xc0);
-			str.push_back((c & 0x3F) | 0x80);
+			str.push_back(static_cast<unsigned char>((c >> 6)   | 0xc0));
+			str.push_back(static_cast<unsigned char>((c & 0x3F) | 0x80));
 			break;
 		case 3:
-			str.push_back( (c >> 12)         | 0xe0);
-			str.push_back(((c >>  6) & 0x3F) | 0x80);
-			str.push_back( (c & 0x3F)        | 0x80);
+			str.push_back(static_cast<unsigned char>( (c >> 12)         | 0xe0));
+			str.push_back(static_cast<unsigned char>(((c >>  6) & 0x3F) | 0x80));
+			str.push_back(static_cast<unsigned char>( (c & 0x3F)        | 0x80));
 			break;
 		case 4:
-			str.push_back( (c >> 18)         | 0xf0);
-			str.push_back(((c >> 12) & 0x3F) | 0x80);
-			str.push_back(((c >>  6) & 0x3F) | 0x80);
-			str.push_back( (c & 0x3F)        | 0x80);
+			str.push_back(static_cast<unsigned char>( (c >> 18)         | 0xf0));
+			str.push_back(static_cast<unsigned char>(((c >> 12) & 0x3F) | 0x80));
+			str.push_back(static_cast<unsigned char>(((c >>  6) & 0x3F) | 0x80));
+			str.push_back(static_cast<unsigned char>((c & 0x3F)        | 0x80));
 			break;
 		}
 	}
@@ -148,7 +148,7 @@ namespace utf8
 		{
 			if(itr == itr_end)
 				return 0;
-			size_t count = charLength(c);
+			size_t count = charLength(static_cast<char>(c));
 
 			c &= (1 << (7-count))-1; // mask the lead byte
 

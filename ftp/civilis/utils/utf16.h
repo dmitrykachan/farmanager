@@ -9,7 +9,7 @@ namespace Unicode
 	{
 		char32 nextChar(std::wstring::const_iterator& itr, const std::wstring::const_iterator itr_end);
 		char32 nextChar(const wchar_t* (&str));
-		void pushChar(std::wstring &wstr, wchar_t wc);
+		void pushChar(std::wstring &wstr, char32 wc);
 	}
 }
 

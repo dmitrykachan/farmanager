@@ -66,10 +66,10 @@ public:
 		else
 			FileTimeToSystemTime(this, &st);
 
-		st.wHour = hours;
-		st.wMinute = minutes;
-		st.wSecond = seconds;
-		st.wMilliseconds = milliseconds;
+		st.wHour = static_cast<WORD>(hours);
+		st.wMinute = static_cast<WORD>(minutes);
+		st.wSecond = static_cast<WORD>(seconds);
+		st.wMilliseconds = static_cast<WORD>(milliseconds);
 		return SystemTimeToFileTime(&st, this) != 0;
 	}
 
@@ -80,9 +80,9 @@ public:
 			st = getCurrentSystemTime();
 		else
 			FileTimeToSystemTime(this, &st);
-		st.wDay = day;
-		st.wMonth = month;
-		st.wYear = year;
+		st.wDay = static_cast<WORD>(day);
+		st.wMonth = static_cast<WORD>(month);
+		st.wYear = static_cast<WORD>(year);
 		check(SystemTimeToFileTime(&st, this) != false, "date is incorrect");
 	}
 
@@ -125,7 +125,7 @@ public:
 	}
 };
 
-inline std::wostream& operator<<(std::wostream& os, FileTime& ft)
+inline std::wostream& operator<<(std::wostream& os, const FileTime& ft)
 {
 	SYSTEMTIME st;
 	st = ft.getSystemTime();

@@ -10,38 +10,152 @@ namespace FARWrappers
 	const wchar_t*		getModuleName();
 	const wchar_t*		getMsg(int msgId);
 
-	struct PanelInfoAuto: public PanelInfo
+	static void getCurrentItem(bool currentPanel, PluginPanelItem &item)
 	{
-		PanelInfoAuto(bool currentPanel, bool shortinfo)
+		HANDLE plugin = currentPanel? PANEL_ACTIVE : PANEL_PASSIVE;
+		if(getInfo().Control(plugin, FCTL_GETCURRENTPANELITEM, 0, reinterpret_cast<LONG_PTR>(&item)) == 0)
+			throw std::runtime_error("FCTL_GETCURRENTPANELITEM failed");
+	}
+
+	static PanelInfo getPanelInfo(bool currentPanel = true)
+	{
+		HANDLE plugin = currentPanel? PANEL_ACTIVE : PANEL_PASSIVE;
+		PanelInfo info;
+		if(getInfo().Control(plugin, FCTL_GETPANELINFO, 0, reinterpret_cast<LONG_PTR>(&info)) == 0)
+			throw std::runtime_error("FCTL_GETCURRENTPANELITEM failed");
+		return info;
+	}
+
+	static std::wstring getCurrentDirectory(bool currentPanel = true)
+	{
+		HANDLE plugin = currentPanel? PANEL_ACTIVE : PANEL_PASSIVE;
+		int size = getInfo().Control(plugin, FCTL_GETCURRENTDIRECTORY, 0, 0);
+		if(size == 0)
+			return L"";
+		boost::scoped_array<wchar_t> buffer(new wchar_t[size]);
+		getInfo().Control(plugin, FCTL_GETCURRENTDIRECTORY, 0, reinterpret_cast<LONG_PTR>(buffer.get()));
+		return std::wstring(buffer.get());
+	}
+
+
+	class PanelItem
+	{
+	private:
+		PluginPanelItem item_;
+		bool			initialazed_;
+		HANDLE			plugin_;
+
+		void free()
+		{
+			if(initialazed_)
+			{
+				int res = getInfo().Control(plugin_, FCTL_FREEPANELITEM, 0, reinterpret_cast<LONG_PTR>(&item_));
+				BOOST_ASSERT(res != 0);
+				initialazed_ = false;
+			}
+		}
+
+	public:
+		PanelItem(size_t n, bool currentPanel = true)  // get panel item n
 		{
 			plugin_ = currentPanel? PANEL_ACTIVE : PANEL_PASSIVE;
-			getPanelInfo(shortinfo);
+			getPanelItem(n);
 		}
 
-		PanelInfoAuto(HANDLE plugin, bool shortinfo)
+		PanelItem(bool currentPanel = true)
 		{
-			plugin_ = plugin;
-			getPanelInfo(shortinfo);
+			plugin_ = currentPanel? PANEL_ACTIVE : PANEL_PASSIVE;
+			initialazed_ = false;
 		}
 
-		~PanelInfoAuto()
+		void getPanelItem(size_t n)
 		{
-			freePanelInfo();
+			free();
+			if(getInfo().Control(plugin_, FCTL_GETPANELITEM, n, reinterpret_cast<LONG_PTR>(&item_)) == 0)
+				throw std::runtime_error("FCTL_GETPANELITEM failed");
+			initialazed_ = true;
 		}
 
+		void getSelectedPanelItem(size_t n)
+		{
+			free();
+			if(getInfo().Control(plugin_, FCTL_GETSELECTEDPANELITEM, n, reinterpret_cast<LONG_PTR>(&item_)) == 0)
+				throw std::runtime_error("FCTL_GETSELECTEDPANELITEM failed");
+			initialazed_ = true;
+		}
+
+		void getCurrentPanelItem(size_t n)
+		{
+			free();
+			if(getInfo().Control(plugin_, FCTL_GETCURRENTPANELITEM , n, reinterpret_cast<LONG_PTR>(&item_)) == 0)
+				throw std::runtime_error("FCTL_GETCURRENTPANELITEM failed");
+			initialazed_ = true;
+		}
+
+		const PluginPanelItem& get() const
+		{
+			if(!initialazed_)
+			{
+				BOOST_ASSERT(0 && "PanelItem doesn't initialized");
+				throw std::runtime_error("PanelItem doesn't initialized");
+			}
+			return item_;
+		}
+
+		~PanelItem()
+		{
+			free();
+		}
+	};
+
+	class PanelItemEnum
+	{
 	private:
-		HANDLE	plugin_;
+		PluginPanelItem item_;
+		int				size_;
+		int				current_;
+		bool			selected_;
+		HANDLE			plugin_;
 
-		void freePanelInfo()
+		void free()
 		{
-			getInfo().Control(plugin_, FCTL_FREEPANELINFO, this);
+			if(current_ != 0)
+			{
+				int res = getInfo().Control(plugin_, FCTL_FREEPANELITEM, 0, reinterpret_cast<LONG_PTR>(&item_));
+				BOOST_ASSERT(res != 0);
+			}
 		}
-		void getPanelInfo(bool shortInfo)
+
+	public:
+		PanelItemEnum(bool currentPanel, bool selected)
+			: plugin_(currentPanel? PANEL_ACTIVE : PANEL_PASSIVE), 
+			  selected_(selected), current_(0)
 		{
-			int command = shortInfo? FCTL_GETPANELSHORTINFO : FCTL_GETPANELINFO;
-			if(getInfo().Control(plugin_, command, this) == 0)
-				throw std::runtime_error("FCTL_GETPANELINFO failed");
+			size_ = getPanelInfo(plugin_).ItemsNumber;
 		}
+
+		bool hasNext()
+		{
+			return current_ < size_;
+		}
+
+		const PluginPanelItem& getNext()
+		{
+			free();
+			if(selected_)
+			{
+				if(getInfo().Control(plugin_, FCTL_GETSELECTEDPANELITEM, current_, reinterpret_cast<LONG_PTR>(&item_)) == false)
+					throw std::runtime_error("FCTL_GETSELECTEDPANELITEM failed");
+			}
+			else
+			{
+				if(getInfo().Control(plugin_, FCTL_GETPANELITEM, current_, reinterpret_cast<LONG_PTR>(&item_)) == false)
+					throw std::runtime_error("FCTL_GETPANELITEM failed");
+			}
+			++current_;
+			return item_;
+		}
+
 	};
 }
 

@@ -4,13 +4,15 @@
 /* The following defines are from ftp.h and telnet.h from bsd.h */
 /* All relevent copyrights below apply.                         */
 
-const char cffIAC	= '\xff';	// 255
-const char cffDONT	= '\xfe';	// 254
-const char cffDO	= '\xfd';	// 253
-const char cffWONT  = '\xfc';	// 252
-const char cffWILL  = '\xfb';	// 251
-const char cffIP	= '\xf4';	// 244
-const char cffDM	= '\xf2';	// 242
+const char cIAC	= '\xff';	// "Interpret as Command" 255
+const char cDONT= '\xfe';	// "Indicates the demand that the other party stop performing,
+							// or confirmation that you are no longer expecting the other party
+							// to perform, the indicated option." 254
+const char cDO	= '\xfd';	// 253
+const char cWONT= '\xfc';	// 252
+const char cWILL= '\xfb';	// 251
+const char cIP	= '\xf4';	// "Interrupt Process" 244
+const char cDM	= '\xf2';	// "data marker "242
 
 enum FTP_RESULT
 {

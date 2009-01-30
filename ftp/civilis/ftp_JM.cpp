@@ -76,13 +76,22 @@ std::wstring WINAPI GetCmdLogFile()
 	str += g_manager.opt.CmdLogFile;
 	return str;
 }
+
+static size_t PluginPanelNumber(FTP *p)
+{
+	if(p)
+		return g_manager.getPlugin(p)+1;
+	else
+		return 0;
+}
+
 /*
    Writes one string to log file
 
    Start from end if file at open bigger then limit size
    `out` is a direction of string (server, plugin, internal)
 */
-void WINAPI LogCmd(const std::wstring &src, CMDOutputDir out)
+void WINAPI LogCmd(FTP* ftp, const std::wstring &src, CMDOutputDir out)
 {
 	static HANDLE LogFile = NULL;
 	//File opened and fail
@@ -114,7 +123,8 @@ void WINAPI LogCmd(const std::wstring &src, CMDOutputDir out)
 	//-- RAW
 	if(out == ldRaw)
 	{
-		//TODO Write PluginNumber
+		std::wstring pluginNumber = boost::lexical_cast<std::wstring>(PluginPanelNumber(ftp));
+		Fwrite(LogFile, pluginNumber.c_str(), pluginNumber.size());
 		if (src.find_first_of(L"\n\r") != std::wstring::npos)
 		{
 			Fwrite(LogFile, L"--- RAW ---\r\n", 13*sizeof(wchar_t));
@@ -132,10 +142,10 @@ void WINAPI LogCmd(const std::wstring &src, CMDOutputDir out)
 	std::wstring ws = src;
 	while(!ws.empty())
 	{
-		//TODO Write PluginNumber
 		//Time
 		std::wstringstream stream;
 		stream << std::setfill(L'0') 
+			<< PluginPanelNumber(ftp) << L' '
 			<< std::setw(4) << st.wYear << L'.'
 			<< std::setw(2) << st.wMonth << L'.'
 			<< std::setw(2) << st.wDay << L' '
@@ -244,7 +254,7 @@ void Connection::AddCmdLine(const std::wstring &str, CMDOutputDir direction)
 		cmdBuff_.erase(cmdBuff_.begin(), cmdBuff_.begin() + (cmdBuff_.size()-cmdSize+1));
 
 	//Add new line
-	LogCmd(buff, direction);
+	LogCmd(getPlugin(), buff, direction);
 
 	pushCmdLine(buff, direction);
 	//Remove overflow lines
@@ -270,14 +280,10 @@ void Connection::AddCmdLineOem(const std::string& src, CMDOutputDir direction)
 {
 	std::wstring str;
 
-	char ffIacIp[] = {cffIAC, cffIP, 0};
-	if(boost::starts_with(src, ffIacIp))
-		str = L"<IP>";
+	if(!src.empty() && src[0] == cDM && src.find("ABOR", 1, 4) != std::string::npos)
+		str = L"<ABORT>";
 	else
-		if(!src.empty() && src[0] == cffDM && src.find("ABOR", 1, 4) != std::string::npos)
-			str = L"<ABORT>";
-		else
-			str = FromOEM(src);
+		str = FromOEM(src);
 
 	AddCmdLine(str, direction);
 }
