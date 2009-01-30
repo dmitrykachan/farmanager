@@ -34,10 +34,6 @@ FTP *WINAPI OtherPlugin( FTP *p )
 	return g_manager.getPlugin(1-n);
 }
 
-size_t WINAPI PluginPanelNumber( FTP *p )
-{
-	return g_manager.getPlugin(p)+1;
-}
 
 
 class FPOpMode
@@ -89,8 +85,6 @@ FTP* FTPPluginManager::getPlugin(size_t n)
 void FTPPluginManager::removePlugin(FTP *ftp)
 {
 	size_t i = getPlugin(ftp);
-
-	// TODO WTF: move 2.
 
 	const wchar_t* rejectReason;
 	if(FTP::backups_.find(ftp))
@@ -163,7 +157,7 @@ void WINAPI SetStartupInfoW(const struct PluginStartupInfo *Info)
 
 	g_manager.openRegKey(std::wstring(Info->RootKey) + L'\\' + L"ftp_debug");
 	g_manager.readCfg();
-	LogCmd(L"FTP plugin loaded", ldInt);
+	LogCmd(0, L"FTP plugin loaded", ldInt);
 }
 
 void WINAPI GetPluginInfoW(struct PluginInfo *Info)
@@ -258,7 +252,7 @@ int WINAPI ConfigureW(int ItemNumber)
 	return Config();
 }
 
-HANDLE WINAPI OpenPluginW(int OpenFrom,INT_PTR Item)
+HANDLE WINAPI OpenPluginW(int OpenFrom, INT_PTR Item)
 {  
 	PROCP(OpenFrom << L"," << static_cast<int>(Item));
 	FTP *Ftp;
@@ -275,26 +269,27 @@ HANDLE WINAPI OpenPluginW(int OpenFrom,INT_PTR Item)
 
 	Ftp->Call();
 	BOOST_LOG(INF, L"FTP handle: " << Ftp);
-	do{
-		if (OpenFrom==OPEN_SHORTCUT)
-		{
-			if (!Ftp->ProcessShortcutLine((char *)Item))
-				break;
-			Ftp->End();
-		} else
-			if (OpenFrom==OPEN_COMMANDLINE)
-			{
-				if (!Ftp->ProcessCommandLine(reinterpret_cast<wchar_t*>(Item)))
-					break;
-			}
 
-		Ftp->End();
-		return (HANDLE)Ftp;
-	}while(0);
+	bool res = true;
+	switch(OpenFrom)
+	{
+	case OPEN_SHORTCUT:
+		res = Ftp->ProcessShortcutLine(reinterpret_cast<const wchar_t*>(Item));
+		break;
+	case OPEN_COMMANDLINE:
+		res = Ftp->ProcessCommandLine(reinterpret_cast<wchar_t*>(Item));
+	    break;
+	}
+	Ftp->End();
 
-	g_manager.removePlugin(Ftp);
-
-	return INVALID_HANDLE_VALUE;
+	if(res)
+	{
+		return static_cast<HANDLE>(Ftp);
+	} else
+	{
+		g_manager.removePlugin(Ftp);
+		return INVALID_HANDLE_VALUE;
+	}
 }
 
 void WINAPI ClosePluginW(HANDLE hPlugin)
@@ -340,7 +335,7 @@ void WINAPI GetOpenPluginInfoW(HANDLE hPlugin,struct OpenPluginInfo *Info)
 
 int WINAPI GetMinFarVersionW(void)
 {
-	return MAKEFARVERSION(1,80,560);
+	return MAKEFARVERSION(2,0,757);
 }
 
 
@@ -402,7 +397,8 @@ int WINAPI MakeDirectoryW(HANDLE hPlugin, const wchar_t** name,int OpMode)
 	FTP*     p = (FTP*)hPlugin;
 
 	p->Call();
-	int rc = p->panel_->MakeDirectory(std::wstring(*name), OpMode);
+	std::wstring s(*name);
+	int rc = p->panel_->MakeDirectory(s, OpMode);
 	p->End(rc);
 
 	return rc;
@@ -441,7 +437,7 @@ int WINAPI CompareW( HANDLE hPlugin,const PluginPanelItem *i,const PluginPanelIt
 
 } // extern c
 
-BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID ptr )
+BOOL WINAPI DllMain( HINSTANCE /*hinst*/, DWORD reason, LPVOID /*ptr*/ )
 {
 	if(reason == DLL_PROCESS_ATTACH)
 	{

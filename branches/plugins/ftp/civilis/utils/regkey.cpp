@@ -383,7 +383,7 @@ bool RegKey::isSubKeyExists(const wchar_t* name) const
 	LONG lRes = ::RegOpenKeyExW(hKey_, name, 0, KEY_READ, &h);
 	if(lRes == ERROR_SUCCESS)
 	{
-		LONG lRes = ::RegCloseKey(h);
+		::RegCloseKey(h);
 		return true;
 	} else
 		return false;

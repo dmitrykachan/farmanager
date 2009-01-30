@@ -36,6 +36,7 @@ void WINAPI QuoteStr(std::wstring& str)
 		++itr;
 		itr = str.insert(itr, L'\"');
 	}
+	str.push_back(L'\"');
 }
 
 enum
@@ -101,9 +102,7 @@ bool WINAPI FRealFile(const std::wstring &filename, FTPFileInfo& fd)
 		fd.clear();
 		fd.setFileName(filename);
 		fd.setWindowsAttribute(GetFileAttributesW(filename.c_str()));
-		DWORD highFileSize;
-		DWORD lowFileSize = GetFileSize(f, &highFileSize);
-		fd.setFileSize(lowFileSize | (static_cast<__int64>(highFileSize) << 32));
+		fd.setFileSize(Fsize(f));
 
 		FILETIME creationTime, lastAccess, lastWrite;
 		GetFileTime(f, &creationTime, &lastAccess, &lastWrite);
@@ -330,6 +329,15 @@ std::wstring getPathLast(const std::wstring &s)
 {
 	size_t n = s.rfind(LOC_SLASH);
 	if(n == std::wstring::npos || n == 0)
+		return s;
+	else
+		return std::wstring(s.begin()+n+1, s.end());
+}
+
+std::wstring getNetPathLast(const std::wstring &s)
+{
+	size_t n = s.rfind(NET_SLASH);
+	if(n == std::wstring::npos)
 		return s;
 	else
 		return std::wstring(s.begin()+n+1, s.end());

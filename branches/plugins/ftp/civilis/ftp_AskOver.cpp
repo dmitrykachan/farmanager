@@ -16,7 +16,8 @@ static std::wstring MkFileInfo(const wchar_t* title, const FTPFileInfo& p)
 	ws << std::setw(14) << std::setiosflags(std::ios::right) << p.getFileSize() << L' ';
 
 	//Time
-	FileTimeToSystemTime(&p.getLastWriteTime(), &tm);
+	WinAPI::FileTime ft = p.getLastWriteTime();
+	FileTimeToSystemTime(&ft, &tm);
 	ws	<< std::setfill(L'0') << std::setw(2) << tm.wDay << L'.'
 		<< std::setw(2) << tm.wMonth  << L'.'
 		<< std::setw(4) << tm.wYear   << L'.'

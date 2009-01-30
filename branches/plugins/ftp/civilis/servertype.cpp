@@ -186,7 +186,7 @@ public:
 	virtual void			parseListingEntry(const_iterator itr, 
 		const const_iterator &itr_end,
 		FTPFileInfo& fileinfo) const;
-	virtual bool			acceptServerInfo(const std::wstring &str) const
+	virtual bool			acceptServerInfo(const std::wstring &/*str*/) const
 	{
 		return false;
 	}
@@ -287,9 +287,9 @@ public:
 			throw std::exception("parser for this entry is not found");
 		}
 	}
-	virtual bool			acceptServerInfo(const std::wstring &str) const
+	virtual bool			acceptServerInfo(const std::wstring &/*str*/) const
 	{
-		BOOST_ASSERT(false && "this method should not be called");
+		BOOST_ASSERT(false && "acceptServerInfo is not realized for AutodetectServer");
 		return false;
 	}
 	virtual ServerTypePtr clone() const
@@ -977,7 +977,6 @@ void parseListing(const std::wstring &listing, boost::shared_ptr<ServerType> pSe
 		if(entry.first == entry.second)
 			break;
 
-		bool res = false;
 		try
 		{
 			fileinfo.clear();
@@ -1025,8 +1024,6 @@ ServerTypePtr ServerList::create(const std::wstring &name)
 
 bool ServerList::isAutodetect(const ServerTypePtr& server)
 {
-	const type_info& t1 = typeid(*server.get());
-	const type_info& t2 = typeid(AutodetectServer);
 	return typeid(*server.get()) == typeid(AutodetectServer);
 }
 
@@ -1037,11 +1034,11 @@ ServerTypePtr ServerList::autodetect(const std::wstring &serverInfo)
 	while(itr != list.end())
 	{
 		// skip autodetect
-		if(typeid(itr->get()) == typeid(AutodetectServer))
-			continue;
-
-		if((*itr)->acceptServerInfo(serverInfo))
-			return (*itr)->clone();
+		if(typeid(itr->get()) != typeid(AutodetectServer))
+		{
+			if((*itr)->acceptServerInfo(serverInfo))
+				return (*itr)->clone();
+		}
 		++itr;
 	}
 	return boost::shared_ptr<ServerType>(new AutodetectServer());

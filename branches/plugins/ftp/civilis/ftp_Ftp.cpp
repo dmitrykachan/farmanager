@@ -18,15 +18,14 @@ FTP::FTP()
 
 	hostPanel_.setCurrentDirectory(g_manager.getRegKey().get(L"LastHostsPath", L""));
 
-	FARWrappers::PanelInfoAuto  pi(true, true);
-	startViewMode_		= pi.ViewMode;
+	startViewMode_		= FARWrappers::getPanelInfo().ViewMode;
 }
 
 FTP::~FTP()
 {
 	LongBeepEnd(true);
 
-	FARWrappers::getInfo().Control(this, FCTL_SETVIEWMODE, &startViewMode_);
+	FARWrappers::getInfo().Control(this, FCTL_SETVIEWMODE, startViewMode_, 0);
 	FTP::backups_.remove(this);
 
 	ClearQueue();
@@ -61,14 +60,12 @@ const wchar_t* FTP::CloseQuery()
 	return NULL;
 }
 
-void FTP::SetBackupMode(void)
+void FTP::SetBackupMode()
 {
-	FARWrappers::PanelInfoAuto  pi(true, true);
-
-    ActiveColumnMode = pi.ViewMode;
+	ActiveColumnMode = FARWrappers::getPanelInfo().ViewMode;
 }
 
-void FTP::SetActiveMode(void)
+void FTP::SetActiveMode()
 {
      NeedToSetActiveMode = TRUE;
 }

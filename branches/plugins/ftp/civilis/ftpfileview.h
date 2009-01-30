@@ -32,7 +32,7 @@ public:
 	virtual bool	SetDirectory(const std::wstring &dir, int OpMode);
 	virtual bool	GetFindData(PluginPanelItem **pPanelItem,int *pItemsNumber, int OpMode);
 	virtual void	FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber);
-	virtual const std::wstring getCurrentDirectory() const;
+	virtual const std::wstring& getCurrentDirectory() const;
 	virtual void	setCurrentDirectory(const std::wstring& dir);
 
 	bool			ftpGetCurrentDirectory();
@@ -40,11 +40,11 @@ public:
 
 	Result			GetFiles(FARWrappers::ItemList &list, int Move, const std::wstring &destPath, int OpMode);
 	Result			initFtpCopyInfo(const std::wstring &destPath, int opMode, bool isMove, FTPCopyInfo* info, bool& isDestDir);
-	const FTPFileInfoPtr getFile(size_t id) const;
-	FTPFileInfoPtr	getFile(size_t id);
+	const FTPFileInfoPtr& getFile(size_t id) const;
+	FTPFileInfoPtr& getFile(size_t id);
 	bool			readFolder(const std::wstring &path, FileListPtr& filelist, bool useCache = true);
 	void			resetFileCache();
-	void			setSelectedFile(const std::wstring& filename);
+	void			setCurrentFile(const std::wstring& filename);
 
 	Connection& getConnection()
 	{
@@ -84,7 +84,8 @@ private:
 	void			copyNamesToClipboard();
 	void			setAttributes();
 	void			saveURL();
-	const FTPFileInfoPtr getCurrentFile() const;
+	const FTPFileInfoPtr& getCurrentFile() const;
+	FileListPtr     getSelectedFiles() const;
 	FTP*			getFTP() const;
 
 	const FtpHostPtr& getHost() const;
@@ -107,7 +108,7 @@ private:
 	void			saveUsedDirNFile();
 	void			setDescriptionFlag(PluginPanelItem* items, int number);
 	bool			SetDirectoryStepped(const std::wstring &Dir, bool update);
-	bool			showFilesList(FileList& filelist);
+	bool			showFilesList(FileList& filelist, bool download);
 	void			saveList(FileList& filelist);
 	Result			putFile(const std::wstring &localFile, const std::wstring &remoteFile, bool Reput, bool AsciiMode, FTPProgress& trafficInfo);
 };

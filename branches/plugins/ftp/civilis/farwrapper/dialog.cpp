@@ -41,7 +41,7 @@ DialogItem Dialog::addCombobox()
 
 DialogItem Dialog::addDoublebox(int x1, int y1, int x2, int y2, const std::wstring &label, DWORD flag)
 {
-	FarDialogItem& item  = addItem(DI_DOUBLEBOX, x1, y1, x2, y2, flag, ItemValue(label, 0));
+	addItem(DI_DOUBLEBOX, x1, y1, x2, y2, flag, ItemValue(label, 0));
 
 	return DialogItem(this, items_.size()-1);
 }
@@ -101,14 +101,14 @@ DialogItem Dialog::addRadioButtonStart(int x, int y, int* value, const std::wstr
 
 DialogItem Dialog::addSinglebox(int x1, int y1, int x2, int y2, const std::wstring &label, DWORD flag)
 {
-	FarDialogItem& item  = addItem(DI_SINGLEBOX, x1, y1, x2, y2, flag, ItemValue(label, 0));
+	addItem(DI_SINGLEBOX, x1, y1, x2, y2, flag, ItemValue(label, 0));
 
 	return DialogItem(this, items_.size()-1);
 }
 
 DialogItem Dialog::addLabel(int x, int y, const std::wstring& label, int id, DWORD flag)
 {
-	FarDialogItem& item  = addItem(DI_TEXT, x, y, 0, y, flag, ItemValue(label, id));
+	addItem(DI_TEXT, x, y, 0, y, flag, ItemValue(label, id));
 
 	return DialogItem(this, items_.size()-1);
 }
@@ -219,7 +219,7 @@ int Dialog::show(int width, int height, FARWINDOWPROC dlgProc, LONG_PTR param)
 
 DialogItem Dialog::addHLine(int x, int y)
 {
-	FarDialogItem& item  = addItem(DI_TEXT, x, y, x, y, DIF_BOXCOLOR|DIF_SEPARATOR, ItemValue(L"", 0));
+	addItem(DI_TEXT, x, y, x, y, DIF_BOXCOLOR|DIF_SEPARATOR, ItemValue(L"", 0));
 	return DialogItem(this, items_.size()-1);
 }
 

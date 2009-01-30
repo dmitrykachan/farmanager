@@ -18,7 +18,6 @@ namespace WinAPI
 
 	module loadLibrary(const std::wstring &filename)
 	{
-		void *p = LoadLibraryW(filename.c_str());
 		module sh(LoadLibraryW(filename.c_str()), FreeLibrary);
 		return sh;
 	};
@@ -135,7 +134,7 @@ namespace WinAPI
 			const wchar_t* p = static_cast<const wchar_t*>(GData);
 			res.reserve(dataSize);
 			std::copy(p, p + dataSize, std::back_insert_iterator<std::wstring>(res));
-		} while(0);
+		} while(false);
 
 		CloseClipboard();
 		return res;
@@ -204,7 +203,7 @@ namespace WinAPI
 
 		BOOST_STATIC_ASSERT(sizeof(INPUT_RECORD) == 20);
 
-		while(1)
+		while(true)
 		{
 			PeekConsoleInputW(hConInp, &rec, 1, &readCount);
 			if(readCount == 0) 
@@ -212,7 +211,7 @@ namespace WinAPI
 
 			ReadConsoleInputW(hConInp, &rec, 1, &readCount);
 
-			if(rec.EventType = KEY_EVENT && rec.Event.KeyEvent.bKeyDown)
+			if(rec.EventType == KEY_EVENT && rec.Event.KeyEvent.bKeyDown)
 			{
 				const WORD* p = std::find(codes, codes+size, rec.Event.KeyEvent.wVirtualKeyCode);
 				if(p != codes+size)

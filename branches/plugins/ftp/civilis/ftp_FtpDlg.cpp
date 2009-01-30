@@ -1,7 +1,5 @@
 #include "stdafx.h"
 
-#pragma hdrstop
-
 #include "ftp_Int.h"
 #include "farwrapper/dialog.h"
 #include "farwrapper/menu.h"
@@ -128,7 +126,6 @@ void QueryExHostOptions(FTP* ftp, FtpHostPtr& p)
 		addCheckbox	( 5, 2, &p->FFDup,			getMsg(MDupFF))->
 		addCheckbox	( 5, 3, &p->UndupFF,		getMsg(MUndupFF))->
 		addCheckbox	( 5, 5, &p->SendAllo,		getMsg(MSendAllo))->
-		addCheckbox	( 5, 6, &p->UseStartSpaces,	getMsg(MUseStartSpaces))->
 		addHLine	( 3,15)->
 		addDefaultButton( 0,16, 0,				getMsg(MOk), DIF_CENTERGROUP)->
 		addButton		( 0,16, -1,				getMsg(MCancel), DIF_CENTERGROUP);
@@ -217,7 +214,7 @@ bool FTP::EditHostDlg(int title, FtpHostPtr& p, bool ToDescription)
 
 		if(rc == idSave || rc == idConnect)
 			break;
-	} while(1);
+	} while(true);
 
 	p->IOBuffSize  = std::max(FTR_MINBUFFSIZE, p->IOBuffSize);
 	p->SetHostName(fullhostname, std::wstring(p->url_.username_), std::wstring(p->url_.password_));
@@ -296,7 +293,7 @@ bool WINAPI GetLoginData(std::wstring &username, std::wstring &password, bool fo
 	if(username.empty() && g_manager.opt.AutoAnonymous)
 		username = L"anonymous";
 
-	if(password.empty() && boost::algorithm::to_lower_copy(username) == L"anonymous")
+	if(password.empty() && boost::algorithm::iequals(username, L"anonymous"))
 		password = g_manager.opt.defaultPassword_;
 
 	FARWrappers::Dialog dlg(L"FTPConnect");
@@ -333,7 +330,7 @@ bool WINAPI GetLoginData(std::wstring &username, std::wstring &password, bool fo
 		if(username.empty())
 			continue;
 		return true;
-	}while(1);
+	}while(true);
 }
 
 

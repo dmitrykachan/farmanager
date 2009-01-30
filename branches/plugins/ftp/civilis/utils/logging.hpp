@@ -294,8 +294,8 @@ namespace boost {
 
         void unformatted_trace(unsigned short     l, 
                                const std::wstring &t, 
-                               const std::wstring &f, 
-                               unsigned int      ln)
+                               const std::wstring &/*f*/, 
+                               unsigned int      /*ln*/)
         {
 #if defined(BOOST_HAS_THREADS)
           boost::mutex::scoped_lock scoped_lock(m_mutex);
@@ -336,7 +336,7 @@ namespace boost {
     
 //  Element functions definition ---------------------------------------------//
     inline std::wstring log_element::visit(logger &l, 
-                                          const log_param_t &log_param)
+                                          const log_param_t &/*log_param*/)
     {
       return l.accept(*this);
     }

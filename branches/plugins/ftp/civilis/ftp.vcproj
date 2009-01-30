@@ -52,6 +52,7 @@
 				UsePrecompiledHeader="2"
 				WarningLevel="3"
 				DebugInformationFormat="3"
+				DisableSpecificWarnings="4127;4505;4201;4121;4512"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -123,6 +124,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="1"
 				FavorSizeOrSpeed="2"
+				EnableFiberSafeOptimizations="true"
 				AdditionalIncludeDirectories=""
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;FTP_EXPORTS"
 				StringPooling="true"

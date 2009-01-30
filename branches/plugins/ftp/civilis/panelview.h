@@ -46,7 +46,7 @@ public:
 
 	virtual void FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber) = 0;
 
-	virtual const std::wstring getCurrentDirectory() const = 0;
+	virtual const std::wstring& getCurrentDirectory() const = 0;
 	virtual void setCurrentDirectory(const std::wstring& dir) = 0;
 };
 
@@ -72,7 +72,7 @@ public:
 	virtual bool		SetDirectory(const std::wstring &Dir, int OpMode);
 	virtual bool		GetFindData(PluginPanelItem **pPanelItem,int *pItemsNumber, int OpMode);
 	virtual void		FreeFindData(PluginPanelItem *PanelItem,int ItemsNumber);
-	virtual const std::wstring getCurrentDirectory() const;
+	virtual const std::wstring& getCurrentDirectory() const;
 	virtual void		setCurrentDirectory(const std::wstring& dir);
 
 	const FtpHostPtr& findhost(size_t id) const
@@ -87,9 +87,14 @@ public:
 		return hosts_[id-1];
 	}
 
+	size_t    hostCount() const
+	{
+		return hosts_.size();
+	}
+
 	void				setSelectedHost(const std::wstring &hostname);
 
-	static const int							ParentDirHostID = 0;
+	static const int ParentDirHostID = 0;
 
 private:
 	typedef std::vector<boost::shared_ptr<FTPHost> > HostList;

@@ -104,8 +104,9 @@ Connection::Result Connection::recvrequestINT(const std::wstring& cmd, const std
 	else
 		downloadResult = ftpclient_.downloadFile(boost::bind(&Connection::downloadToBufferHandler, this, boost::ref(trafficInfo), _1, _2));
 
-	while(FTPClient::isPrelim(code))
-		code = ftpclient_.readOutput();
+	if(FTPClient::isComplete(downloadResult))
+		while(FTPClient::isPrelim(code))
+			code = ftpclient_.readOutput();
 
 	BOOST_LOG(ERR, L"end downloading. Downloading time is " << timer.getPeriod() << L". Data size is " << trafficInfo.getFilePossition());
 

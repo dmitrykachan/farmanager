@@ -28,6 +28,7 @@ private:
 	std::wstring		group_;
 	DWORD				windowsAttribute_;
 	std::wstring		secondAttribute_;
+	size_t				subFilesCount_;
 
 public:
 	class exception: public std::exception
@@ -52,6 +53,7 @@ public:
 		setCreationTime(WinAPI::FileTime());
 		fileName_ = link_ = owner_ = group_ = secondAttribute_ = L"";
 		windowsAttribute_ = 0;
+		subFilesCount_ = 0;
 	}
 
 	inline void check(bool value, const char* const what)
@@ -153,6 +155,12 @@ public:
 				windowsAttribute_ |= FILE_ATTRIBUTE_REPARSE_POINT;
 	}
 
+
+	void setSubFileCount(size_t count)
+	{
+		subFilesCount_ = count;
+	}
+
 	const std::wstring& getFileName() const
 	{
 		return fileName_;
@@ -163,17 +171,17 @@ public:
 		return fileSize_;
 	}
 
-	WinAPI::FileTime getCreationTime() const
+	const WinAPI::FileTime getCreationTime() const
 	{
 		return creationTime_;
 	}
 
-	WinAPI::FileTime getLastAccessTime() const
+	const WinAPI::FileTime getLastAccessTime() const
 	{
 		return lastAccessTime_;
 	}
 
-	WinAPI::FileTime getLastWriteTime() const
+	const WinAPI::FileTime getLastWriteTime() const
 	{
 		return lastWriteTime_;
 	}
@@ -223,6 +231,11 @@ public:
 	DWORD getWindowsFileAttribute() const
 	{
 		return windowsAttribute_;
+	}
+
+	size_t getSubFilesCount() const
+	{
+		return subFilesCount_;
 	}
 
 };

@@ -16,18 +16,13 @@ Connection::Result Connection::reset()
 	return Error;
 }
 
-void Connection::AbortAllRequest(int BrkFlag)
+void Connection::AbortAllRequest()
 {
-	if (BrkFlag)
-		brk_flag = TRUE;
-	else 
-	{
-		ftpclient_.close();
-	}
+	ftpclient_.close();
 }
 
 
-Connection::Result Connection::commandOem(const std::string &str, bool isQuit)
+Connection::Result Connection::commandOem(const std::string &str)
 {  
 	ConnectMessage(MLast);
 
@@ -57,9 +52,9 @@ Connection::Result Connection::commandOem(const std::string &str, bool isQuit)
 	*/
 }
 
-Connection::Result Connection::command(const std::wstring &str, bool isQuit)
+Connection::Result Connection::command(const std::wstring &str)
 {
-	return commandOem(toOEM(str), isQuit);
+	return commandOem(toOEM(str));
 }
 
 void Connection::setHost(const boost::shared_ptr<FTPHost> &host)
@@ -105,17 +100,21 @@ std::wstring Connection::getSystemInfo()
 }
 
 
-__int64  Connection::fileSize(const std::wstring &filename)
+Connection::Result Connection::fileSize(const std::wstring &filename, __int64 &size)
 {
-	if(sizecmd(filename) != Done)
-	{
-		throw std::exception("file size command is broken");
-		return -1;
-	} else
+	Result res = sizecmd(filename);
+	if(res == Done)
 	{
 		const std::string& line = ftpclient_.getReply();
-		return Parser::parseUnsignedNumber(line.begin()+4, line.end(), 
-			std::numeric_limits<__int64>::max(), false); 
+		std::string::const_iterator i = line.begin()+4;
+		size = Parser::parseUnsignedNumber(i, line.end(), std::numeric_limits<__int64>::max(), false);
+		return Done;
 	}
+
+	if(res != Error)
+		return res;
+	
+	size = 0;
+	return isConnected()? Done : Error;
 }
 

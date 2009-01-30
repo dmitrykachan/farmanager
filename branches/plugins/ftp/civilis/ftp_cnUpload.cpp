@@ -133,8 +133,9 @@ Connection::Result Connection::sendrequestINT(const std::wstring &cmd, const std
 	error_code uploadResult;
 	uploadResult = ftpclient_.uploadFile(boost::bind(&Connection::uploadFromFile, this, fin.get(), boost::ref(trafficInfo), _1, _2));
 
-	while(FTPClient::isPrelim(code))
-		code = ftpclient_.readOutput();
+	if(FTPClient::isComplete(uploadResult))
+		while(FTPClient::isPrelim(code))
+			code = ftpclient_.readOutput();
 
 	setBreakable(oldBrk);
 	if(FTPClient::isComplete(uploadResult))

@@ -11,7 +11,7 @@ namespace Unicode
 	{
 		char32 wc;
 		std::string outstr;
-		while((wc = utf16::nextChar(str)))
+		while((wc = utf16::nextChar(str)) != 0)
 		{
 			utf8::pushChar(outstr, wc);
 		}
@@ -57,7 +57,7 @@ namespace Unicode
 		std::string::const_iterator itr = str.begin();
 		while(itr != str.end())
 		{
-			char c = *itr;
+			wchar_t c = *itr;
 			c = (c > 127)? replace : c;
 			res.push_back(c);
 			++itr;

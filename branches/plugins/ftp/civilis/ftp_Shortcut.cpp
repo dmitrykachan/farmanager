@@ -1,119 +1,61 @@
 #include "stdafx.h"
 
-#pragma hdrstop
-
 #include "ftp_Int.h"
 
-int FTP::ProcessShortcutLine(char *Line)
-{
-	BOOST_ASSERT(0 && "TODO");
-/*
-	char *m,*m1;
-     char  str[20]; //Hold single dec number - need not use of String
+bool FTP::ProcessShortcutLine(const wchar_t *line)
+{ 
+	if(line == 0)
+		return false;
+	g_manager.readCfg();
 
-  if ( !Line )
-    return FALSE;
+	if(boost::istarts_with(line, L"HOST:"))
+	{
+		hostPanel_.setCurrentDirectory(line + 5);
+		return true;
+	}
+	
+	if(!boost::istarts_with(line, L"FTP:"))
+		return false;
 
-  ReadCfg();
+	line += 4;
 
-  if ( StrCmp(Line,"FTP:",4) == 0 ) {
+	/*
+	FTP
+	AskLogin+3   AsciiMode+3  PassiveMode+3  ExtCmdView+3  FFDup + 3
+	Host   1   User   1   Password   1  ServerName 1 codePage 1
+	*/
+	const wchar_t delimiter = L'\x1';
+	const wchar_t base = L'\x3';
+	const wchar_t *line_end = line + wcslen(line);
 
-/ *
-FTP
-  Host
-  1
-  AskLogin    + 3
-  AsciiMode   + 3
-  PassiveMode + 3
-  UseFirewall + 3
-  HostTable
-  1
-  User
-  1
-  Password
-  1
-  ExtCmdView + 3
-  IOBuffSize (atoi)
-  1
-  FFDup + '0'
-  1
-* /
-    Line += 4;
-    m = StrChr(Line,'\x1');
-    if ( !m || strlen(m) < 4 ) return FALSE;
-    m++;
-    Host.Init();
-    StrCpy( Host.Host,     Line, Min((int)(m-Line), (int)sizeof(Host.Host) ) );
-    StrCpy( Host.HostName, Host.Host );
+	FtpHostPtr host = FtpHostPtr(new FTPHost);
+	host->Init();
+	if(line_end - line < 10)
+		return false;
+	host->AskLogin   = *line++ - base;
+	host->AsciiMode  = *line++ - base;
+	host->PassiveMode= *line++ - base;
+	host->ExtCmdView = *line++ - base;
+	host->FFDup      = *line++ - base;
 
-    Host.AskLogin    = *(m++) - '\x3'; if (*m == 0) return FALSE;
-    Host.AsciiMode   = *(m++) - '\x3'; if (*m == 0) return FALSE;
-    Host.PassiveMode = *(m++) - '\x3'; if (*m == 0) return FALSE;
-    Host.UseFirewall = *(m++) - '\x3'; if (*m == 0) return FALSE;
+	const wchar_t *p_user = std::find(line, line_end, delimiter);
+	if(p_user == line_end)
+		return false;
+	const wchar_t *p_pass = std::find(p_user+1, line_end, delimiter);
+	if(p_pass == line_end)
+		return false;
+	const wchar_t *p_servname = std::find(p_pass+1, line_end, delimiter);
+	if(p_servname == line_end)
+		return false;
+	const wchar_t *p_codePage = std::find(p_servname+1, line_end, delimiter);
+	if(p_codePage == line_end)
+		return false;
 
-    m1 = m;
-    m = StrChr(m1,'\x1');
-    if ( !m ) return FALSE;
-    StrCpy( str, m1, m-m1+1 );
-//    Host.serverType_ = (WORD)atoi(str); // TODO
-	BOOST_ASSERT(0 && "TODO");
+	host->SetHostName(std::wstring(line, p_user),
+					std::wstring(p_user+1, p_pass),
+					std::wstring(p_pass+1, p_servname));
+	host->serverType_ = *ServerList::instance().find(std::wstring(p_servname+1, p_codePage));
+	host->codePage_   = boost::lexical_cast<int>(std::wstring(p_codePage+1, line_end));
 
-    m1 = m+1;
-    m = StrChr(m1,'\x1');
-    if ( !m ) return FALSE;
-	BOOST_ASSERT(0 && "TODO");
-//    StrCpy( Host.HostTable, m1, m-m1+1 );
-
-    m1 = m+1;
-    m  = StrChr(m1,'\x1');
-    if ( !m ) return FALSE;
-    StrCpy( Host.User,m1,m-m1+1 );
-
-    m1 = m+1;
-    m  = StrChr(m1,'\x1');
-    if ( !m ) return FALSE;
-    StrCpy( Host.Password,m1,m-m1+1 );
-
-    do{
-      Host.ExtCmdView    = g_manager.opt.ExtCmdView;
-      Host.IOBuffSize    = g_manager.opt.IOBuffSize;
-      Host.FFDup         = g_manager.opt.FFDup;
-
-      //IOBuffSize
-      m1 = m+1;
-      if ( !m1[0] )
-        break;
-
-      Host.ExtCmdView = *(m1++) - '\x3';
-      m = StrChr(m1,'\x1');
-      if ( !m )
-        return FALSE;
-
-      StrCpy( str,m1,m-m1+1 );
-      Host.IOBuffSize = Max(FTR_MINBUFFSIZE,(DWORD)atoi(str));
-
-      //FFDup
-      m1 = m+1;
-      if ( !m1[0] )
-        break;
-
-      m = StrChr(m1,'\x1');
-      if ( !m )
-        break;
-
-      if ( *m1 != '0' && *m1 != '1' )
-        break;
-      Host.FFDup = *m1 - '0';
-
-    }while(0);
-
-    return FullConnect();
-  } else
-  if ( StrCmp(Line,"HOST:",5) == 0 ) {
-    Line += 5;
-    StrCpy( HostsPath,Line );
-    return 1;
-  }
-  */
- return 0;
+	return FullConnect(host);
 }

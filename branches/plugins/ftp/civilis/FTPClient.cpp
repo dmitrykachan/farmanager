@@ -4,6 +4,7 @@
 #include "ftp_JM.h"
 #include "ftp_Connect.h"
 #include "ftp_int.h"
+#include "utils/uniconverts.h"
 
 static int getCode(const error_code& code)
 {
@@ -66,6 +67,8 @@ error_code FTPClient::connect(const std::string &host, int port)
 	io_service_.run();
 
 	connected_ = isComplete(lastErrorCode_);
+	if(!connected_)
+		close();
 
 	return lastErrorCode_;
 }
@@ -101,6 +104,10 @@ error_code FTPClient::sendCommand(const std::wstring& command, bool waitFullProc
 	return sendCommandOem(connection_->toOEM(command), waitFullProcess);
 }
 	
+void FTPClient::addMessage(int /*msg*/)
+{
+}
+
 void FTPClient::handle_resolve(const error_code& err, tcp::resolver::iterator endpoint_iterator)
 {
 	timer_.cancel();
@@ -142,7 +149,6 @@ void FTPClient::handleConnect(const error_code& err, tcp::resolver::iterator end
 	}
 	else
 	{
-		cmdsocket_.close();
 		errorHandler(err);
 	}
 }
@@ -160,6 +166,7 @@ void FTPClient::handleTimer(const error_code& e)
 		connection_->AddCmdLineOem("The task was canceled by user.");
 		setLastError(replyCode(FTPReplyCodeCategory::Canceled));
 		cancelOnTimerExpired_();
+//		sendAbort();
 	}
 
 	if(timerCount_ < timeForTimeout/timerInterval_)
@@ -206,12 +213,7 @@ error_code FTPClient::readOutput()
 }
 
 
-void FTPClient::addMessage(int msg)
-{
-
-}
-
-void FTPClient::handleRead(const error_code& err, size_t bytes_transferred)
+void FTPClient::handleRead(const error_code& err, size_t /*bytes_transferred*/)
 {
 	timer_.cancel();
 	if (!err)
@@ -221,6 +223,7 @@ void FTPClient::handleRead(const error_code& err, size_t bytes_transferred)
 
 		std::string line;
 		std::getline(replayStream, line);
+		BOOST_LOG(ERR, L"handleRead line: " << Unicode::AsciiToUtf16(line));
 		if(!line.empty() && *line.rbegin() == '\r')
 			line.resize(line.size()-1);
 
@@ -273,6 +276,7 @@ void FTPClient::handleRead(const error_code& err, size_t bytes_transferred)
 		setLastError(replyCode(code));
 	} else
 	{
+		BOOST_LOG(ERR, L"handleRead: " << err);
 		errorHandler(err);
 	}
 }
@@ -301,13 +305,13 @@ void FTPClient::setLastError(const error_code& err)
 
 void FTPClient::errorHandler(const error_code& err)
 {
-	if(!(lastErrorCode_.category() == FTPReplyCodeCategory::getCategory() &&
-		lastErrorCode_.value() == FTPReplyCodeCategory::Canceled ||
-		lastErrorCode_.value() == FTPReplyCodeCategory::Timeout))
+// 	if(!(err.category() == FTPReplyCodeCategory::getCategory() &&
+// 		err.value() == FTPReplyCodeCategory::Canceled ||
+// 		err.value() == FTPReplyCodeCategory::Timeout))
 	{
 		connection_->AddCmdLineOem(err.message(), ldRaw);
 		setLastError(replyCode(FTPReplyCodeCategory::SocketError));
-		close();
+//		close();
 	}
 }
 
@@ -319,6 +323,9 @@ error_code FTPClient::login(const std::wstring &user, const std::wstring &passwo
 		if(!g_manager.opt.showPassword_)
 			connection_->AddCmdLine(g_manager.opt.cmdPass_ + L" *hidden*", ldOut);
 		code = sendCommand(g_manager.opt.cmdPass_ + L' ' + password, true, !g_manager.opt.showPassword_);
+	} else
+	{
+		return replyCode(FTPReplyCodeCategory::InvalidReply); 
 	}
 	if(isContinue(code))
 		code = sendCommand(g_manager.opt.cmdAcct_ + L' ' + account);
@@ -390,7 +397,7 @@ bool FTPClient::sendPasv()
 	}
 
 	pasvEndpoint_.address(ip::address_v4(a1 << 24 | a2 << 16 | a3 << 8 | a4));
-	pasvEndpoint_.port(p1 << 8 | p2);
+	pasvEndpoint_.port(static_cast<unsigned short>(p1 << 8 | p2));
 	return true;
 }
 
@@ -460,6 +467,12 @@ error_code FTPClient::downloadFile(boost::function<error_code (const std::vector
 		handler));
 
 	io_service_.run();
+
+	if(lastErrorCode_ == replyCode(FTPReplyCodeCategory::Canceled))
+	{
+		sendAbort();
+		lastErrorCode_ = replyCode(FTPReplyCodeCategory::Canceled);
+	}
 	return lastErrorCode_;
 }
 
@@ -473,14 +486,14 @@ void FTPClient::handleDownload(const error_code& err, size_t bytes_transferred,
 		if(code)
 		{
 			connection_->AddCmdLineOem("Cannot write a file", ldRaw);
-			lastErrorCode_ = replyCode(FTPReplyCodeCategory::WriteError);
+			setLastError(replyCode(FTPReplyCodeCategory::WriteError));
 			return;
 		}
 		if(CheckForEsc(false))
 		{
 			connection_->AddCmdLineOem("The downloading was canceled by user", ldRaw);
-			datasocket_.close(); // TODO abort downloading
-			lastErrorCode_ = replyCode(FTPReplyCodeCategory::Canceled);
+//			sendAbort();
+			setLastError(replyCode(FTPReplyCodeCategory::Canceled));
 			return;
 		}
 		startTimer(boost::bind(&tcp::socket::close, &datasocket_));
@@ -494,7 +507,7 @@ void FTPClient::handleDownload(const error_code& err, size_t bytes_transferred,
 	{
 		// downloading finished
 		datasocket_.close();
-		lastErrorCode_ = replyCode(CommandOkey);
+		setLastError(replyCode(CommandOkey));
 	}
 	else
 	{
@@ -511,10 +524,15 @@ void FTPClient::setBufferSize(size_t size)
 
 void FTPClient::close()
 {
-	cmdsocket_.close();
 	datasocket_.close();
+//	cmdsocket_.cancel();
+	cmdsocket_.close();
 	acceptor_.close();
+	timer_.cancel();
+	resolver_.cancel();
+	io_service_.stop();
 	connected_ = false;
+	reply_.consume(reply_.size());
 }
 
 
@@ -542,12 +560,18 @@ error_code FTPClient::uploadFile(UploadHandler handler)
 			io_service_.run();
 		}
 	}
+	if(lastErrorCode_ == replyCode(FTPReplyCodeCategory::Canceled))
+	{
+		BOOST_LOG(ERR, L"ESC is pressed. datacon: " << datasocket_.is_open());
+		sendAbort();
+		lastErrorCode_ = replyCode(FTPReplyCodeCategory::Canceled);
+	}
 
 	return lastErrorCode_;
 }
 
 
-void FTPClient::handleUpload(const error_code& err, size_t bytes_transferred, UploadHandler handler)
+void FTPClient::handleUpload(const error_code& err, size_t /*bytes_transferred*/, UploadHandler handler)
 {
 	timer_.cancel();
 	if(!err)
@@ -557,21 +581,21 @@ void FTPClient::handleUpload(const error_code& err, size_t bytes_transferred, Up
 		if(code)
 		{
 			connection_->AddCmdLineOem("Cannot read from file", ldRaw);
-			lastErrorCode_ = replyCode(FTPReplyCodeCategory::ReadError);
+			setLastError(replyCode(FTPReplyCodeCategory::ReadError));
 			return;
 		}
 		if(readbytes == 0)
 		{
 			// uploading finished
 			datasocket_.close();
-			lastErrorCode_ = replyCode(CommandOkey);
+			setLastError(replyCode(CommandOkey));
 			return;
 		}
 		if(CheckForEsc(false))
 		{
 			connection_->AddCmdLineOem("The uploading was canceled by user", ldRaw);
-			datasocket_.close(); // TODO abort downloading
-			lastErrorCode_ = replyCode(FTPReplyCodeCategory::Canceled);
+//			sendAbort();
+			setLastError(replyCode(FTPReplyCodeCategory::Canceled));
 			return;
 		}
 		startTimer(boost::bind(&tcp::socket::close, &datasocket_));
@@ -585,4 +609,33 @@ void FTPClient::handleUpload(const error_code& err, size_t bytes_transferred, Up
 			datasocket_.close();
 			errorHandler(err);
 		}
+}
+
+void FTPClient::sendAbort()
+{
+	BOOST_ASSERT(datasocket_.is_open());
+/*
+	std::string message = "  ABOR";
+	message[0] = cIAC; // send
+	message[1] = cIP;  // interrupt process
+	message[2] = cIAC; // send
+	message[3] = cDM;  // data marker for sync 
+*/
+	BOOST_LOG(ERR, L"send Abort");
+	std::string message = "ABOR";
+	datasocket_.close();
+	error_code ec = sendCommandOem(message);
+	BOOST_LOG(ERR, L"end of \"send Abort\" " << ec);
+
+	BOOST_ASSERT(ec.category() == FTPReplyCodeCategory::getCategory());
+	
+	boost::asio::socket_base::bytes_readable command(true);
+	cmdsocket_.io_control(command);
+	std::size_t bytes_readable = command.get();
+	while(bytes_readable)
+	{
+		readOutput();
+		cmdsocket_.io_control(command);
+		bytes_readable = command.get();
+	}
 }
