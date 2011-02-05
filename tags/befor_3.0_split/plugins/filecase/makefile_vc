@@ -1,0 +1,13 @@
+!if exists(../make_vc_defs)
+!include ../make_vc_defs
+!endif
+
+NAME = FileCase
+LINK_OBJS = $(OBJDIR)\FileCase.obj
+DOCS = CaseEng.hlf CaseRus.hlf CaseEng.lng CaseRus.lng
+
+!include ..\makefile_vc_def_inc
+
+!include ..\makefile_vc_target_inc
+
+$(OBJDIR)\FileCase.obj: FileCase.cpp filecvt.cpp FileMix.cpp FileReg.cpp ProcessName.cpp FileCase.hpp FileLng.hpp $(COMINC)\plugin.hpp

@@ -1,0 +1,32 @@
+!if exists(..\..\plugins\make_vc_defs)
+!include ..\..\plugins\make_vc_defs
+!endif
+
+NAME = FExcept
+LINK_OBJS = $(OBJDIR)\FExcept.obj
+DOCS = SetFarExceptionHandler.reg
+!if defined(AMD64) || "$(CPU)" == "AMD64"
+DOCS = $(DOCS) demangle64.dll
+!else
+DOCS = $(DOCS) demangle32.dll
+!endif
+
+NEEDENTRY = 1
+NEEDDEFLIB = 1
+EXCLUDECRT = 1
+
+COMMON = ..\..\plugins\common
+
+All: dirs
+
+!include ..\..\plugins\makefile_vc_def_inc
+
+All: excdump
+
+!include ..\..\plugins\makefile_vc_target_inc
+
+.PHONY: excdump
+excdump:
+	@cd execdump
+	$(MAKE) /f makefile_vc $(_MKDO_)COPYTO=..\$(WORKDIR) $(_MDEFS)
+	@cd ..

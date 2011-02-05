@@ -1,0 +1,13 @@
+!if exists(../make_vc_defs)
+!include ../make_vc_defs
+!endif
+
+NAME = Align
+LINK_OBJS = $(OBJDIR)\Align.obj
+DOCS = AlignEng.lng AlignRus.lng
+
+!include ..\makefile_vc_def_inc
+
+!include ..\makefile_vc_target_inc
+
+$(OBJDIR)\Align.obj: Align.cpp AlignMix.cpp AlignReg.cpp Align.hpp AlignLng.hpp $(COMINC)\plugin.hpp

@@ -1,0 +1,27 @@
+!if exists(../make_vc_defs)
+!include ../make_vc_defs
+!endif
+
+# nmake makefile_vc_fmt FMT=name
+!if "$(FMT)" == ""
+!error An invalid FMT-target
+!endif
+
+NAME = $(FMT)
+EXT = fmt
+ADDOUTDIR = \Formats
+LINK_OBJS = $(OBJDIR)\$(NAME).obj
+!if "$(FMT)" == "Custom"
+DOCS = Custom.ini
+!endif
+
+USERCPP = /I".\libpcre"
+CPP_UNALIGN=1
+
+!include ..\makefile_vc_def_inc
+
+LIBS = $(OBJDIR)\pcre.lib $(LIBS)
+
+!include ..\makefile_vc_target_inc
+
+$(RES): multiarcversion.hpp

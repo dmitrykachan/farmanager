@@ -1,0 +1,25 @@
+!if exists(../make_vc_defs)
+!include ../make_vc_defs
+!endif
+
+NAME = Proclist
+LINK_OBJS = $(OBJDIR)\fileio.obj \
+$(OBJDIR)\handles.obj \
+$(OBJDIR)\PCFG.OBJ \
+$(OBJDIR)\Pclass.obj \
+$(OBJDIR)\perfthread.obj \
+$(OBJDIR)\PLIST95.OBJ \
+$(OBJDIR)\Plistnt.obj \
+$(OBJDIR)\Pmix.obj \
+$(OBJDIR)\preg.obj \
+$(OBJDIR)\WMI.obj \
+$(OBJDIR)\Proclist.obj
+DOCS = ProcEng.hlf ProcRus.hlf ProcEng.lng ProcRus.lng
+
+USERCPP = /I".\WMI" -D"_WIN32_DCOM"
+
+NEEDENTRY = 1
+
+!include ..\makefile_vc_def_inc
+
+!include ..\makefile_vc_target_inc

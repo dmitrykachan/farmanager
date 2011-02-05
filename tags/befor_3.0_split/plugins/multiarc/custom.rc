@@ -1,0 +1,8 @@
+#include "multiarcversion.hpp"
+
+#define PLUGIN_MAJOR 1
+#define PLUGIN_MINOR 23
+#define PLUGIN_NAME "custom"
+#define PLUGIN_FILENAME "custom.fmt"
+
+magenericpluginrc(PLUGIN_MAJOR, PLUGIN_MINOR, PLUGIN_NAME, PLUGIN_FILENAME)

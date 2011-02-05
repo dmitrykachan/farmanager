@@ -1,0 +1,8 @@
+#include "multiarcversion.hpp"
+
+#define PLUGIN_MAJOR 1
+#define PLUGIN_MINOR 32
+#define PLUGIN_NAME "arc"
+#define PLUGIN_FILENAME "arc.fmt"
+
+magenericpluginrc(PLUGIN_MAJOR, PLUGIN_MINOR, PLUGIN_NAME, PLUGIN_FILENAME)

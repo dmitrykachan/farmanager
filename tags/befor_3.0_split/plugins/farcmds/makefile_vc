@@ -1,0 +1,13 @@
+!if exists(../make_vc_defs)
+!include ../make_vc_defs
+!endif
+
+NAME = FARCmds
+LINK_OBJS = $(OBJDIR)\FARCmds.obj
+DOCS = FARCmdsEng.hlf FARCmdsRus.hlf FARCmdsEng.lng FARCmdsRus.lng
+
+!include ..\makefile_vc_def_inc
+
+!include ..\makefile_vc_target_inc
+
+$(OBJDIR)\FARCmds.obj: FARCmds.cpp Mix.cpp OpenCmd.cpp Reg.cpp FARCmds.hpp Lang.hpp $(COMINC)\plugin.hpp

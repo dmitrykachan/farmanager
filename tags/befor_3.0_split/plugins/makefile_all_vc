@@ -1,0 +1,122 @@
+#The following variables can be set by the user:
+#
+#INSTALL - the path of top binary directory for all plugins
+#  or
+#DEFINSTALL - same as above, but can be defined in makefile_vc_defs
+#
+#WIDE - set for a unicode build
+#
+#DEBUG - set if a debug build is needed
+#
+#AMD64 - set for x64 build
+#  or
+#CPU=AMD64 - for x64 build
+#
+#IA64 - set for IA64 build
+#  or
+#CPU=IA64 - for IA64 build
+#
+#(we try to autodetect if not set)
+#
+#############################################################################
+
+ALLDIRS = align autowrap brackets compare drawline editcase emenu farcmds \
+          filecase hlfviewer macroview network proclist tmppanel
+
+!if defined(AMD64) || "$(CPU)" == "AMD64" || "$(PLATFORM)" == "X64" || "$(PLATFORM)" == "x64"
+!undef AMD64
+!undef CPU
+AMD64=1
+CPU=AMD64
+!elseif defined(IA64) || "$(CPU)" == "IA64" || "$(PLATFORM)" == "Itanium"
+!undef IA64
+!undef CPU
+IA64=1
+CPU=IA64
+!endif
+
+!ifndef WIDE
+ALLDIRS = $(ALLDIRS) \
+          ftp multiarc
+!endif
+
+#############################################################################
+!if exists(make_vc_defs)
+!include make_vc_defs
+!endif
+!if !defined(INSTALL) && defined(DEFINSTALL)
+INSTALL=$(DEFINSTALL)
+!endif
+
+!if !defined(VC) && defined(_NMAKE_VER)
+!if "$(_NMAKE_VER)">"9"
+VC=9
+!elseif "$(_NMAKE_VER)">"8"
+VC=8
+!elseif "$(_NMAKE_VER)">"10"
+VC=10
+!endif
+!endif
+
+!ifndef VC
+!error "VC must be defined (in make_vc_defs)"
+!endif
+
+!include ./makefile_vc_getmode
+
+##########################
+all:    libcrt $(OUTPATH) $(ALLDIRS)
+
+!ifdef __MAKE__
+.PHONY: libcrt $(OUTPATH) $(ALLDIRS)
+!else
+FICTIVE=_fictive_
+$(FICTIVE):
+
+!endif
+
+##########################
+libcrt: $(FICTIVE)
+	@echo ===========CRT library
+        @cd common\CRT
+        @$(MAKE) -s -f makefile_lib_vc $(_MDEFS)
+        @cd ..\..
+
+#######
+!ifdef INSTALL
+
+!ifndef DEBUG
+_ODN_=final
+!else
+_ODN_=debug
+!endif
+!ifdef AMD64
+_ODB_=64
+!elseif defined(IA64)
+_ODB_=IA64
+!else
+_ODB_=32
+!endif
+!ifdef WIDE
+_ODS_=W
+!endif
+OUTPATH=$(INSTALL)\$(_ODN_).$(_ODB_)$(_ODS_)
+
+$(OUTPATH): $(INSTALL)
+	@if not exist "$(OUTPATH)\$(NULL)" mkdir "$(OUTPATH)"
+
+$(INSTALL):
+	@if not exist "$(INSTALL)\$(NULL)" mkdir "$(INSTALL)"
+
+!endif
+
+$(ALLDIRS): $(FICTIVE) $(OUTPATH)
+	@echo ===========$@
+        @cd $@
+!ifndef INSTALL
+        @$(MAKE) -s -f makefile_vc $(_MDEFS)
+!else
+        @$(MAKE) -s -f makefile_vc $(_MDEFS) $(_MKDO_)INSTALL=..\$(OUTPATH)\$@
+!endif
+        @cd ..
+

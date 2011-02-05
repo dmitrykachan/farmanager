@@ -1,0 +1,37 @@
+NAME = FarFtp
+SRCS = AskOver.cpp Cfg.cpp CmdLine.cpp cnDownload.cpp cnInit.cpp \
+       cnUpload.cpp Connect.cpp ConnectCmds.cpp ConnectIO.cpp ConnectMain.cpp \
+       ConnectNB.cpp ConnectSock.cpp DeleteFile.cpp EnumHost.cpp Event.cpp \
+       FAR.cpp FGet.cpp FileList.cpp FPut.cpp Ftp.cpp FtpAPI.cpp FTPBlock.cpp \
+       FTPConnect.cpp FtpDlg.cpp FTPHost.cpp fUtils.cpp GetOpenInfo.cpp HGet.cpp \
+       HPut.cpp JM.cpp Key.cpp MakeDir.cpp Mem.cpp Mix.cpp Plugin.cpp Queque.cpp \
+       SetDir.cpp Shortcut.cpp sock.cpp Url.cpp
+DOCS = FtpEng.hlf FtpRus.hlf FtpEng.lng FtpRus.lng TechInfo.reg TechInfo_rus.reg FtpCmds.txt FtpCmds_rus.txt Notes.txt Notes_rus.txt
+
+NEEDDEFLIB=1
+NEEDENTRY=1
+EXCLUDECRT=1
+
+USERCPP = -I ./FStdLib -D__NOMEM__=1 -D__USEASSERT__=1 -Wno-unknown-pragmas -Wno-switch -Wno-missing-braces -Wno-parentheses
+USERLIBSFIRST = -L $(OBJDIR) -lFARStd
+USERLIBS = -lwsock32 -lwinmm
+
+include ../makefile_gcc_def_inc
+
+all: fstdlib
+
+include ../makefile_gcc_target_inc
+
+.PHONY: fstdlib
+fstdlib:
+	$(MAKE) -f makefile_gcc_fstdlib
+
+all: fll
+
+$(RES): version.hpp
+
+.PHONY: fll
+fll:
+	$(MAKE) -f makefile_gcc_fll FLL=DirList
+	$(MAKE) -f makefile_gcc_fll FLL=Progress
+	$(MAKE) -f makefile_gcc_fll FLL=Notify
