@@ -1,5 +1,0 @@
-EXPORTS
-  UpdateFeatureState
-  SaveShortcutProps
-  RestoreShortcutProps
-  LaunchShortcut

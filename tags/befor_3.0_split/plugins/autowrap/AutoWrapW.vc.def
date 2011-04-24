@@ -1,6 +1,0 @@
-EXPORTS 
-   GetMinFarVersionW
-   GetPluginInfoW
-   OpenPluginW
-   SetStartupInfoW
-   ProcessEditorInputW
