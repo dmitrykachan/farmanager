@@ -1,6 +1,4 @@
 #include "msg.h"
-#include "plugin.h"
-#include "guids.hpp"
 
 #include "utils.hpp"
 #include "sysutils.hpp"
@@ -12,8 +10,6 @@
 #include "cmdline.hpp"
 
 wstring g_plugin_prefix;
-TriState g_detect_next_time = triUndef;
-Archives g_archives;
 
 void attach_sfx_module(const wstring& file_path, const SfxOptions& sfx_options);
 
@@ -32,7 +28,9 @@ public:
   Plugin(): archive(new Archive()) {
   }
 
-  static Plugin* open(const Archives& archives) {
+  static Plugin* open(const OpenOptions& options) {
+    vector<ComObject<Archive>> archives = Archive::open(options);
+
     if (archives.size() == 0)
       FAIL(E_ABORT);
 
@@ -61,9 +59,9 @@ public:
     return plugin;
   }
 
-  void info(OpenPanelInfo* opi) {
-    opi->StructSize = sizeof(OpenPanelInfo);
-    opi->Flags = OPIF_ADDDOTS;
+  void info(OpenPluginInfo* opi) {
+    opi->StructSize = sizeof(OpenPluginInfo);
+    opi->Flags = OPIF_USEFILTER | OPIF_USESORTGROUPS | OPIF_USEHIGHLIGHTING | OPIF_ADDDOTS;
     opi->CurDir = current_dir.c_str();
     panel_title = Far::get_msg(MSG_PLUGIN_NAME);
     if (archive->is_open()) {
@@ -130,14 +128,15 @@ public:
       unsigned idx = 0;
       for_each(dir_list.first, dir_list.second, [&] (UInt32 file_index) {
         const ArcFileInfo& file_info = archive->file_list[file_index];
+        FAR_FIND_DATA& fdata = items[idx].FindData;
         const DWORD c_valid_attributes = FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM;
-        items[idx].FileAttributes = archive->get_attr(file_index) & c_valid_attributes;
-        items[idx].CreationTime = archive->get_ctime(file_index);
-        items[idx].LastAccessTime = archive->get_atime(file_index);
-        items[idx].LastWriteTime = archive->get_mtime(file_index);
-        items[idx].FileSize = archive->get_size(file_index);
-        items[idx].PackSize = archive->get_psize(file_index);
-        items[idx].FileName = file_info.name.c_str();
+        fdata.dwFileAttributes = archive->get_attr(file_index) & c_valid_attributes;
+        fdata.ftCreationTime = archive->get_ctime(file_index);
+        fdata.ftLastAccessTime = archive->get_atime(file_index);
+        fdata.ftLastWriteTime = archive->get_mtime(file_index);
+        fdata.nFileSize = archive->get_size(file_index);
+        fdata.nPackSize = archive->get_psize(file_index);
+        fdata.lpwszFileName = file_info.name.c_str();
         items[idx].UserData = file_index;
         items[idx].CRC32 = archive->get_crc(file_index);
         idx++;
@@ -165,11 +164,11 @@ public:
     virtual int size() const = 0;
   };
 
-  void extract(const PluginPanelItemAccessor& panel_items, wstring& dst_dir, bool move, OPERATION_MODES op_mode) {
+  void extract(const PluginPanelItemAccessor& panel_items, wstring& dst_dir, bool move, int op_mode) {
     if (panel_items.size() == 0)
       return;
     bool single_item = panel_items.size() == 1;
-    if (single_item && wcscmp(panel_items.get(0)->FileName, L"..") == 0)
+    if (single_item && wcscmp(panel_items.get(0)->FindData.lpwszFileName, L"..") == 0)
       return;
     ExtractOptions options;
     options.dst_dir = dst_dir;
@@ -204,6 +203,13 @@ public:
       }
       if (!options.password.empty())
         archive->password = options.password;
+      if (options.save_params) {
+        g_options.extract_ignore_errors = options.ignore_errors;
+        g_options.extract_overwrite = options.overwrite;
+        g_options.extract_separate_dir = options.separate_dir;
+        g_options.extract_open_dir = options.open_dir;
+        g_options.save();
+      }
     }
 
     UInt32 src_dir_index = archive->find_dir(current_dir);
@@ -214,35 +220,33 @@ public:
       indices.push_back(static_cast<UInt32>(panel_items.get(i)->UserData));
     }
 
-    shared_ptr<ErrorLog> error_log(new ErrorLog());
-    vector<UInt32> extracted_indices;
-    archive->extract(src_dir_index, indices, options, error_log, options.move_files == triTrue ? &extracted_indices : nullptr);
+    ErrorLog error_log;
+    archive->extract(src_dir_index, indices, options, error_log);
 
-    if (!error_log->empty() && show_dialog) {
-      show_error_log(*error_log);
+    if (!error_log.empty() && show_dialog) {
+      show_error_log(error_log);
     }
 
-    if (error_log->empty()) {
+    if (error_log.empty()) {
       if (options.delete_archive) {
         archive->close();
         archive->delete_archive();
-        Far::close_panel(this, archive->arc_dir());
+        Far::close_plugin(this, archive->arc_dir());
       }
-      else if (options.move_files == triTrue) {
-        archive->delete_files(extracted_indices);
-      }
+      else if (options.move_files == triTrue)
+        archive->delete_files(indices);
       Far::progress_notify();
     }
 
     if (options.open_dir) {
       if (single_item)
-        Far::panel_go_to_file(PANEL_ACTIVE, add_trailing_slash(options.dst_dir) + panel_items.get(0)->FileName);
+        Far::panel_go_to_file(PANEL_ACTIVE, add_trailing_slash(options.dst_dir) + panel_items.get(0)->FindData.lpwszFileName);
       else
         Far::panel_go_to_dir(PANEL_ACTIVE, options.dst_dir);
     }
   }
 
-  void get_files(const PluginPanelItem* panel_items, int items_number, int move, const wchar_t** dest_path, OPERATION_MODES op_mode) {
+  void get_files(const PluginPanelItem* panel_items, int items_number, int move, const wchar_t** dest_path, int op_mode) {
     class PluginPanelItems: public PluginPanelItemAccessor {
     private:
       const PluginPanelItem* panel_items;
@@ -294,9 +298,9 @@ public:
   static void extract(const vector<wstring>& arc_list, ExtractOptions options) {
     wstring dst_dir = options.dst_dir;
     wstring dst_file_name;
-    shared_ptr<ErrorLog> error_log(new ErrorLog());
+    ErrorLog error_log;
     for (unsigned i = 0; i < arc_list.size(); i++) {
-      Archives archives;
+      vector<ComObject<Archive>> archives;
       try {
         OpenOptions open_options;
         open_options.arc_path = arc_list[i];
@@ -310,7 +314,7 @@ public:
       catch (const Error& error) {
         if (error.code == E_ABORT)
           throw;
-        error_log->push_back(error);
+        error_log.push_back(error);
         continue;
       }
 
@@ -337,17 +341,17 @@ public:
       else
         options.dst_dir = dst_dir;
 
-      size_t error_count = error_log->size();
+      size_t error_count = error_log.size();
       archive->extract(c_root_index, indices, options, error_log);
 
-      if (options.delete_archive && error_count == error_log->size()) {
+      if (options.delete_archive && error_count == error_log.size()) {
         archive->close();
         archive->delete_archive();
       }
     }
 
-    if (!error_log->empty()) {
-      show_error_log(*error_log);
+    if (!error_log.empty()) {
+      show_error_log(error_log);
     }
     else {
       Far::update_panel(PANEL_ACTIVE, false);
@@ -383,6 +387,14 @@ public:
     if (!is_absolute_path(options.dst_dir))
       options.dst_dir = Far::get_absolute_path(options.dst_dir);
 
+    if (options.save_params) {
+      g_options.extract_ignore_errors = options.ignore_errors;
+      g_options.extract_overwrite = options.overwrite;
+      g_options.extract_separate_dir = options.separate_dir;
+      g_options.extract_open_dir = options.open_dir;
+      g_options.save();
+    }
+
     extract(arc_list, options);
   }
 
@@ -397,7 +409,7 @@ public:
     extract(arc_list, options);
   }
 
-  void test_files(struct PluginPanelItem* panel_items, int items_number, OPERATION_MODES op_mode) {
+  void test_files(struct PluginPanelItem* panel_items, int items_number, int op_mode) {
     UInt32 src_dir_index = archive->find_dir(current_dir);
     vector<UInt32> indices;
     indices.reserve(items_number);
@@ -409,9 +421,9 @@ public:
   }
 
   static void bulk_test(const vector<wstring>& arc_list) {
-    shared_ptr<ErrorLog> error_log(new ErrorLog());
+    ErrorLog error_log;
     for (unsigned i = 0; i < arc_list.size(); i++) {
-      Archives archives;
+      vector<ComObject<Archive>> archives;
       try {
         OpenOptions open_options;
         open_options.arc_path = arc_list[i];
@@ -424,7 +436,7 @@ public:
       catch (const Error& error) {
         if (error.code == E_ABORT)
           throw;
-        error_log->push_back(error);
+        error_log.push_back(error);
         continue;
       }
 
@@ -444,12 +456,12 @@ public:
       catch (const Error& error) {
         if (error.code == E_ABORT)
           throw;
-        error_log->push_back(error);
+        error_log.push_back(error);
       }
     }
 
-    if (!error_log->empty()) {
-      show_error_log(*error_log);
+    if (!error_log.empty()) {
+      show_error_log(error_log);
     }
     else {
       Far::update_panel(PANEL_ACTIVE, false);
@@ -466,8 +478,8 @@ public:
     Plugin::bulk_test(arc_list);
   }
 
-  void put_files(const PluginPanelItem* panel_items, int items_number, int move, const wchar_t* src_path, OPERATION_MODES op_mode) {
-    if (items_number == 1 && wcscmp(panel_items[0].FileName, L"..") == 0)
+  void put_files(const PluginPanelItem* panel_items, int items_number, int move, const wchar_t* src_path, int op_mode) {
+    if (items_number == 1 && wcscmp(panel_items[0].FindData.lpwszFileName, L"..") == 0)
       return;
     UpdateOptions options;
     bool new_arc = !archive->is_open();
@@ -476,7 +488,7 @@ public:
     }
     if (new_arc) {
       if (items_number == 1 || is_root_path(src_path))
-        options.arc_path = panel_items[0].FileName;
+        options.arc_path = panel_items[0].FindData.lpwszFileName;
       else
         options.arc_path = extract_file_name(src_path);
       ArcTypes arc_types = ArcAPI::formats().find_by_name(g_options.update_arc_format_name);
@@ -550,17 +562,17 @@ public:
     vector<wstring> file_names;
     file_names.reserve(items_number);
     for (int i = 0; i < items_number; i++) {
-      file_names.push_back(panel_items[i].FileName);
+      file_names.push_back(panel_items[i].FindData.lpwszFileName);
     }
 
-    shared_ptr<ErrorLog> error_log(new ErrorLog());
+    ErrorLog error_log;
     if (new_arc)
       archive->create(src_path, file_names, options, error_log);
     else
       archive->update(src_path, file_names, remove_path_root(current_dir), options, error_log);
 
-    if (!error_log->empty()) {
-      show_error_log(*error_log);
+    if (!error_log.empty()) {
+      show_error_log(error_log);
     }
     else {
       Far::progress_notify();
@@ -644,11 +656,11 @@ public:
     g_options.update_ignore_errors = options.ignore_errors;
     g_options.save();
 
-    shared_ptr<ErrorLog> error_log(new ErrorLog());
+    ErrorLog error_log;
     Archive().create(src_path, file_list, options, error_log);
 
-    if (!error_log->empty()) {
-      show_error_log(*error_log);
+    if (!error_log.empty()) {
+      show_error_log(error_log);
     }
     else {
       Far::progress_notify();
@@ -706,7 +718,7 @@ public:
 
     options.open_shared = (Far::adv_control(ACTL_GETSYSTEMSETTINGS) & FSS_COPYFILESOPENEDFORWRITING) != 0;
 
-    shared_ptr<ErrorLog> error_log(new ErrorLog());
+    ErrorLog error_log;
     if (cmd.new_arc) {
       Archive().create(src_path, files, options, error_log);
 
@@ -721,7 +733,7 @@ public:
       open_options.detect = false;
       open_options.password = options.password;
       open_options.arc_types = ArcAPI::formats().get_arc_types();
-      Archives archives = Archive::open(open_options);
+      vector<ComObject<Archive>> archives = Archive::open(open_options);
       if (archives.empty())
         throw Error(Far::get_msg(MSG_ERROR_NOT_ARCHIVE), options.arc_path, __FILE__, __LINE__);
 
@@ -748,8 +760,8 @@ public:
     }
   }
 
-  void delete_files(const PluginPanelItem* panel_items, int items_number, OPERATION_MODES op_mode) {
-    if (items_number == 1 && wcscmp(panel_items[0].FileName, L"..") == 0) return;
+  void delete_files(const PluginPanelItem* panel_items, int items_number, int op_mode) {
+    if (items_number == 1 && wcscmp(panel_items[0].FindData.lpwszFileName, L"..") == 0) return;
 
     if (!archive->updatable()) {
       FAIL_MSG(Far::get_msg(MSG_ERROR_NOT_UPDATABLE));
@@ -771,7 +783,7 @@ public:
     Far::progress_notify();
   }
 
-  void create_dir(const wchar_t** name, OPERATION_MODES op_mode) {
+  void create_dir(const wchar_t** name, int op_mode) {
     if (!archive->updatable()) {
       FAIL_MSG(Far::get_msg(MSG_ERROR_NOT_UPDATABLE));
     }
@@ -825,105 +837,44 @@ public:
   }
 };
 
+TriState detect_next_time = triUndef;
 
-void WINAPI GetGlobalInfoW(GlobalInfo* info) {
-  info->StructSize = sizeof(GlobalInfo);
-  info->MinFarVersion = FARMANAGERVERSION;
-  info->Version = PLUGIN_VERSION;
-  info->Guid = c_plugin_guid;
-  info->Title = PLUGIN_NAME;
-  info->Description = PLUGIN_DESCRIPTION;
-  info->Author = FARCOMPANYNAME;
+int WINAPI GetMinFarVersion(void) {
+  return FARMANAGERVERSION;
 }
 
-void WINAPI SetStartupInfoW(const PluginStartupInfo* info) {
+int WINAPI GetMinFarVersionW(void) {
+  return FARMANAGERVERSION;
+}
+
+void WINAPI SetStartupInfoW(const struct PluginStartupInfo *Info) {
   enable_lfh();
-  Far::init(info);
+  Far::init(Info);
   g_options.load();
   g_profiles.load();
   g_plugin_prefix = g_options.plugin_prefix;
   Archive::max_check_size = g_options.max_check_size;
 }
 
-void WINAPI GetPluginInfoW(PluginInfo* info) {
+void WINAPI GetPluginInfoW(struct PluginInfo *Info) {
   FAR_ERROR_HANDLER_BEGIN;
   static const wchar_t* plugin_menu[1];
   static const wchar_t* config_menu[1];
   plugin_menu[0] = Far::msg_ptr(MSG_PLUGIN_NAME);
   config_menu[0] = Far::msg_ptr(MSG_PLUGIN_NAME);
 
-  info->StructSize = sizeof(PluginInfo);
-  info->PluginMenu.Guids = &c_plugin_menu_guid;
-  info->PluginMenu.Strings = plugin_menu;
-  info->PluginMenu.Count = ARRAYSIZE(plugin_menu);
-  info->PluginConfig.Guids = &c_plugin_config_guid;
-  info->PluginConfig.Strings = config_menu;
-  info->PluginConfig.Count = ARRAYSIZE(config_menu);
-  info->CommandPrefix = g_plugin_prefix.c_str();
+  Info->StructSize = sizeof(PluginInfo);
+  Info->PluginMenuStrings = plugin_menu;
+  Info->PluginMenuStringsNumber = ARRAYSIZE(plugin_menu);
+  Info->PluginConfigStrings = config_menu;
+  Info->PluginConfigStringsNumber = ARRAYSIZE(config_menu);
+  Info->CommandPrefix = g_plugin_prefix.c_str();
   FAR_ERROR_HANDLER_END(return, return, false);
 }
 
-int WINAPI AnalyseW(const AnalyseInfo* info) {
+HANDLE WINAPI OpenPluginW(int OpenFrom, INT_PTR Item) {
   FAR_ERROR_HANDLER_BEGIN;
-  if (info->FileName == nullptr) {
-    if (!g_options.handle_create)
-      FAIL(E_ABORT);
-    g_archives.clear();
-    return TRUE;
-  }
-  else {
-    OpenOptions options;
-    options.arc_path = info->FileName;
-    options.arc_types = ArcAPI::formats().get_arc_types();
-    if (g_detect_next_time == triUndef && (info->OpMode & OPM_PGDN) == 0) {
-      options.detect = false;
-      if (!g_options.handle_commands)
-        FAIL(E_ABORT);
-      if (g_options.use_include_masks && !Far::match_masks(extract_file_name(info->FileName), g_options.include_masks))
-        FAIL(E_ABORT);
-      if (g_options.use_exclude_masks && Far::match_masks(extract_file_name(info->FileName), g_options.exclude_masks))
-        FAIL(E_ABORT);
-      if (g_options.use_enabled_formats || g_options.use_disabled_formats) {
-        set<wstring> enabled_formats;
-        if (g_options.use_enabled_formats) {
-          list<wstring> name_list = split(upcase(g_options.enabled_formats), L',');
-          copy(name_list.cbegin(), name_list.cend(), inserter(enabled_formats, enabled_formats.begin()));
-        }
-        set<wstring> disabled_formats;
-        if (g_options.use_disabled_formats) {
-          list<wstring> name_list = split(upcase(g_options.disabled_formats), L',');
-          copy(name_list.cbegin(), name_list.cend(), inserter(disabled_formats, disabled_formats.begin()));
-        }
-
-        const ArcFormats& arc_formats = ArcAPI::formats();
-        ArcTypes::iterator arc_type = options.arc_types.begin();
-        while (arc_type != options.arc_types.end()) {
-          wstring arc_name = upcase(arc_formats.at(*arc_type).name);
-          if (g_options.use_enabled_formats && enabled_formats.count(arc_name) == 0)
-            arc_type = options.arc_types.erase(arc_type);
-          else if (g_options.use_disabled_formats && disabled_formats.count(arc_name) != 0)
-            arc_type = options.arc_types.erase(arc_type);
-          else
-            arc_type++;
-        }
-
-        if (options.arc_types.empty())
-          FAIL(E_ABORT);
-      }
-    }
-    else
-      options.detect = g_detect_next_time == triTrue;
-    g_detect_next_time = triUndef;
-
-    g_archives = Archive::open(options);
-    return g_archives.size() != 0;
-  }
-  FAR_ERROR_HANDLER_END(return FALSE, return FALSE, true);
-}
-
-HANDLE WINAPI OpenW(const OpenInfo* info) {
-  FAR_ERROR_HANDLER_BEGIN;
-  if (info->OpenFrom == OPEN_PLUGINSMENU) {
+  if (OpenFrom == OPEN_PLUGINSMENU) {
     Far::MenuItems menu_items;
     unsigned open_menu_id = menu_items.add(Far::get_msg(MSG_MENU_OPEN));
     unsigned detect_menu_id = menu_items.add(Far::get_msg(MSG_MENU_DETECT));
@@ -943,14 +894,14 @@ HANDLE WINAPI OpenW(const OpenInfo* info) {
         return INVALID_HANDLE_VALUE;
       if (!Far::is_real_file_panel(panel_info)) {
         if ((panel_item.file_attributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
-          Far::post_macro(L"CtrlPgDn");
-          g_detect_next_time = options.detect ? triTrue : triFalse;
+          Far::post_keys(vector<DWORD>(1, KEY_CTRLPGDN));
+          detect_next_time = options.detect ? triTrue : triFalse;
         }
         return INVALID_HANDLE_VALUE;
       }
       options.arc_path = add_trailing_slash(Far::get_panel_dir(PANEL_ACTIVE)) + panel_item.file_name;
       options.arc_types = ArcAPI::formats().get_arc_types();
-      return Plugin::open(Archive::open(options));
+      return Plugin::open(options);
     }
     else if (item == create_menu_id) {
       Plugin::create_archive();
@@ -982,14 +933,14 @@ HANDLE WINAPI OpenW(const OpenInfo* info) {
       }
     }
   }
-  else if (info->OpenFrom == OPEN_COMMANDLINE) {
+  else if (OpenFrom == OPEN_COMMANDLINE) {
     try {
-      CommandArgs cmd_args = parse_command(reinterpret_cast<const wchar_t*>(info->Data));
+      CommandArgs cmd_args = parse_command(reinterpret_cast<const wchar_t*>(Item));
       switch (cmd_args.cmd) {
       case cmdOpen: {
         OpenOptions options = parse_open_command(cmd_args).options;
         options.arc_path = Far::get_absolute_path(options.arc_path);
-        return Plugin::open(Archive::open(options));
+        return Plugin::open(options);
       }
       case cmdCreate:
       case cmdUpdate:
@@ -1010,110 +961,153 @@ HANDLE WINAPI OpenW(const OpenInfo* info) {
         throw;
     }
   }
-  else if (info->OpenFrom == OPEN_ANALYSE) {
-    if (g_archives.size() == 0) {
-      return new Plugin();
-    }
-    else {
-      shared_ptr<void> _(&g_archives, mem_fn(&Archives::clear));
-      return Plugin::open(g_archives);
-    }
-  }
   return INVALID_HANDLE_VALUE;
   FAR_ERROR_HANDLER_END(return INVALID_HANDLE_VALUE, return INVALID_HANDLE_VALUE, false);
 }
 
-void WINAPI ClosePanelW(HANDLE h_panel) {
+HANDLE WINAPI OpenFilePluginW(const wchar_t *Name,const unsigned char *Data,int DataSize,int OpMode) {
   FAR_ERROR_HANDLER_BEGIN;
-  Plugin* plugin = reinterpret_cast<Plugin*>(h_panel);
+  if (Name == nullptr) {
+    if (!g_options.handle_create)
+      FAIL(E_ABORT);
+    return new Plugin();
+  }
+  else {
+    OpenOptions options;
+    options.arc_path = Name;
+    options.arc_types = ArcAPI::formats().get_arc_types();
+    if (detect_next_time == triUndef) {
+      options.detect = false;
+      if (!g_options.handle_commands)
+        FAIL(E_ABORT);
+      if (g_options.use_include_masks && !Far::match_masks(extract_file_name(Name), g_options.include_masks))
+        FAIL(E_ABORT);
+      if (g_options.use_exclude_masks && Far::match_masks(extract_file_name(Name), g_options.exclude_masks))
+        FAIL(E_ABORT);
+      if (g_options.use_enabled_formats || g_options.use_disabled_formats) {
+        set<wstring> enabled_formats;
+        if (g_options.use_enabled_formats) {
+          list<wstring> name_list = split(upcase(g_options.enabled_formats), L',');
+          copy(name_list.cbegin(), name_list.cend(), inserter(enabled_formats, enabled_formats.begin()));
+        }
+        set<wstring> disabled_formats;
+        if (g_options.use_disabled_formats) {
+          list<wstring> name_list = split(upcase(g_options.disabled_formats), L',');
+          copy(name_list.cbegin(), name_list.cend(), inserter(disabled_formats, disabled_formats.begin()));
+        }
+
+        const ArcFormats& arc_formats = ArcAPI::formats();
+        ArcTypes::iterator arc_type = options.arc_types.begin();
+        while (arc_type != options.arc_types.end()) {
+          wstring arc_name = upcase(arc_formats.at(*arc_type).name);
+          if (g_options.use_enabled_formats && enabled_formats.count(arc_name) == 0)
+            arc_type = options.arc_types.erase(arc_type);
+          else if (g_options.use_disabled_formats && disabled_formats.count(arc_name) != 0)
+            arc_type = options.arc_types.erase(arc_type);
+          else
+            arc_type++;
+        }
+
+        if (options.arc_types.empty())
+          FAIL(E_ABORT);
+      }
+    }
+    else
+      options.detect = detect_next_time == triTrue;
+    detect_next_time = triUndef;
+    return Plugin::open(options);
+  }
+  FAR_ERROR_HANDLER_END(return INVALID_HANDLE_VALUE, return INVALID_HANDLE_VALUE, (OpMode & (OPM_SILENT | OPM_FIND)) != 0);
+}
+
+void WINAPI ClosePluginW(HANDLE hPlugin) {
+  FAR_ERROR_HANDLER_BEGIN;
+  Plugin* plugin = reinterpret_cast<Plugin*>(hPlugin);
   IGNORE_ERRORS(plugin->close());
   delete plugin;
   FAR_ERROR_HANDLER_END(return, return, true);
 }
 
-void WINAPI GetOpenPanelInfoW(OpenPanelInfo* info) {
+void WINAPI GetOpenPluginInfoW(HANDLE hPlugin,struct OpenPluginInfo *Info) {
   FAR_ERROR_HANDLER_BEGIN;
-  reinterpret_cast<Plugin*>(info->hPanel)->info(info);
+  reinterpret_cast<Plugin*>(hPlugin)->info(Info);
   FAR_ERROR_HANDLER_END(return, return, false);
 }
 
-int WINAPI SetDirectoryW(const SetDirectoryInfo* info) {
+int WINAPI SetDirectoryW(HANDLE hPlugin,const wchar_t *Dir,int OpMode) {
   FAR_ERROR_HANDLER_BEGIN;
-  reinterpret_cast<Plugin*>(info->hPanel)->set_dir(info->Dir);
+  reinterpret_cast<Plugin*>(hPlugin)->set_dir(Dir);
   return TRUE;
-  FAR_ERROR_HANDLER_END(return FALSE, return FALSE, (info->OpMode & (OPM_SILENT | OPM_FIND)) != 0);
+  FAR_ERROR_HANDLER_END(return FALSE, return FALSE, (OpMode & (OPM_SILENT | OPM_FIND)) != 0);
 }
 
-int WINAPI GetFindDataW(GetFindDataInfo* info) {
+int WINAPI GetFindDataW(HANDLE hPlugin,struct PluginPanelItem **pPanelItem,int *pItemsNumber,int OpMode) {
   FAR_ERROR_HANDLER_BEGIN;
-  reinterpret_cast<Plugin*>(info->hPanel)->list(&info->PanelItem, &info->ItemsNumber);
+  reinterpret_cast<Plugin*>(hPlugin)->list(pPanelItem, pItemsNumber);
   return TRUE;
-  FAR_ERROR_HANDLER_END(return FALSE, return FALSE, (info->OpMode & (OPM_SILENT | OPM_FIND)) != 0);
+  FAR_ERROR_HANDLER_END(return FALSE, return FALSE, (OpMode & (OPM_SILENT | OPM_FIND)) != 0);
 }
 
-void WINAPI FreeFindDataW(const FreeFindDataInfo* info) {
+void WINAPI FreeFindDataW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber) {
   FAR_ERROR_HANDLER_BEGIN;
-  delete[] info->PanelItem;
+  delete[] PanelItem;
   FAR_ERROR_HANDLER_END(return, return, false);
 }
 
-int WINAPI GetFilesW(GetFilesInfo *info) {
+int WINAPI GetFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,const wchar_t **DestPath,int OpMode) {
   FAR_ERROR_HANDLER_BEGIN
-  reinterpret_cast<Plugin*>(info->hPanel)->get_files(info->PanelItem, info->ItemsNumber, info->Move, &info->DestPath, info->OpMode);
+  reinterpret_cast<Plugin*>(hPlugin)->get_files(PanelItem, ItemsNumber, Move, DestPath, OpMode);
   return 1;
-  FAR_ERROR_HANDLER_END(return 0, return -1, (info->OpMode & (OPM_FIND | OPM_QUICKVIEW)) != 0);
+  FAR_ERROR_HANDLER_END(return 0, return -1, (OpMode & (OPM_FIND | OPM_QUICKVIEW)) != 0);
 }
 
-int WINAPI PutFilesW(const PutFilesInfo* info) {
+int WINAPI PutFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,const wchar_t *SrcPath,int OpMode) {
   FAR_ERROR_HANDLER_BEGIN;
-  reinterpret_cast<Plugin*>(info->hPanel)->put_files(info->PanelItem, info->ItemsNumber, info->Move, info->SrcPath, info->OpMode);
+  reinterpret_cast<Plugin*>(hPlugin)->put_files(PanelItem, ItemsNumber, Move, SrcPath, OpMode);
   return 2;
-  FAR_ERROR_HANDLER_END(return 0, return -1, (info->OpMode & OPM_FIND) != 0);
+  FAR_ERROR_HANDLER_END(return 0, return -1, (OpMode & OPM_FIND) != 0);
 }
 
-int WINAPI DeleteFilesW(const DeleteFilesInfo* info) {
+int WINAPI DeleteFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int OpMode) {
   FAR_ERROR_HANDLER_BEGIN;
-  reinterpret_cast<Plugin*>(info->hPanel)->delete_files(info->PanelItem, info->ItemsNumber, info->OpMode);
+  reinterpret_cast<Plugin*>(hPlugin)->delete_files(PanelItem, ItemsNumber, OpMode);
   return TRUE;
-  FAR_ERROR_HANDLER_END(return FALSE, return FALSE, (info->OpMode & OPM_SILENT) != 0);
+  FAR_ERROR_HANDLER_END(return FALSE, return FALSE, (OpMode & OPM_SILENT) != 0);
 }
 
-int WINAPI MakeDirectoryW(MakeDirectoryInfo* info) {
+int WINAPI MakeDirectoryW(HANDLE hPlugin, const wchar_t** Name, int OpMode) {
   FAR_ERROR_HANDLER_BEGIN;
-  reinterpret_cast<Plugin*>(info->hPanel)->create_dir(&info->Name, info->OpMode);
+  reinterpret_cast<Plugin*>(hPlugin)->create_dir(Name, OpMode);
   return 1;
-  FAR_ERROR_HANDLER_END(return -1, return -1, (info->OpMode & OPM_SILENT) != 0);
+  FAR_ERROR_HANDLER_END(return -1, return -1, (OpMode & OPM_SILENT) != 0);
 }
 
-int WINAPI ProcessHostFileW(const ProcessHostFileInfo* info) {
+int WINAPI ProcessHostFileW(HANDLE hPlugin, struct PluginPanelItem *PanelItem, int ItemsNumber, int OpMode) {
   FAR_ERROR_HANDLER_BEGIN;
   Far::MenuItems menu_items;
   menu_items.add(Far::get_msg(MSG_TEST_MENU));
   int item = Far::menu(Far::get_msg(MSG_PLUGIN_NAME), menu_items);
   if (item == 0)
-    reinterpret_cast<Plugin*>(info->hPanel)->test_files(info->PanelItem, info->ItemsNumber, info->OpMode);
+    reinterpret_cast<Plugin*>(hPlugin)->test_files(PanelItem, ItemsNumber, OpMode);
   return TRUE;
-  FAR_ERROR_HANDLER_END(return FALSE, return FALSE, (info->OpMode & OPM_SILENT) != 0);
+  FAR_ERROR_HANDLER_END(return FALSE, return FALSE, (OpMode & OPM_SILENT) != 0);
 }
 
-int WINAPI ProcessKeyW(HANDLE h_panel, const INPUT_RECORD *Rec) {
+int WINAPI ProcessKeyW(HANDLE hPlugin,int Key,unsigned int ControlState) {
   FAR_ERROR_HANDLER_BEGIN;
-  if (Rec->EventType == KEY_EVENT) {
-    const KEY_EVENT_RECORD& key_event = Rec->Event.KeyEvent;
-    if ((key_event.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0 && key_event.wVirtualKeyCode == 'A') {
-      reinterpret_cast<Plugin*>(h_panel)->show_attr();
-      return TRUE;
-    }
-    else if ((key_event.dwControlKeyState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) != 0 && key_event.wVirtualKeyCode == VK_F6) {
-      reinterpret_cast<Plugin*>(h_panel)->extract();
-      return TRUE;
-    }
+  if (ControlState == PKF_CONTROL && Key == 'A') {
+    reinterpret_cast<Plugin*>(hPlugin)->show_attr();
+    return TRUE;
+  }
+  else if (ControlState == PKF_ALT && Key == VK_F6) {
+    reinterpret_cast<Plugin*>(hPlugin)->extract();
+    return TRUE;
   }
   return FALSE;
   FAR_ERROR_HANDLER_END(return FALSE, return FALSE, false);
 }
 
-int WINAPI ConfigureW(const GUID* Guid) {
+int WINAPI ConfigureW(int ItemNumber) {
   FAR_ERROR_HANDLER_BEGIN;
   PluginSettings settings;
   settings.handle_create = g_options.handle_create;
@@ -1146,6 +1140,5 @@ int WINAPI ConfigureW(const GUID* Guid) {
 }
 
 void WINAPI ExitFARW() {
-  g_archives.clear();
   ArcAPI::free();
 }

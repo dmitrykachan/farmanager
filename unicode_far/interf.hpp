@@ -6,8 +6,8 @@ interf.hpp
 Консольные функции ввода-вывода
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -141,6 +141,7 @@ void Text(const WCHAR *Str);
 void Text(int MsgId);
 void VText(const WCHAR *Str);
 void HiText(const WCHAR *Str,int HiColor,int isVertText=0);
+void mprintf(const WCHAR *fmt,...);
 void vmprintf(const WCHAR *fmt,...);
 void PutText(int X1,int Y1,int X2,int Y2,const void *Src);
 void GetText(int X1,int Y1,int X2,int Y2,void *Dest,int DestSize);

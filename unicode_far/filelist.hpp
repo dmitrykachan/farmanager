@@ -6,8 +6,8 @@ filelist.hpp
 Файловая панель - общие функции
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -52,7 +52,7 @@ struct FileListItem
 
 	DWORD NumberOfLinks;
 	DWORD NumberOfStreams;
-	UINT64 UserFlags;
+	DWORD UserFlags;
 	DWORD_PTR UserData;
 
 	int Position;
@@ -61,7 +61,7 @@ struct FileListItem
 	char DeleteDiz;
 	string strOwner;
 	wchar_t **CustomColumnData;
-	size_t CustomColumnNumber;
+	int CustomColumnNumber;
 	DWORD CRC32;
 
 	//BUGBUG!!
@@ -237,7 +237,7 @@ class FileList:public Panel
 		void SetShowColor(int Position, int ColorType=HIGHLIGHTCOLORTYPE_FILE);
 		int  GetShowColor(int Position, int ColorType);
 		void ShowSelectedSize();
-		void ShowTotalSize(OpenPanelInfo &Info);
+		void ShowTotalSize(OpenPluginInfo &Info);
 		int ConvertName(const wchar_t *SrcName, string &strDest, int MaxLength, int RightAlign, int ShowStatus, DWORD dwFileAttr);
 
 		void Select(FileListItem *SelPtr,int Selection);
@@ -245,7 +245,7 @@ class FileList:public Panel
 		void ProcessEnter(bool EnableExec,bool SeparateWindow, bool EnableAssoc=true, bool RunAs = false, OPENFILEPLUGINTYPE Type = OFP_NORMAL);
 		// ChangeDir возвращает FALSE, eсли не смогла выставить заданный путь
 		BOOL ChangeDir(const wchar_t *NewDir,BOOL IsUpdated=TRUE);
-		void CountDirSize(UINT64 PluginFlags);
+		void CountDirSize(DWORD PluginFlags);
 		/* $ 19.03.2002 DJ
 		   IgnoreVisible - обновить, даже если панель невидима
 		*/
@@ -275,8 +275,9 @@ class FileList:public Panel
 		void DeletePluginItemList(PluginPanelItem *(&ItemList),int &ItemNumber);
 		HANDLE OpenPluginForFile(const wchar_t *FileName,DWORD FileAttr, OPENFILEPLUGINTYPE Type);
 		int PreparePanelView(PanelViewSettings *PanelView);
-		int PrepareColumnWidths(unsigned int *ColumnTypes,int *ColumnWidths,int *ColumnWidthsTypes,int &ColumnCount,bool FullScreen);
-		void PrepareViewSettings(int ViewMode,OpenPanelInfo *PlugInfo);
+		int PrepareColumnWidths(unsigned int *ColumnTypes,int *ColumnWidths,
+		                        int *ColumnWidthsTypes,int &ColumnCount,int FullScreen);
+		void PrepareViewSettings(int ViewMode,OpenPluginInfo *PlugInfo);
 
 		void PluginDelete();
 		void PutDizToPlugin(FileList *DestPanel,PluginPanelItem *ItemList,
@@ -321,7 +322,7 @@ class FileList:public Panel
 		*/
 		virtual void UpdateIfRequired();
 
-		virtual int SendKeyToPlugin(DWORD Key,bool Pred=false);
+		virtual int SendKeyToPlugin(DWORD Key,BOOL Pred=FALSE);
 		void CreateChangeNotification(int CheckTree);
 		virtual void CloseChangeNotification();
 		virtual void SortFileList(int KeepPosition);
@@ -332,7 +333,7 @@ class FileList:public Panel
 		virtual void ChangeNumericSort(int Mode);
 		virtual void ChangeCaseSensitiveSort(int Mode);
 		virtual void ChangeDirectoriesFirst(int Mode);
-		virtual BOOL SetCurDir(const wchar_t *NewDir,int ClosePanel);
+		virtual BOOL SetCurDir(const wchar_t *NewDir,int ClosePlugin);
 		virtual int GetPrevSortMode();
 		virtual int GetPrevSortOrder();
 		virtual int GetPrevViewMode();
@@ -370,12 +371,12 @@ class FileList:public Panel
 		virtual void GetDizName(string &strDizName);
 		virtual void CopyDiz(const wchar_t *Name, const wchar_t *ShortName, const wchar_t *DestName,
 		                     const wchar_t *DestShortName,DizList *DestDiz);
-		virtual bool IsFullScreen();
+		virtual int IsFullScreen();
 		virtual int IsDizDisplayed();
 		virtual int IsColumnDisplayed(int Type);
 		virtual int GetColumnsCount() { return Columns;};
 		virtual void SetReturnCurrentFile(int Mode);
-		virtual void GetOpenPanelInfo(OpenPanelInfo *Info);
+		virtual void GetOpenPluginInfo(OpenPluginInfo *Info);
 		virtual void SetPluginMode(HANDLE hPlugin,const wchar_t *PluginFile,bool SendOnFocus=false);
 
 		void PluginGetPanelInfo(PanelInfo &Info);
@@ -414,6 +415,6 @@ class FileList:public Panel
 		static void FreePluginPanelItem(PluginPanelItem *pi);
 		size_t FileListToPluginItem2(FileListItem *fi,PluginPanelItem *pi);
 		static void PluginToFileListItem(PluginPanelItem *pi,FileListItem *fi);
-		static bool IsModeFullScreen(int Mode);
+		static int IsModeFullScreen(int Mode);
 		static string &AddPluginPrefix(FileList *SrcPanel,string &strPrefix);
 };

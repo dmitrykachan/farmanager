@@ -6,7 +6,7 @@ format.hpp
 Форматирование строк
 */
 /*
-Copyright © 2009 Far Group
+Copyright (c) 2009 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -57,13 +57,9 @@ namespace fmt
 			WCHAR GetValue()const {return Value;}
 	};
 
-	class Radix
-	{
-			int Value;
-		public:
-			Radix(int Value=10) {this->Value=Value;}
-			int GetValue()const {return Value;}
-	};
+	class LeftAlign {};
+
+	class RightAlign {};
 
 	enum AlignType
 	{
@@ -71,10 +67,6 @@ namespace fmt
 		A_RIGHT,
 	};
 
-	template<AlignType T>class Align {};
-
-	typedef Align<A_LEFT> LeftAlign;
-	typedef Align<A_RIGHT> RightAlign;
 };
 
 class BaseFormat
@@ -83,25 +75,22 @@ class BaseFormat
 		size_t _Precision;
 		WCHAR _FillChar;
 		fmt::AlignType _Align;
-		int _Radix;
 
 		void Reset();
 		void Put(LPCWSTR Data,size_t Length);
-		BaseFormat& ToString(INT64 Value, bool Signed);
 
 	protected:
 		virtual void Commit(const string& Data)=0;
 
 	public:
 		BaseFormat() {Reset();}
-		virtual ~BaseFormat() {}
+		~BaseFormat() {}
 
 		// attributes
 		void SetPrecision(size_t Precision=static_cast<size_t>(-1)) {_Precision=Precision;}
 		void SetWidth(size_t Width=0) {_Width=Width;}
 		void SetAlign(fmt::AlignType Align=fmt::A_RIGHT) {_Align=Align;}
 		void SetFillChar(WCHAR Char=L' ') {_FillChar=Char;}
-		void SetRadix(int Radix=10) {_Radix=Radix;}
 
 		// data
 		BaseFormat& operator<<(INT64 Value);
@@ -118,7 +107,7 @@ class BaseFormat
 
 		BaseFormat& operator<<(WCHAR Value);
 		BaseFormat& operator<<(LPCWSTR Data);
-		BaseFormat& operator<<(const string& String);
+		BaseFormat& operator<<(string& String);
 
 		// manipulators
 		BaseFormat& operator<<(const fmt::Width& Manipulator);
@@ -126,15 +115,19 @@ class BaseFormat
 		BaseFormat& operator<<(const fmt::LeftAlign& Manipulator);
 		BaseFormat& operator<<(const fmt::RightAlign& Manipulator);
 		BaseFormat& operator<<(const fmt::FillChar& Manipulator);
-		BaseFormat& operator<<(const fmt::Radix& Manipulator);
 };
 
-class FormatString:public BaseFormat, public string
+class FormatString:public BaseFormat
 {
-	virtual void Commit(const string& Data);
+		string Value;
+		void Commit(const string& Data) {Value+=Data;}
+	public:
+		operator const wchar_t*()const {return Value;}
+		const string& strValue()const {return Value;}
+		void Clear() {Value.Clear();}
 };
 
 class FormatScreen:public BaseFormat
 {
-	virtual void Commit(const string& Data);
+		void Commit(const string& Data);
 };

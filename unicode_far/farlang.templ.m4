@@ -1201,13 +1201,13 @@ MFolderHistoryTitle
 "Historial directorios"
 
 MViewHistoryTitle
-"История просмотра и редактирования"
-"File view and edit history"
-upd:"Historie prohlížení souborů"
-upd:"Zuletzt betrachtete Dateien"
-upd:"Fájl előzmények"
-upd:"Historia podglądu plików"
-upd:"Historial visor"
+"История просмотра"
+"File view history"
+"Historie prohlížení souborů"
+"Zuletzt betrachtete Dateien"
+"Fájl előzmények"
+"Historia podglądu plików"
+"Historial visor"
 
 MViewHistoryIsCreate
 "Создать файл?"
@@ -2428,7 +2428,7 @@ MEditConfigScrollbar
 "Zobr&azovat posuvník"
 "Scro&llbalken anzeigen"
 "&Gördítősáv mutatva"
-"Pokaż &pasek przewijania"
+"Pokaż %pasek przewijania"
 "Mostrar barra de desp&lazamiento"
 
 MEditShowWhiteSpace
@@ -2799,8 +2799,8 @@ MCopyFiles
 "Copy %d item%s"
 "Kopírovat %d polož%s"
 "Kopiere %d Objekt%s"
-" %d elem másolása%s"
-"Skopiuj %d plików%s"
+" %d elem másolása"
+"Skopiuj %d plików"
 "Copiar %d ítem%s"
 
 MMoveFiles
@@ -2808,8 +2808,8 @@ MMoveFiles
 "Rename or move %d item%s"
 "Přejmenovat nebo přesunout %d polož%s"
 "Verschiebe %d Objekt%s"
-" %d elem átnevezése-mozgatása%s"
-"Zmień nazwę lub przenieś %d plików%s"
+" %d elem átnevezése-mozgatása"
+"Zmień nazwę lub przenieś %d plików"
 "Renombrar o mover %d ítem%s"
 
 MLinkFiles
@@ -3364,7 +3364,7 @@ l:
 "Konnte nicht kopieren"
 "Nem másolható"
 "Nie mogę skopiować"
-"No se puede copiar"
+"No se puede copiar %s"
 
 MCannotMove
 "Ошибка переноса"
@@ -3373,7 +3373,7 @@ MCannotMove
 "Konnte nicht verschieben"
 "Nem mozgatható"
 "Nie mogę przenieść"
-"No se puede mover"
+"No se puede mover %s"
 
 MCannotLink
 "Ошибка создания ссылки"
@@ -3382,7 +3382,7 @@ MCannotLink
 "Konnte nicht verlinken"
 "Nem linkelhető"
 "Nie mogę dowiązać"
-"No se puede enlazar"
+"No se puede enlazar %s"
 
 MCannotCopyTo
 "в"
@@ -3391,7 +3391,7 @@ MCannotCopyTo
 "nach"
 "ide:"
 "do"
-"hacia"
+"hacia %s"
 
 MCopyEncryptWarn1
 "Файл"
@@ -4397,15 +4397,6 @@ l:
 "Accesos a directorio"
 
 MFolderShortcutBottom
-"Редактирование: Del,Ins,ShiftIns,F4"
-"Edit: Del,Ins,ShiftIns,F4"
-"Edit: Del,Ins,ShiftIns,F4"
-"Bearb.: Entf,Einf,ShiftEinf,F4"
-"Szerk.: Del,Ins,ShiftIns,F4"
-"Edycja: Del,Ins,ShiftIns,F4"
-"Editar: Del,Ins,ShiftIns,F4"
-
-MFolderShortcutBottomSub
 "Редактирование: Del,Ins,F4"
 "Edit: Del,Ins,F4"
 "Edit: Del,Ins,F4"
@@ -4452,7 +4443,7 @@ MNeedNearPath
 
 MSaveThisShortcut
 "Запомнить эту ссылку?"
-"Save this shortcut?"
+"Save this shortcuts?"
 "Uložit tyto zkratky?"
 "Verknüpfung speichern?"
 "Mentsem a gyorsbillentyűket?"
@@ -11706,15 +11697,6 @@ upd:"Show &plugins"
 upd:"Show &plugins"
 "Mostrar &plugins"
 
-MChangeDriveSortPluginsByHotkey
-"Сортировать плагины по горячей клавише"
-"Sort plugins by hotkey"
-upd:"Sort plugins by hotkey"
-upd:"Sort plugins by hotkey"
-upd:"Sort plugins by hotkey"
-upd:"Sort plugins by hotkey"
-upd:"Sort plugins by hotkey"
-
 MChangeDriveShowCD
 "Показывать параметры &компакт-дисков"
 "Show &CD drive parameters"
@@ -13595,13 +13577,13 @@ MPluginsManagerPersonalPath
 "Ruta para pl&ugins personales:
 
 MPluginsManagerOFP
-"Обработка &файла"
-"&File processing"
-upd:"&File processing"
-upd:"&File processing"
-"&Fájl feldolgozása"
-upd:"&File processing"
-"Proceso de archivo"
+"Обработка &файла (OpenFilePlugin)"
+"&File processing (OpenFilePlugin)"
+upd:"&File processing (OpenFilePlugin)"
+upd:"&File processing (OpenFilePlugin)"
+"&Fájl feldolgozása (OpenFilePlugin)"
+upd:"&File processing (OpenFilePlugin)"
+"Proceso de archivo (OpenFilePlugin)"
 
 MPluginsManagerStdAssoc
 "Пункт вызова стандартной &ассоциации"
@@ -13787,25 +13769,25 @@ MMainMenuTitle
 "Menu główne"
 "Menú principal"
 
-MMainMenuUser
-l:
-l:// <...menu (User)>
-"Пользовательское"
-"User"
-upd:"User"
-upd:"User"
-upd:"User"
-upd:"User"
-upd:"User"
+MMainMenuFAR
+"Папка FAR"
+"FAR folder"
+"Složka FARu"
+"FAR Ordner"
+"FAR mappa"
+"Folder FAR-a"
+"Directorio FAR"
 
-MMainMenuGlobal
-"Глобальное"
-"Global"
-upd:"Global"
-upd:"Global"
-upd:"Global"
-upd:"Global"
-upd:"Global"
+MMainMenuREG
+l:
+l:// <...menu (Registry)>
+"Реестр"
+"Registry"
+"Registry"
+"Reg."
+"Registry"
+"Rejestr"
+"Registro"
 
 MLocalMenuTitle
 "Местное меню"
@@ -14209,7 +14191,7 @@ MEnterDescription
 "Beschreibung für"
 upd:"Írja be megjegyzését:"
 "Wprowadź opis"
-"Entrar descripción de"
+"Entrar descripción de %s"
 
 MReadingDiz
 l:
@@ -14909,7 +14891,7 @@ l:// for <!Macro:Vars!> and <!Macro:Consts!>, count formats = 1
 "„%s”"
 "„%s”"
 "„%s”"
-""%s""
+"%s"
 
 MMacroOutputFormatForHelpDWord
 l:// for <!Macro:Vars!> and <!Macro:Consts!>, count formats = 2
@@ -15527,22 +15509,22 @@ l:
 "Este plugin requiere versión más actual de FAR"
 
 MPlgRequired
-"Требуется версия FAR - %d.%d.%d.%d."
-"Required FAR version is %d.%d.%d.%d."
-"Požadovaná verze FARu je %d.%d.%d.%d."
-"Benötigte FAR-Version ist %d.%d.%d.%d."
-"A szükséges FAR verzió: %d.%d.%d.%d."
-"Wymagana wersja FAR-a to %d.%d.%d.%d."
-"Requiere la versión FAR %d.%d.%d.%d."
+"Требуется версия FAR - %d.%d.%d."
+"Required FAR version is %d.%d.%d."
+"Požadovaná verze FARu je %d.%d.%d."
+"Benötigte FAR-Version ist %d.%d.%d."
+"A szükséges FAR verzió: %d.%d.%d."
+"Wymagana wersja FAR-a to %d.%d.%d."
+"Requiere la versión FAR %d.%d.%d."
 
 MPlgRequired2
-"Текущая версия FAR - %d.%d.%d.%d."
-"Current FAR version is %d.%d.%d.%d."
-"Nynější verze FARu je %d.%d.%d.%d."
-"Aktuelle FAR-Version ist %d.%d.%d.%d."
-"A jelenlegi FAR verzió: %d.%d.%d.%d."
-"Bieżąca wersja FAR-a: %d.%d.%d.%d."
-"Versión actual de FAR es %d.%d.%d.%d"
+"Текущая версия FAR - %d.%d.%d."
+"Current FAR version is %d.%d.%d."
+"Nynější verze FARu je %d.%d.%d."
+"Aktuelle FAR-Version ist %d.%d.%d."
+"A jelenlegi FAR verzió: %d.%d.%d."
+"Bieżąca wersja FAR-a: %d.%d.%d."
+"Versión actual de FAR es %d.%d.%d"
 
 MPlgLoadPluginError
 "Ошибка при загрузке плагина"

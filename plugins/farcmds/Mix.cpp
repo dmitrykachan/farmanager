@@ -5,22 +5,22 @@
  возвращает число, вырезав его из строки, или -2 в случае ошибки
  Start, End - начало и конец строки
 */
-int GetInt(wchar_t *Start, wchar_t *End)
+int GetInt(TCHAR *Start, TCHAR *End)
 {
 	int Ret=-2;
 
 	if (End >= Start)
 	{
-		wchar_t Tmp[11];
+		TCHAR Tmp[11];
 		int Size=(int)(End-Start);
 
 		if (Size)
 		{
 			if (Size < 11)
 			{
-				wmemcpy(Tmp,Start,Size);
+				_tmemcpy(Tmp,Start,Size);
 				Tmp[Size]=0;
-				Ret=FSF.atoi(Tmp);
+				Ret=FarAtoi(Tmp);
 			}
 		}
 		else
@@ -30,18 +30,57 @@ int GetInt(wchar_t *Start, wchar_t *End)
 	return Ret;
 }
 
-const wchar_t *GetMsg(int MsgId)
+const TCHAR *GetMsg(int MsgId)
 {
-	return Info.GetMsg(&MainGuid,MsgId);
+	return(Info.GetMsg(Info.ModuleNumber,MsgId));
 }
 
 /*Возвращает TRUE, если файл name существует*/
-BOOL FileExists(const wchar_t *Name)
+BOOL FileExists(const TCHAR *Name)
 {
 	return GetFileAttributes(Name)!=0xFFFFFFFF;
 }
 
-wchar_t *GetCommaWord(wchar_t *Src,wchar_t *Word,wchar_t Separator)
+void InitDialogItems(const struct InitDialogItem *Init,struct FarDialogItem *Item,
+                     int ItemsNumber)
+{
+	int I;
+	struct FarDialogItem *PItem=Item;
+	const struct InitDialogItem *PInit=Init;
+
+	for (I=0; I<ItemsNumber; I++,PItem++,PInit++)
+	{
+		PItem->Type=PInit->Type;
+		PItem->X1=PInit->X1;
+		PItem->Y1=PInit->Y1;
+		PItem->X2=PInit->X2;
+		PItem->Y2=PInit->Y2;
+		PItem->Focus=PInit->Focus;
+		PItem->History=(const TCHAR *)PInit->Selected;
+		PItem->Flags=PInit->Flags;
+		PItem->DefaultButton=PInit->DefaultButton;
+#ifdef UNICODE
+		PItem->MaxLen=0;
+#endif
+
+		if ((DWORD_PTR)PInit->Data<2000)
+#ifndef UNICODE
+			lstrcpy(PItem->Data,GetMsg((unsigned int)(DWORD_PTR)PInit->Data));
+
+#else
+			PItem->PtrData = GetMsg((unsigned int)(DWORD_PTR)PInit->Data);
+#endif
+		else
+#ifndef UNICODE
+			lstrcpy(PItem->Data,PInit->Data);
+
+#else
+			PItem->PtrData = PInit->Data;
+#endif
+	}
+}
+
+TCHAR *GetCommaWord(TCHAR *Src,TCHAR *Word,TCHAR Separator)
 {
 	int WordPos,SkipBrackets;
 
@@ -52,10 +91,10 @@ wchar_t *GetCommaWord(wchar_t *Src,wchar_t *Word,wchar_t Separator)
 
 	for (WordPos=0; *Src!=0; Src++,WordPos++)
 	{
-		if (*Src==L'[' && wcschr(Src+1,L']')!=NULL)
+		if (*Src==_T('[') && _tcschr(Src+1,_T(']'))!=NULL)
 			SkipBrackets=TRUE;
 
-		if (*Src==L']')
+		if (*Src==_T(']'))
 			SkipBrackets=FALSE;
 
 		if (*Src==Separator && !SkipBrackets)
@@ -80,7 +119,7 @@ wchar_t *GetCommaWord(wchar_t *Src,wchar_t *Word,wchar_t Separator)
 // Заменить в строке Str Count вхождений подстроки FindStr на подстроку ReplStr
 // Если Count < 0 - заменять "до полной победы"
 // Return - количество замен
-int ReplaceStrings(wchar_t *Str,const wchar_t *FindStr,const wchar_t *ReplStr,int Count,BOOL IgnoreCase)
+int ReplaceStrings(TCHAR *Str,const TCHAR *FindStr,const TCHAR *ReplStr,int Count,BOOL IgnoreCase)
 {
 	int I=0, J=0, Res;
 	int LenReplStr=(int)lstrlen(ReplStr);
@@ -89,16 +128,16 @@ int ReplaceStrings(wchar_t *Str,const wchar_t *FindStr,const wchar_t *ReplStr,in
 
 	while (I <= L-LenFindStr)
 	{
-		Res=IgnoreCase?_memicmp(Str+I, FindStr, LenFindStr*sizeof(wchar_t)):memcmp(Str+I, FindStr, LenFindStr*sizeof(wchar_t));
+		Res=IgnoreCase?_memicmp(Str+I, FindStr, LenFindStr*sizeof(TCHAR)):memcmp(Str+I, FindStr, LenFindStr*sizeof(TCHAR));
 
 		if (Res == 0)
 		{
 			if (LenReplStr > LenFindStr)
-				wmemmove(Str+I+(LenReplStr-LenFindStr),Str+I,lstrlen(Str+I)+1); // >>
+				_tmemmove(Str+I+(LenReplStr-LenFindStr),Str+I,lstrlen(Str+I)+1); // >>
 			else if (LenReplStr < LenFindStr)
-				wmemmove(Str+I,Str+I+(LenFindStr-LenReplStr),lstrlen(Str+I+(LenFindStr-LenReplStr))+1); //??
+				_tmemmove(Str+I,Str+I+(LenFindStr-LenReplStr),lstrlen(Str+I+(LenFindStr-LenReplStr))+1); //??
 
-			wmemcpy(Str+I,ReplStr,LenReplStr);
+			_tmemcpy(Str+I,ReplStr,LenReplStr);
 			I += LenReplStr;
 
 			if (++J == Count && Count > 0)
@@ -116,35 +155,35 @@ int ReplaceStrings(wchar_t *Str,const wchar_t *FindStr,const wchar_t *ReplStr,in
 /*
  возвращает PipeFound
 */
-int PartCmdLine(const wchar_t *CmdStr,wchar_t *NewCmdStr,int SizeNewCmdStr,wchar_t *NewCmdPar,int SizeNewCmdPar)
+int PartCmdLine(const TCHAR *CmdStr,TCHAR *NewCmdStr,int SizeNewCmdStr,TCHAR *NewCmdPar,int SizeNewCmdPar)
 {
 	int PipeFound = FALSE;
 	int QuoteFound = FALSE;
-	ExpandEnvironmentStrings(CmdStr, NewCmdStr, SizeNewCmdStr);
-	FSF.Trim(NewCmdStr);
-	wchar_t *CmdPtr = NewCmdStr;
-	wchar_t *ParPtr = NULL;
+	ExpandEnvironmentStr(CmdStr, NewCmdStr, SizeNewCmdStr);
+	FarTrim(NewCmdStr);
+	TCHAR *CmdPtr = NewCmdStr;
+	TCHAR *ParPtr = NULL;
 	// Разделим собственно команду для исполнения и параметры.
 	// При этом заодно определим наличие символов переопределения потоков
 	// Работаем с учетом кавычек. Т.е. пайп в кавычках - не пайп.
 
 	while (*CmdPtr)
 	{
-		if (*CmdPtr == L'"')
+		if (*CmdPtr == _T('"'))
 			QuoteFound = !QuoteFound;
 
 		if (!QuoteFound && CmdPtr != NewCmdStr)
 		{
-			if (*CmdPtr == L'>' || *CmdPtr == L'<' ||
-			        *CmdPtr == L'|' || *CmdPtr == L' ' ||
-			        *CmdPtr == L'/' ||      // вариант "far.exe/?"
-			        *CmdPtr == L'&'
+			if (*CmdPtr == _T('>') || *CmdPtr == _T('<') ||
+			        *CmdPtr == _T('|') || *CmdPtr == _T(' ') ||
+			        *CmdPtr == _T('/') ||      // вариант "far.exe/?"
+			        (WinVer.dwPlatformId==VER_PLATFORM_WIN32_NT && *CmdPtr == _T('&')) // Для НТ/2к обработаем разделитель команд
 			   )
 			{
 				if (!ParPtr)
 					ParPtr = CmdPtr;
 
-				if (*CmdPtr != L' ' && *CmdPtr != L'/')
+				if (*CmdPtr != _T(' ') && *CmdPtr != _T('/'))
 					PipeFound = TRUE;
 			}
 		}
@@ -157,50 +196,57 @@ int PartCmdLine(const wchar_t *CmdStr,wchar_t *NewCmdStr,int SizeNewCmdStr,wchar
 
 	if (ParPtr) // Мы нашли параметры и отделяем мух от котлет
 	{
-		if (*ParPtr == L' ') //AY: первый пробел между командой и параметрами не нужен,
+		if (*ParPtr == _T(' ')) //AY: первый пробел между командой и параметрами не нужен,
 			*(ParPtr++)=0;     //    он добавляется заново в Execute.
 
 		lstrcpyn(NewCmdPar, ParPtr, SizeNewCmdPar-1);
 		*ParPtr = 0;
 	}
 
-	FSF.Unquote(NewCmdStr);
+	Unquote(NewCmdStr);
 	return PipeFound;
 }
 
-BOOL ProcessOSAliases(wchar_t *Str,int SizeStr)
+BOOL ProcessOSAliases(TCHAR *Str,int SizeStr)
 {
+	if (WinVer.dwPlatformId != VER_PLATFORM_WIN32_NT)
+		return FALSE;
+
 	typedef DWORD (WINAPI *PGETCONSOLEALIAS)(
-	    wchar_t *lpSource,
-	    wchar_t *lpTargetBuffer,
+	    TCHAR *lpSource,
+	    TCHAR *lpTargetBuffer,
 	    DWORD TargetBufferLength,
-	    wchar_t *lpExeName
+	    TCHAR *lpExeName
 	);
 	static PGETCONSOLEALIAS pGetConsoleAlias=NULL;
 
 	if (!pGetConsoleAlias)
 	{
-		pGetConsoleAlias = (PGETCONSOLEALIAS)GetProcAddress(GetModuleHandleW(L"kernel32"),"GetConsoleAliasW");
+#ifdef UNICODE
+		pGetConsoleAlias = (PGETCONSOLEALIAS)GetProcAddress(GetModuleHandleW(_T("kernel32")),"GetConsoleAliasW");
+#else
+		pGetConsoleAlias = (PGETCONSOLEALIAS)GetProcAddress(GetModuleHandle(_T("kernel32")),"GetConsoleAliasA");
+#endif // !UNICODE
 
 		if (!pGetConsoleAlias)
 			return FALSE;
 	}
 
-	wchar_t NewCmdStr[4096];
-	wchar_t NewCmdPar[4096];
+	TCHAR NewCmdStr[4096];
+	TCHAR NewCmdPar[4096];
 	*NewCmdStr=0;
 	*NewCmdPar=0;
 	PartCmdLine(Str,NewCmdStr,ARRAYSIZE(NewCmdStr),NewCmdPar,ARRAYSIZE(NewCmdPar));
-	wchar_t ModuleName[MAX_PATH];
+	TCHAR ModuleName[MAX_PATH];
 	GetModuleFileName(NULL,ModuleName,ARRAYSIZE(ModuleName));
-	wchar_t* ExeName=(wchar_t*)FSF.PointToName(ModuleName);
+	TCHAR* ExeName=(TCHAR*)PointToName(ModuleName);
 	int ret=pGetConsoleAlias(NewCmdStr,NewCmdStr,sizeof(NewCmdStr),ExeName);
 
 	if (!ret)
 	{
-		if (ExpandEnvironmentStrings(L"%COMSPEC%",ModuleName,ARRAYSIZE(ModuleName)))
+		if (ExpandEnvironmentStr(_T("%COMSPEC%"),ModuleName,ARRAYSIZE(ModuleName)))
 		{
-			ExeName=(wchar_t*)FSF.PointToName(ModuleName);
+			ExeName=(TCHAR*)PointToName(ModuleName);
 			ret=pGetConsoleAlias(NewCmdStr,NewCmdStr,sizeof(NewCmdStr),ExeName);
 		}
 	}
@@ -210,9 +256,9 @@ BOOL ProcessOSAliases(wchar_t *Str,int SizeStr)
 		return FALSE;
 	}
 
-	if (!ReplaceStrings(NewCmdStr,L"$*",NewCmdPar,-1,FALSE))
+	if (!ReplaceStrings(NewCmdStr,_T("$*"),NewCmdPar,-1,FALSE))
 	{
-		lstrcat(NewCmdStr,L" ");
+		lstrcat(NewCmdStr,_T(" "));
 		lstrcat(NewCmdStr,NewCmdPar);
 	}
 

@@ -4,8 +4,8 @@ flink.cpp
 Куча разных функций по обработке Link`ов - Hard&Sym
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -234,7 +234,7 @@ bool WINAPI CreateReparsePoint(const wchar_t *Target, const wchar_t *Object,DWOR
 				ConvertNameToFull(Target,strPrintName);
 				strSubstituteName=L"\\??\\";
 				strSubstituteName+=(strPrintName.CPtr()+(HasPathPrefix(strPrintName)?4:0));
-				LPBYTE szBuff = new BYTE[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+				BYTE szBuff[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
 				PREPARSE_DATA_BUFFER rdb=reinterpret_cast<PREPARSE_DATA_BUFFER>(szBuff);
 				rdb->ReparseTag=IO_REPARSE_TAG_MOUNT_POINT;
 
@@ -246,7 +246,6 @@ bool WINAPI CreateReparsePoint(const wchar_t *Target, const wchar_t *Object,DWOR
 				{
 					SetLastError(ERROR_INSUFFICIENT_BUFFER);
 				}
-				delete[] szBuff;
 			}
 			break;
 		}
@@ -426,7 +425,7 @@ bool GetSubstName(int DriveType,const wchar_t *DeviceName, string &strTargetPath
 			string Name;
 			if (apiQueryDosDevice(DeviceName, Name))
 			{
-				if (Name.IsSubStrAt(0, L"\\??\\"))
+				if (Name.Equal(0, L"\\??\\"))
 				{
 					strTargetPath=Name.SubStr(4);
 					Ret=true;
@@ -447,14 +446,14 @@ bool GetVHDName(const wchar_t *DeviceName, string &strVolumePath)
 		if(Device.Open(DeviceName, FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, nullptr, OPEN_EXISTING))
 		{
 			ULONG Size = 1024;
-			PSTORAGE_DEPENDENCY_INFO StorageDependencyInfo = static_cast<PSTORAGE_DEPENDENCY_INFO>(xf_malloc(Size));
+			PSTORAGE_DEPENDENCY_INFO StorageDependencyInfo = reinterpret_cast<PSTORAGE_DEPENDENCY_INFO>(xf_malloc(Size));
 			if(StorageDependencyInfo)
 			{
 				StorageDependencyInfo->Version = STORAGE_DEPENDENCY_INFO_VERSION_2;
 				DWORD Used = 0;
 				if(!Device.GetStorageDependencyInformation(GET_STORAGE_DEPENDENCY_FLAG_HOST_VOLUMES, Size, StorageDependencyInfo, &Used) && GetLastError() == ERROR_INSUFFICIENT_BUFFER)
 				{
-					StorageDependencyInfo = static_cast<PSTORAGE_DEPENDENCY_INFO>(xf_realloc(StorageDependencyInfo, Used));
+					StorageDependencyInfo = reinterpret_cast<PSTORAGE_DEPENDENCY_INFO>(xf_realloc(StorageDependencyInfo, Used));
 					if(StorageDependencyInfo)
 					{
 						Device.GetStorageDependencyInformation(GET_STORAGE_DEPENDENCY_FLAG_HOST_VOLUMES, Used, StorageDependencyInfo, &Used);
@@ -556,51 +555,46 @@ bool DuplicateReparsePoint(const wchar_t *Src,const wchar_t *Dst)
 	return Result;
 }
 
-BOOL WINAPI FarMkLink(const wchar_t *Src,const wchar_t *Dest, LINK_TYPE Type, MKLINK_FLAGS Flags)
+int WINAPI FarMkLink(const wchar_t *Src,const wchar_t *Dest,DWORD Flags)
 {
 	int Result=0;
 
 	if (Src && *Src && Dest && *Dest)
 	{
-		switch (Type)
+		int Op=Flags&0xFFFF;
+
+		switch (Op)
 		{
-			case LINK_HARDLINK:
+			case FLINK_HARDLINK:
 				Result=MkHardLink(Src,Dest);
 				break;
-			case LINK_JUNCTION:
-			case LINK_VOLMOUNT:
-			case LINK_SYMLINKFILE:
-			case LINK_SYMLINKDIR:
+			case FLINK_JUNCTION:
+			case FLINK_VOLMOUNT:
+			case FLINK_SYMLINKFILE:
+			case FLINK_SYMLINKDIR:
+				ReparsePointTypes LinkType=RP_JUNCTION;
+
+				switch (Op)
 				{
-					ReparsePointTypes LinkType=RP_JUNCTION;
-
-					switch (Type)
-					{
-						case LINK_VOLMOUNT:
-							LinkType=RP_VOLMOUNT;
-							break;
-						case LINK_SYMLINK:
-							LinkType=RP_SYMLINK;
-							break;
-						case LINK_SYMLINKFILE:
-							LinkType=RP_SYMLINKFILE;
-							break;
-						case LINK_SYMLINKDIR:
-							LinkType=RP_SYMLINKDIR;
-							break;
-						default:
-							break;
-					}
-
-					Result=MkSymLink(Src,Dest,LinkType,(Flags&MLF_SHOWERRMSG?0:FCOPY_NOSHOWMSGLINK));
+					case FLINK_VOLMOUNT:
+						LinkType=RP_VOLMOUNT;
+						break;
+					case FLINK_SYMLINK:
+						LinkType=RP_SYMLINK;
+						break;
+					case FLINK_SYMLINKFILE:
+						LinkType=RP_SYMLINKFILE;
+						break;
+					case FLINK_SYMLINKDIR:
+						LinkType=RP_SYMLINKDIR;
+						break;
 				}
-				break;
-			default:
-				break;
+
+				Result=MkSymLink(Src,Dest,LinkType,(Flags&FLINK_SHOWERRMSG?0:FCOPY_NOSHOWMSGLINK));
 		}
 	}
 
-	if (Result && !(Flags&MLF_DONOTUPDATEPANEL))
+	if (Result && !(Flags&FLINK_DONOTUPDATEPANEL))
 		ShellUpdatePanels(nullptr,FALSE);
 
 	return Result;

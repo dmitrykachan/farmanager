@@ -16,11 +16,11 @@ private:
 	string m_strPathInArchive;
 	string m_strPanelTitle;
 
-	string m_strLastDestPath;
-
 	bool m_bPasswordSet;
 	string m_strPassword;
 	string m_strAdditionalCommandLine;
+
+	ArchiveItemArray m_pArchiveFiles;
 
 	InfoPanelLine* m_pArchiveInfo;
 	int m_nArchiveInfoItems;
@@ -46,17 +46,7 @@ public:
 	int pMakeDirectory(const TCHAR* lpDirectory, int nOpMode);
 
 	int pGetFiles(const PluginPanelItem *PanelItem, int ItemsNumber, int Move, const TCHAR *DestPath, int OpMode);
-	
-	int pPutFiles(
-			const PluginPanelItem *PanelItem, 
-			int ItemsNumber, 
-			int Move, 
-#ifdef UNICODE
-			const wchar_t* SrcPath,
-#endif
-			int OpMode
-			);
-
+	int pPutFiles(const PluginPanelItem *PanelItem, int ItemsNumber, int Move, int OpMode);
 	int pDeleteFiles(const PluginPanelItem *PanelItem, int ItemsNumber, int OpMode);
 
 	int pProcessHostFile(const PluginPanelItem *PanelItem, int ItemsNumber, int OpMode);
@@ -87,19 +77,17 @@ private:
 private:
 
 	int OnStartOperation(int nOperation, StartOperationStruct* pSO);
-	int OnEnterStage(int nStage);
 	int OnQueryPassword(int nMode, PasswordStruct* pPS);
 	int OnProcessFile(ProcessFileStruct* pfs);
 	int OnProcessData(ProcessDataStruct* pDS);
 	int OnReportError(ReportErrorStruct* pRS);
-	int OnNeedVolume(VolumeStruct* pVS);
 
 	int OnFileAlreadyExists(OverwriteStruct* pOS);
 
 private:
 
-	int Extract(const ArchiveItemArray& items, const TCHAR* lpDestDiskPath, bool bWithoutPath);
+	int Extract(const ArchiveItemArray& items, const TCHAR *lpDestDiskPath, bool bWithoutPath);
 	int Delete(const ArchiveItemArray& items);
-	int AddFiles(const ArchiveItemArray& items, const TCHAR* lpSourceDiskPath);
+	int AddFiles(const ArchiveItemArray& items, const TCHAR *lpSourceDiskPath);
 	int Test(const ArchiveItemArray& items);
 };

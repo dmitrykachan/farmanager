@@ -4,8 +4,8 @@ farexcpt.cpp
 Все про исключения
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -41,13 +41,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "filepanels.hpp"
 #include "ctrlobj.hpp"
 #include "manager.hpp"
+#include "registry.hpp"
 #include "config.hpp"
 #include "dialog.hpp"
 #include "colors.hpp"
 #include "palette.hpp"
 #include "keys.hpp"
-#include "keyboard.hpp"
-#include "configdb.hpp"
 
 int WriteEvent(DWORD DumpType, // FLOG_*
                EXCEPTION_POINTERS *xp,
@@ -68,14 +67,13 @@ LPCWSTR GetFunctionName(int ExceptFunctionType)
 	switch(ExceptFunctionType)
 	{
 		case EXCEPT_KERNEL: return L"";
-		case EXCEPT_GETGLOBALINFO: return L"GetGlobalInfo";
 		case EXCEPT_SETSTARTUPINFO: return L"SetStartupInfo";
 		case EXCEPT_GETVIRTUALFINDDATA: return L"GetVirtualFindData";
-		case EXCEPT_OPEN: return L"Open";
+		case EXCEPT_OPENPLUGIN: return L"OpenPlugin";
 		case EXCEPT_OPENFILEPLUGIN: return L"OpenFilePlugin";
-		case EXCEPT_CLOSEPANEL: return L"ClosePanel";
+		case EXCEPT_CLOSEPLUGIN: return L"ClosePlugin";
 		case EXCEPT_GETPLUGININFO: return L"GetPluginInfo";
-		case EXCEPT_GETOPENPANELINFO: return L"GetOpenPanelInfo";
+		case EXCEPT_GETOPENPLUGININFO: return L"GetOpenPluginInfo";
 		case EXCEPT_GETFINDDATA: return L"GetFindData";
 		case EXCEPT_FREEFINDDATA: return L"FreeFindData";
 		case EXCEPT_FREEVIRTUALFINDDATA: return L"FreeVitrualFindData";
@@ -122,43 +120,36 @@ static DWORD Flags=0;                  // дополнительные флаги - пока только оди
 
 extern void CreatePluginStartupInfo(Plugin *pPlugin, PluginStartupInfo *PSI, FarStandardFunctions *FSF);
 
-INT_PTR WINAPI ExcDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
+LONG_PTR WINAPI ExcDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2)
 {
 	switch (Msg)
 	{
 		case DN_CTLCOLORDLGITEM:
 		{
 			FarDialogItem di;
-			SendDlgMessage(hDlg,DM_GETDLGITEMSHORT,Param1,&di);
+			SendDlgMessage(hDlg,DM_GETDLGITEMSHORT,Param1,(LONG_PTR)&di);
 
 			if (di.Type==DI_EDIT)
 			{
 				int Color=FarColorToReal(COL_WARNDIALOGTEXT);
-				return ((reinterpret_cast<INT_PTR>(Param2)&0xFF00FF00)|(Color<<16)|Color);
+				return ((Param2&0xFF00FF00)|(Color<<16)|Color);
 			}
 		}
 		break;
 
-		case DN_CONTROLINPUT:
+		case DN_KEY:
 		{
-			const INPUT_RECORD* record=(const INPUT_RECORD *)Param2;
-			if (record->EventType==KEY_EVENT)
+			if (Param1==10 && (Param2==KEY_LEFT || Param2 == KEY_NUMPAD4 || Param2==KEY_SHIFTTAB))
 			{
-				int key = InputRecordToKey(record);
-				if (Param1==10 && (key==KEY_LEFT || key == KEY_NUMPAD4 || key==KEY_SHIFTTAB))
-				{
-					SendDlgMessage(hDlg,DM_SETFOCUS,11,0);
-					return TRUE;
-				}
-				else if (Param1==11 && (key==KEY_RIGHT || key == KEY_NUMPAD6 || key==KEY_TAB))
-				{
-					SendDlgMessage(hDlg,DM_SETFOCUS,10,0);
-					return TRUE;
-				}
+				SendDlgMessage(hDlg,DM_SETFOCUS,11,0);
+				return TRUE;
+			}
+			else if (Param1==11 && (Param2==KEY_RIGHT || Param2 == KEY_NUMPAD6 || Param2==KEY_TAB))
+			{
+				SendDlgMessage(hDlg,DM_SETFOCUS,10,0);
+				return TRUE;
 			}
 		}
-		break;
-	default:
 		break;
 	}
 	return DefDlgProc(hDlg,Msg,Param1,Param2);
@@ -174,20 +165,20 @@ bool ExcDialog(LPCWSTR ModuleName,LPCWSTR Exception,LPVOID Adress)
 		strFunction+=L"W";
 	}
 
-	FarDialogItem EditDlgData[]=
+	DialogDataEx EditDlgData[]=
 	{
-		{DI_DOUBLEBOX,3,1,62,8,0,nullptr,nullptr,0,MSG(MExcTrappedException)},
-		{DI_TEXT,     5,2, 17,2,0,nullptr,nullptr,0,MSG(MExcException)},
-		{DI_TEXT,    18,2, 60,2,0,nullptr,nullptr,0,Exception},
-		{DI_TEXT,     5,3, 17,3,0,nullptr,nullptr,0,MSG(MExcAddress)},
-		{DI_TEXT,    18,3, 60,3,0,nullptr,nullptr,0,strAddr},
-		{DI_TEXT,     5,4, 17,4,0,nullptr,nullptr,0,MSG(MExcFunction)},
-		{DI_TEXT,    18,4, 60,4,0,nullptr,nullptr,0,strFunction},
-		{DI_TEXT,     5,5, 17,5,0,nullptr,nullptr,0,MSG(MExcModule)},
-		{DI_EDIT,    18,5, 60,5,0,nullptr,nullptr,DIF_READONLY|DIF_SELECTONENTRY,ModuleName},
-		{DI_TEXT,    -1,6, 0,6,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-		{DI_BUTTON,   0,7, 0,7,0,nullptr,nullptr,DIF_DEFAULTBUTTON|DIF_FOCUS|DIF_CENTERGROUP,MSG((From == EXCEPT_KERNEL)?MExcTerminate:MExcUnload)},
-		{DI_BUTTON,   0,7, 0,7,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MExcDebugger)},
+		DI_DOUBLEBOX,3,1,62,8,0,0,MSG(MExcTrappedException),
+		DI_TEXT,     5,2, 17,2,0,0,MSG(MExcException),
+		DI_TEXT,    18,2, 60,2,0,0,Exception,
+		DI_TEXT,     5,3, 17,3,0,0,MSG(MExcAddress),
+		DI_TEXT,    18,3, 60,3,0,0,strAddr,
+		DI_TEXT,     5,4, 17,4,0,0,MSG(MExcFunction),
+		DI_TEXT,    18,4, 60,4,0,0,strFunction,
+		DI_TEXT,     5,5, 17,5,0,0,MSG(MExcModule),
+		DI_EDIT,    18,5, 60,5,0,DIF_READONLY|DIF_SELECTONENTRY,ModuleName,
+		DI_TEXT,    -1,6, 0,6,0,DIF_SEPARATOR,L"",
+		DI_BUTTON,   0,7, 0,7,0,DIF_DEFAULT|DIF_FOCUS|DIF_CENTERGROUP,MSG((From == EXCEPT_KERNEL)?MExcTerminate:MExcUnload),
+		DI_BUTTON,   0,7, 0,7,0,DIF_CENTERGROUP,MSG(MExcDebugger),
 	};
 	MakeDialogItemsEx(EditDlgData,EditDlg);
 	Dialog Dlg(EditDlg, ARRAYSIZE(EditDlg),ExcDlgProc);
@@ -205,11 +196,11 @@ static DWORD WINAPI _xfilter(LPVOID dummy=nullptr)
 //   if(From == EXCEPT_KERNEL)
 //     CriticalInternalError=TRUE;
 
-	if (!Is_STACK_OVERFLOW && GeneralCfg->GetValue(L"System.Exception",L"Used",0))
+	if (!Is_STACK_OVERFLOW && GetRegKey(L"System\\Exception",L"Used",0))
 	{
 		static string strFarEventSvc;
 
-		if (GeneralCfg->GetValue(L"System.Exception",L"FarEventSvc",strFarEventSvc,L"") && !strFarEventSvc.IsEmpty())
+		if (GetRegKey(L"System\\Exception",L"FarEvent.svc",strFarEventSvc,L"") && !strFarEventSvc.IsEmpty())
 		{
 			HMODULE m = LoadLibrary(strFarEventSvc);
 
@@ -229,6 +220,9 @@ static DWORD WINAPI _xfilter(LPVOID dummy=nullptr)
 					memset(&LocalStandardFunctions,0,sizeof(LocalStandardFunctions));
 					CreatePluginStartupInfo(nullptr, &LocalStartupInfo, &LocalStandardFunctions);
 					LocalStartupInfo.ModuleName = strFarEventSvc;
+					static string strRootKey;
+					strRootKey = Opt.strRegRoot;
+					LocalStartupInfo.RootKey=strRootKey;
 					static PLUGINRECORD PlugRec;
 
 					if (Module)
@@ -237,16 +231,16 @@ static DWORD WINAPI _xfilter(LPVOID dummy=nullptr)
 						PlugRec.TypeRec=RTYPE_PLUGIN;
 						PlugRec.SizeRec=sizeof(PLUGINRECORD);
 						PlugRec.ModuleName=Module->GetModuleName();
+						PlugRec.SysID=Module->GetSysID();
 						PlugRec.WorkFlags=Module->GetWorkFlags();
 						PlugRec.CallFlags=Module->GetFuncFlags();
 						PlugRec.FuncFlags=0;
-						PlugRec.FuncFlags|=Module->HasGetGlobalInfo()?PICFF_GETGLOBALINFO:0;
 						PlugRec.FuncFlags|=Module->HasSetStartupInfo()?PICFF_SETSTARTUPINFO:0;
-						PlugRec.FuncFlags|=Module->HasOpenPanel()?PICFF_OPENPANEL:0;
-						PlugRec.FuncFlags|=Module->HasAnalyse()?PICFF_ANALYSE:0;
-						PlugRec.FuncFlags|=Module->HasClosePanel()?PICFF_CLOSEPANEL:0;
+						PlugRec.FuncFlags|=Module->HasOpenPlugin()?PICFF_OPENPLUGIN:0;
+						PlugRec.FuncFlags|=Module->HasOpenFilePlugin()?PICFF_OPENFILEPLUGIN:0;
+						PlugRec.FuncFlags|=Module->HasClosePlugin()?PICFF_CLOSEPLUGIN:0;
 						PlugRec.FuncFlags|=Module->HasGetPluginInfo()?PICFF_GETPLUGININFO:0;
-						PlugRec.FuncFlags|=Module->HasGetOpenPanelInfo()?PICFF_GETOPENPANELINFO:0;
+						PlugRec.FuncFlags|=Module->HasGetOpenPluginInfo()?PICFF_GETOPENPLUGININFO:0;
 						PlugRec.FuncFlags|=Module->HasGetFindData()?PICFF_GETFINDDATA:0;
 						PlugRec.FuncFlags|=Module->HasFreeFindData()?PICFF_FREEFINDDATA:0;
 						PlugRec.FuncFlags|=Module->HasGetVirtualFindData()?PICFF_GETVIRTUALFINDDATA:0;

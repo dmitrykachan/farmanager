@@ -4,8 +4,8 @@ editor.cpp
 Редактор
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -61,7 +61,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "palette.hpp"
 #include "FarDlgBuilder.hpp"
 #include "wakeful.hpp"
-#include "colormix.hpp"
 
 static int ReplaceMode,ReplaceAll;
 
@@ -120,7 +119,7 @@ Editor::Editor(ScreenObject *pOwner,bool DialogUsed):
 	   пудрить мозги, пропишем его явно.
 	*/
 	wcscpy(GlobalEOL,DOS_EOL_fmt);
-	SavePos.Clear();
+	memset(&SavePos,0xff,sizeof(SavePos));
 	InsertString(nullptr, 0);
 }
 
@@ -208,7 +207,7 @@ int Editor::GetRawData(wchar_t **DestBuf,int& SizeDestBuf,int TextFormat)
 		AllLength+=Length+StrLength(!TextFormat?EndSeq:GlobalEOL)+1;
 	}
 
-	wchar_t * MemEditStr=static_cast<wchar_t*>(xf_malloc((AllLength+8)*sizeof(wchar_t)));
+	wchar_t * MemEditStr=reinterpret_cast<wchar_t*>(xf_malloc((AllLength+8)*sizeof(wchar_t)));
 
 	if (MemEditStr)
 	{
@@ -613,9 +612,9 @@ __int64 Editor::VMProcess(int OpCode,void *vParam,__int64 iParam)
 		case MCODE_F_BM_GET:                   // N=BM.Get(Idx,M) - возвращает координаты строки (M==0) или колонки (M==1) закладки с индексом (Idx=1...)
 		{
 			__int64 Ret=-1;
-			int Val[1];
+			long Val[1];
 			EditorBookMarks ebm={0};
-			int iMode=(int)((INT_PTR)vParam);
+			int iMode=(int)((LONG_PTR)vParam);
 
 			switch (iMode)
 			{
@@ -816,7 +815,7 @@ int Editor::ProcessKey(int Key)
 
 	_KEYMACRO(CleverSysLog SL(L"Editor::ProcessKey()"));
 	_KEYMACRO(SysLog(L"Key=%s",_FARKEY_ToName(Key)));
-	int CurPos,CurVisPos;
+	int CurPos,CurVisPos,I;
 	CurPos=CurLine->GetCurPos();
 	CurVisPos=GetLineCurPos();
 	int isk=IsShiftKey(Key);
@@ -1010,7 +1009,7 @@ int Editor::ProcessKey(int Key)
 			Pasting++;
 			Lock();
 
-			for (int I=Y1; I<Y2; I++)
+			for (I=Y1; I<Y2; I++)
 			{
 				ProcessKey(KEY_SHIFTUP);
 
@@ -1033,7 +1032,7 @@ int Editor::ProcessKey(int Key)
 			Pasting++;
 			Lock();
 
-			for (int I=Y1; I<Y2; I++)
+			for (I=Y1; I<Y2; I++)
 			{
 				ProcessKey(KEY_SHIFTDOWN);
 
@@ -1844,7 +1843,7 @@ int Editor::ProcessKey(int Key)
 		{
 			Flags.Set(FEDITOR_NEWUNDO);
 
-			for (int I=Y1; I<Y2; I++)
+			for (I=Y1; I<Y2; I++)
 				ScrollUp();
 
 			Show();
@@ -1854,7 +1853,7 @@ int Editor::ProcessKey(int Key)
 		{
 			Flags.Set(FEDITOR_NEWUNDO);
 
-			for (int I=Y1; I<Y2; I++)
+			for (I=Y1; I<Y2; I++)
 				ScrollDown();
 
 			Show();
@@ -1886,8 +1885,8 @@ int Editor::ProcessKey(int Key)
 				int StartPos=CurLine->GetTabCurPos();
 				NumLine=NumLastLine-1;
 				CurLine=EndList;
-				TopScreen=CurLine;
-				for (int I=Y1; I<Y2 && TopScreen->m_prev; I++)
+
+				for (TopScreen=CurLine,I=Y1; I<Y2 && TopScreen->m_prev; I++)
 				{
 					TopScreen->SetPosition(X1,I,XX2,I);
 					TopScreen=TopScreen->m_prev;
@@ -1944,7 +1943,7 @@ int Editor::ProcessKey(int Key)
 				Edit *CurPtr=TopScreen;
 				int CurLineFound=FALSE;
 
-				for (int I=Y1; I<Y2; I++)
+				for (I=Y1; I<Y2; I++)
 				{
 					if (!CurPtr->m_next)
 						break;
@@ -2402,7 +2401,7 @@ int Editor::ProcessKey(int Key)
 			Pasting++;
 			Lock();
 
-			for (int I=Y1; I<Y2; I++)
+			for (I=Y1; I<Y2; I++)
 				ProcessKey(KEY_ALTSHIFTUP);
 
 			Unlock();
@@ -2416,7 +2415,7 @@ int Editor::ProcessKey(int Key)
 			Pasting++;
 			Lock();
 
-			for (int I=Y1; I<Y2; I++)
+			for (I=Y1; I<Y2; I++)
 				ProcessKey(KEY_ALTSHIFTDOWN);
 
 			Unlock();
@@ -4088,8 +4087,7 @@ wchar_t *Editor::Block2Text(wchar_t *ptrInitData)
 
 		int Length;
 		if (EndSel == -1)
-			// BUGBUG, don't use Ptr->GetLength() here: Ptr->Str may contain \0
-			Length = /*Ptr->GetLength()*/StrLength(Ptr->Str) - StartSel;
+			Length = Ptr->GetLength() - StartSel;
 		else
 			Length = EndSel - StartSel;
 
@@ -5748,13 +5746,12 @@ int Editor::EditorControl(int Command,void *Param)
 				_ECTLLOG(SysLog(L"  ColorItem   =%d (0x%08X)",col->ColorItem,col->ColorItem));
 				_ECTLLOG(SysLog(L"  StartPos    =%d",col->StartPos));
 				_ECTLLOG(SysLog(L"  EndPos      =%d",col->EndPos));
-				_ECTLLOG(SysLog(L"  Color       =%d (0x%08X)",Colors::FarColorToColor(col->Color),Colors::FarColorToColor(col->Color)));
+				_ECTLLOG(SysLog(L"  Color       =%d (0x%08X)",col->Color,col->Color));
 				_ECTLLOG(SysLog(L"}"));
 				ColorItem newcol;
 				newcol.StartPos=col->StartPos+(col->StartPos!=-1?X1:0);
 				newcol.EndPos=col->EndPos+X1;
-				newcol.Color=Colors::FarColorToColor(col->Color);
-				newcol.Flags=col->Flags;
+				newcol.Color=col->Color;
 				Edit *CurPtr=GetStringByNumber(col->StringNumber);
 
 				if (!CurPtr)
@@ -5763,7 +5760,7 @@ int Editor::EditorControl(int Command,void *Param)
 					return FALSE;
 				}
 
-				if (!Colors::FarColorToColor(col->Color))
+				if (!col->Color)
 					return(CurPtr->DeleteColor(newcol.StartPos));
 
 				CurPtr->AddColor(&newcol);
@@ -5796,14 +5793,13 @@ int Editor::EditorControl(int Command,void *Param)
 
 				col->StartPos=curcol.StartPos-X1;
 				col->EndPos=curcol.EndPos-X1;
-				Colors::ColorToFarColor(curcol.Color,col->Color);
-				col->Flags=curcol.Flags;
+				col->Color=curcol.Color;
 				_ECTLLOG(SysLog(L"EditorColor{"));
 				_ECTLLOG(SysLog(L"  StringNumber=%d",col->StringNumber));
 				_ECTLLOG(SysLog(L"  ColorItem   =%d (0x%08X)",col->ColorItem,col->ColorItem));
 				_ECTLLOG(SysLog(L"  StartPos    =%d",col->StartPos));
 				_ECTLLOG(SysLog(L"  EndPos      =%d",col->EndPos));
-				_ECTLLOG(SysLog(L"  Color       =%d (0x%08X)",Colors::FarColorToColor(col->Color),Colors::FarColorToColor(col->Color)));
+				_ECTLLOG(SysLog(L"  Color       =%d (0x%08X)",col->Color,col->Color));
 				_ECTLLOG(SysLog(L"}"));
 				return TRUE;
 			}
@@ -5833,42 +5829,42 @@ int Editor::EditorControl(int Command,void *Param)
 				switch (espar->Type)
 				{
 					case ESPT_GETWORDDIV:
-						_ECTLLOG(SysLog(L"  wszParam    =(%p)",espar->wszParam));
+						_ECTLLOG(SysLog(L"  wszParam    =(%p)",espar->Param.wszParam));
 
-						if (espar->wszParam && espar->Size)
-							xwcsncpy(espar->wszParam,EdOpt.strWordDiv,espar->Size);
+						if (espar->Param.wszParam && espar->Size)
+							xwcsncpy(espar->Param.wszParam,EdOpt.strWordDiv,espar->Size);
 
 						rc=(int)EdOpt.strWordDiv.GetLength()+1;
 						break;
 					case ESPT_SETWORDDIV:
-						_ECTLLOG(SysLog(L"  wszParam    =[%s]",espar->wszParam));
-						SetWordDiv((!espar->wszParam || !*espar->wszParam)?Opt.strWordDiv.CPtr():espar->wszParam);
+						_ECTLLOG(SysLog(L"  wszParam    =[%s]",espar->Param.wszParam));
+						SetWordDiv((!espar->Param.wszParam || !*espar->Param.wszParam)?Opt.strWordDiv.CPtr():espar->Param.wszParam);
 						break;
 					case ESPT_TABSIZE:
-						_ECTLLOG(SysLog(L"  iParam      =%d",espar->iParam));
-						SetTabSize(espar->iParam);
+						_ECTLLOG(SysLog(L"  iParam      =%d",espar->Param.iParam));
+						SetTabSize(espar->Param.iParam);
 						break;
 					case ESPT_EXPANDTABS:
-						_ECTLLOG(SysLog(L"  iParam      =%s",espar->iParam?L"On":L"Off"));
-						SetConvertTabs(espar->iParam);
+						_ECTLLOG(SysLog(L"  iParam      =%s",espar->Param.iParam?L"On":L"Off"));
+						SetConvertTabs(espar->Param.iParam);
 						break;
 					case ESPT_AUTOINDENT:
-						_ECTLLOG(SysLog(L"  iParam      =%s",espar->iParam?L"On":L"Off"));
-						SetAutoIndent(espar->iParam);
+						_ECTLLOG(SysLog(L"  iParam      =%s",espar->Param.iParam?L"On":L"Off"));
+						SetAutoIndent(espar->Param.iParam);
 						break;
 					case ESPT_CURSORBEYONDEOL:
-						_ECTLLOG(SysLog(L"  iParam      =%s",espar->iParam?L"On":L"Off"));
-						SetCursorBeyondEOL(espar->iParam);
+						_ECTLLOG(SysLog(L"  iParam      =%s",espar->Param.iParam?L"On":L"Off"));
+						SetCursorBeyondEOL(espar->Param.iParam);
 						break;
 					case ESPT_CHARCODEBASE:
-						_ECTLLOG(SysLog(L"  iParam      =%s",(!espar->iParam?L"0 (Oct)":(espar->iParam==1?L"1 (Dec)":(espar->iParam==2?L"2 (Hex)":L"?????")))));
-						SetCharCodeBase(espar->iParam);
+						_ECTLLOG(SysLog(L"  iParam      =%s",(!espar->Param.iParam?L"0 (Oct)":(espar->Param.iParam==1?L"1 (Dec)":(espar->Param.iParam==2?L"2 (Hex)":L"?????")))));
+						SetCharCodeBase(espar->Param.iParam);
 						break;
 						/* $ 07.08.2001 IS сменить кодировку из плагина */
 					case ESPT_CODEPAGE:
 					{
 						//BUGBUG
-						if ((UINT)espar->iParam==CP_AUTODETECT)
+						if ((UINT)espar->Param.iParam==CP_AUTODETECT)
 						{
 							rc=FALSE;
 						}
@@ -5876,12 +5872,12 @@ int Editor::EditorControl(int Command,void *Param)
 						{
 							if (HostFileEditor)
 							{
-								HostFileEditor->SetCodePage(espar->iParam);
+								HostFileEditor->SetCodePage(espar->Param.iParam);
 								HostFileEditor->CodepageChangedByUser();
 							}
 							else
 							{
-								SetCodePage(espar->iParam);
+								SetCodePage(espar->Param.iParam);
 							}
 
 							Show();
@@ -5890,16 +5886,16 @@ int Editor::EditorControl(int Command,void *Param)
 					break;
 					/* $ 29.10.2001 IS изменение настройки "Сохранять позицию файла" */
 					case ESPT_SAVEFILEPOSITION:
-						_ECTLLOG(SysLog(L"  iParam      =%s",espar->iParam?L"On":L"Off"));
-						SetSavePosMode(espar->iParam, -1);
+						_ECTLLOG(SysLog(L"  iParam      =%s",espar->Param.iParam?L"On":L"Off"));
+						SetSavePosMode(espar->Param.iParam, -1);
 						break;
 						/* $ 23.03.2002 IS запретить/отменить изменение файла */
 					case ESPT_LOCKMODE:
-						_ECTLLOG(SysLog(L"  iParam      =%s",espar->iParam?L"On":L"Off"));
-						Flags.Change(FEDITOR_LOCKMODE, espar->iParam);
+						_ECTLLOG(SysLog(L"  iParam      =%s",espar->Param.iParam?L"On":L"Off"));
+						Flags.Change(FEDITOR_LOCKMODE, espar->Param.iParam);
 						break;
 					case ESPT_SHOWWHITESPACE:
-						SetShowWhiteSpace(espar->iParam);
+						SetShowWhiteSpace(espar->Param.iParam);
 						break;
 					default:
 						_ECTLLOG(SysLog(L"}"));
@@ -5965,12 +5961,12 @@ int Editor::EditorControl(int Command,void *Param)
 	return FALSE;
 }
 
-int Editor::SetBookmark(int Pos)
+int Editor::SetBookmark(DWORD Pos)
 {
 	if (Pos < BOOKMARK_COUNT)
 	{
 		SavePos.Line[Pos]=NumLine;
-		SavePos.LinePos[Pos]=CurLine->GetCurPos();
+		SavePos.Cursor[Pos]=CurLine->GetCurPos();
 		SavePos.LeftPos[Pos]=CurLine->GetLeftPos();
 		SavePos.ScreenLine[Pos]=CalcDistance(TopScreen,CurLine,-1);
 		return TRUE;
@@ -5979,18 +5975,18 @@ int Editor::SetBookmark(int Pos)
 	return FALSE;
 }
 
-int Editor::GotoBookmark(int Pos)
+int Editor::GotoBookmark(DWORD Pos)
 {
 	if (Pos < BOOKMARK_COUNT)
 	{
 		if (SavePos.Line[Pos]!=POS_NONE)
 		{
-			GoToLine(SavePos.Line[Pos]);
-			CurLine->SetCurPos(SavePos.LinePos[Pos]);
-			CurLine->SetLeftPos(SavePos.LeftPos[Pos]);
+			GoToLine(static_cast<int>(SavePos.Line[Pos]));
+			CurLine->SetCurPos(static_cast<int>(SavePos.Cursor[Pos]));
+			CurLine->SetLeftPos(static_cast<int>(SavePos.LeftPos[Pos]));
 			TopScreen=CurLine;
 
-			for (int I=0; I<SavePos.ScreenLine[Pos] && TopScreen->m_prev; I++)
+			for (DWORD I=0; I<SavePos.ScreenLine[Pos] && TopScreen->m_prev; I++)
 				TopScreen=TopScreen->m_prev;
 
 			if (!EdOpt.PersistentBlocks)
@@ -6675,7 +6671,7 @@ void Editor::EditorShowMsg(const wchar_t *Title,const wchar_t *Msg, const wchar_
 		FormatString strPercent;
 		strPercent<<Percent;
 
-		size_t PercentLength=Max(strPercent.GetLength(),(size_t)3);
+		size_t PercentLength=Max(strPercent.strValue().GetLength(),(size_t)3);
 		size_t Length=Max(Min(static_cast<int>(MAX_WIDTH_MESSAGE-2),StrLength(Name)),40)-PercentLength-2;
 		wchar_t *Progress=strProgress.GetBuffer(Length);
 
@@ -6800,11 +6796,11 @@ Edit *Editor::InsertString(const wchar_t *lpwszStr, int nLength, Edit *pAfter, i
 }
 
 
-void Editor::SetCacheParams(EditorPosCache &pc)
+void Editor::SetCacheParams(EditorCacheParams *pp)
 {
 	bool translateTabs=false;
-	SavePos=pc.bm;
-	//m_codepage = pc.CodePage; //BUGBUG!!!, LoadFile do it itself
+	SavePos=pp->SavePos;
+	//m_codepage = pp->Table; //BUGBUG!!!, LoadFile do it itself
 
 	if (StartLine == -2)  // from Viewer!
 	{
@@ -6827,65 +6823,71 @@ void Editor::SetCacheParams(EditorPosCache &pc)
 
 		TopScreen=CurLine=CurPtr;
 
-		if (NumLine == pc.Line - pc.ScreenLine)
+		if (NumLine == pp->Line - pp->ScreenLine)
 		{
 			Lock();
 
-			for (int I=0; I < pc.ScreenLine; I++)
+			for (DWORD I=0; I < (DWORD)pp->ScreenLine; I++)
 				ProcessKey(KEY_DOWN);
 
-			CurLine->SetTabCurPos(pc.LinePos);
+			CurLine->SetTabCurPos(pp->LinePos);
 			Unlock();
 		}
 
-		CurLine->SetLeftPos(pc.LeftPos);
+		CurLine->SetLeftPos(pp->LeftPos);
 	}
 	else if (StartLine != -1 || EdOpt.SavePos)
 	{
 		if (StartLine!=-1)
 		{
-			pc.Line = StartLine-1;
-			pc.ScreenLine = ObjHeight/2; //ScrY
+			pp->Line = StartLine-1;
+			pp->ScreenLine = ObjHeight/2; //ScrY
 
-			if (pc.ScreenLine > pc.Line)
-				pc.ScreenLine = pc.Line;
+			if (pp->ScreenLine > pp->Line)
+				pp->ScreenLine = pp->Line;
 
-			pc.LinePos = 0;
+			pp->LinePos = 0;
 			if (StartChar > 0)
 			{
-				pc.LinePos = StartChar-1;
+				pp->LinePos = StartChar-1;
 				translateTabs = true;
 			}
 		}
 
-		if (pc.ScreenLine > ObjHeight) //ScrY //BUGBUG
-			pc.ScreenLine=ObjHeight;//ScrY;
+		if (pp->ScreenLine > ObjHeight) //ScrY //BUGBUG
+			pp->ScreenLine=ObjHeight;//ScrY;
 
-		if (pc.Line >= pc.ScreenLine)
+		if (pp->Line >= pp->ScreenLine)
 		{
 			Lock();
-			GoToLine(pc.Line-pc.ScreenLine);
+			GoToLine(pp->Line-pp->ScreenLine);
 			TopScreen = CurLine;
 
-			for (int I=0; I < pc.ScreenLine; I++)
+			for (int I=0; I < pp->ScreenLine; I++)
 				ProcessKey(KEY_DOWN);
 
-			if(translateTabs) CurLine->SetCurPos(pc.LinePos);
-			else CurLine->SetTabCurPos(pc.LinePos);
-			CurLine->SetLeftPos(pc.LeftPos);
+			if(translateTabs) CurLine->SetCurPos(pp->LinePos);
+			else CurLine->SetTabCurPos(pp->LinePos);
+			CurLine->SetLeftPos(pp->LeftPos);
 			Unlock();
 		}
 	}
 }
 
-void Editor::GetCacheParams(EditorPosCache &pc)
+void Editor::GetCacheParams(EditorCacheParams *pp)
 {
-	pc.Line = NumLine;
-	pc.ScreenLine = CalcDistance(TopScreen, CurLine,-1);
-	pc.LinePos = CurLine->GetTabCurPos();
-	pc.LeftPos = CurLine->GetLeftPos();
-	pc.CodePage = m_codepage;
-	pc.bm=SavePos;
+	memset(pp, 0, sizeof(EditorCacheParams));
+	memset(&pp->SavePos,0xff,sizeof(InternalEditorBookMark));
+	pp->Line = NumLine;
+	pp->ScreenLine = CalcDistance(TopScreen, CurLine,-1);
+	pp->LinePos = CurLine->GetTabCurPos();
+	pp->LeftPos = CurLine->GetLeftPos();
+	pp->CodePage = m_codepage;
+
+	if (Opt.EdOpt.SaveShortPos)
+	{
+		pp->SavePos=SavePos;
+	}
 }
 
 

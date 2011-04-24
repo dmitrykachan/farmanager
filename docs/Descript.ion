@@ -1,0 +1,5 @@
+Descript.ion File descriptions
+ClearPluginsCache.bat Clear Plugins Cache
+RestoreSettings.bat Restore FAR settings from FarSave1.reg and FarSave2.reg
+SaveSettings.bat Save FAR settings to FarSave1.reg and FarSave2.reg
+File_id.diz Short version description

@@ -6,8 +6,8 @@ farwinapi.hpp
 Враперы вокруг некоторых WinAPI функций
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -32,6 +32,10 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
+#include "plugin.hpp"
+#include "UnicodeString.hpp"
+#include "noncopyable.hpp"
 
 #define NT_MAX_PATH 32768
 
@@ -109,10 +113,10 @@ public:
 	File();
 	~File();
 	bool Open(LPCWSTR Object, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDistribution, DWORD dwFlagsAndAttributes=0, HANDLE hTemplateFile=nullptr, bool ForceElevation=false);
-	bool Read(LPVOID Buffer, DWORD NumberOfBytesToRead, DWORD& NumberOfBytesRead, LPOVERLAPPED Overlapped = nullptr);
-	bool Write(LPCVOID Buffer, DWORD NumberOfBytesToWrite, DWORD& NumberOfBytesWritten, LPOVERLAPPED Overlapped = nullptr);
+	bool Read(LPVOID Buffer, DWORD NumberOfBytesToRead, LPDWORD NumberOfBytesRead, LPOVERLAPPED Overlapped = nullptr);
+	bool Write(LPCVOID Buffer, DWORD NumberOfBytesToWrite, LPDWORD NumberOfBytesWritten, LPOVERLAPPED Overlapped = nullptr) const;
 	bool SetPointer(INT64 DistanceToMove, PINT64 NewFilePointer, DWORD MoveMethod);
-	INT64 GetPointer(){return Pointer;}
+	bool GetPointer(INT64& Pointer){return SetPointer(0, &Pointer, FILE_CURRENT);}
 	bool SetEnd();
 	bool GetTime(LPFILETIME CreationTime, LPFILETIME LastAccessTime, LPFILETIME LastWriteTime, LPFILETIME ChangeTime);
 	bool SetTime(const FILETIME* CreationTime, const FILETIME* LastAccessTime, const FILETIME* LastWriteTime, const FILETIME* ChangeTime);
@@ -128,10 +132,6 @@ public:
 
 private:
 	HANDLE Handle;
-	INT64 Pointer;
-	bool NeedSyncPointer;
-
-	inline void SyncPointer();
 };
 
 NTSTATUS GetLastNtStatus();
@@ -181,6 +181,19 @@ BOOL apiGetVolumeInformation(
 
 BOOL apiFindStreamClose(
     HANDLE hFindFile
+);
+
+void apiFindDataToDataEx(
+    const FAR_FIND_DATA *pSrc,
+    FAR_FIND_DATA_EX *pDest);
+
+void apiFindDataExToData(
+    const FAR_FIND_DATA_EX *pSrc,
+    FAR_FIND_DATA *pDest
+);
+
+void apiFreeFindData(
+    FAR_FIND_DATA *pData
 );
 
 BOOL apiGetFindDataEx(

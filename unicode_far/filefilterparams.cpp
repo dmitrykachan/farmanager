@@ -4,8 +4,8 @@ filefilterparams.cpp
 Параметры Файлового фильтра
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "setcolor.hpp"
 #include "datetime.hpp"
 #include "strmix.hpp"
-#include "mix.hpp"
 
 FileFilterParams::FileFilterParams()
 {
@@ -395,10 +394,10 @@ bool FileFilterParams::FileInFilter(const FAR_FIND_DATA_EX& fde, unsigned __int6
 	return true;
 }
 
-bool FileFilterParams::FileInFilter(const PluginPanelItem& fd, unsigned __int64 CurrentTime)
+bool FileFilterParams::FileInFilter(const FAR_FIND_DATA& fd, unsigned __int64 CurrentTime)
 {
 	FAR_FIND_DATA_EX fde;
-	PluginPanelItemToFindDataEx(&fd,&fde);
+	apiFindDataToDataEx(&fd,&fde);
 	return FileInFilter(fde, CurrentTime);
 }
 
@@ -639,32 +638,32 @@ void FilterDlgRelativeDateItemsUpdate(HANDLE hDlg, bool bClear)
 		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DATEBEFOREEDIT,0);
 		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DATEAFTEREDIT,0);
 		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_CURRENT,0);
-		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DAYSBEFOREEDIT,ToPtr(1));
-		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DAYSAFTEREDIT,ToPtr(1));
+		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DAYSBEFOREEDIT,1);
+		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DAYSAFTEREDIT,1);
 	}
 	else
 	{
 		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DAYSBEFOREEDIT,0);
 		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DAYSAFTEREDIT,0);
-		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DATEBEFOREEDIT,ToPtr(1));
-		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DATEAFTEREDIT,ToPtr(1));
-		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_CURRENT,ToPtr(1));
+		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DATEBEFOREEDIT,1);
+		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_DATEAFTEREDIT,1);
+		SendDlgMessage(hDlg,DM_SHOWITEM,ID_FF_CURRENT,1);
 	}
 
 	if (bClear)
 	{
-		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_DATEAFTEREDIT,nullptr);
-		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_DAYSAFTEREDIT,nullptr);
-		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_TIMEAFTEREDIT,nullptr);
-		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_DATEBEFOREEDIT,nullptr);
-		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_TIMEBEFOREEDIT,nullptr);
-		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_DAYSBEFOREEDIT,nullptr);
+		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_DATEAFTEREDIT,(LONG_PTR)L"");
+		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_DAYSAFTEREDIT,(LONG_PTR)L"");
+		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_TIMEAFTEREDIT,(LONG_PTR)L"");
+		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_DATEBEFOREEDIT,(LONG_PTR)L"");
+		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_TIMEBEFOREEDIT,(LONG_PTR)L"");
+		SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_DAYSBEFOREEDIT,(LONG_PTR)L"");
 	}
 
 	SendDlgMessage(hDlg,DM_ENABLEREDRAW,TRUE,0);
 }
 
-INT_PTR WINAPI FileFilterConfigDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
+LONG_PTR WINAPI FileFilterConfigDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2)
 {
 	switch (Msg)
 	{
@@ -695,41 +694,41 @@ INT_PTR WINAPI FileFilterConfigDlgProc(HANDLE hDlg,int Msg,int Param1,void* Para
 				int relative = (int)SendDlgMessage(hDlg,DM_GETCHECK,ID_FF_DATERELATIVE,0);
 				int db = relative ? ID_FF_DAYSBEFOREEDIT : ID_FF_DATEBEFOREEDIT;
 				int da = relative ? ID_FF_DAYSAFTEREDIT  : ID_FF_DATEAFTEREDIT;
-				SendDlgMessage(hDlg,DM_SETTEXTPTR,da,const_cast<wchar_t*>(strDate.CPtr()));
-				SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_TIMEAFTEREDIT,const_cast<wchar_t*>(strTime.CPtr()));
-				SendDlgMessage(hDlg,DM_SETTEXTPTR,db,const_cast<wchar_t*>(strDate.CPtr()));
-				SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_TIMEBEFOREEDIT,const_cast<wchar_t*>(strTime.CPtr()));
+				SendDlgMessage(hDlg,DM_SETTEXTPTR,da,(LONG_PTR)strDate.CPtr());
+				SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_TIMEAFTEREDIT,(LONG_PTR)strTime.CPtr());
+				SendDlgMessage(hDlg,DM_SETTEXTPTR,db,(LONG_PTR)strDate.CPtr());
+				SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_TIMEBEFOREEDIT,(LONG_PTR)strTime.CPtr());
 				SendDlgMessage(hDlg,DM_SETFOCUS,da,0);
 				COORD r;
 				r.X=r.Y=0;
-				SendDlgMessage(hDlg,DM_SETCURSORPOS,da,&r);
+				SendDlgMessage(hDlg,DM_SETCURSORPOS,da,(LONG_PTR)&r);
 				SendDlgMessage(hDlg,DM_ENABLEREDRAW,TRUE,0);
 				break;
 			}
 			else if (Param1==ID_FF_RESET) // Reset
 			{
 				SendDlgMessage(hDlg,DM_ENABLEREDRAW,FALSE,0);
-				INT_PTR ColorConfig = SendDlgMessage(hDlg, DM_GETDLGDATA, 0, 0);
-				SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_MASKEDIT,const_cast<wchar_t*>(L"*"));
-				SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_SIZEFROMEDIT,nullptr);
-				SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_SIZETOEDIT,nullptr);
+				LONG_PTR ColorConfig = SendDlgMessage(hDlg, DM_GETDLGDATA, 0, 0);
+				SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_MASKEDIT,(LONG_PTR)L"*");
+				SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_SIZEFROMEDIT,(LONG_PTR)L"");
+				SendDlgMessage(hDlg,DM_SETTEXTPTR,ID_FF_SIZETOEDIT,(LONG_PTR)L"");
 
 				for (int I=ID_FF_READONLY; I <= ID_FF_VIRTUAL; ++I)
 				{
-					SendDlgMessage(hDlg,DM_SETCHECK,I,ToPtr(BSTATE_3STATE));
+					SendDlgMessage(hDlg,DM_SETCHECK,I,BSTATE_3STATE);
 				}
 
 				if (!ColorConfig)
-					SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_DIRECTORY,ToPtr(BSTATE_UNCHECKED));
+					SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_DIRECTORY,BSTATE_UNCHECKED);
 
 				FarListPos LPos={0,0};
-				SendDlgMessage(hDlg,DM_LISTSETCURPOS,ID_FF_DATETYPE,&LPos);
-				SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_MATCHMASK,ToPtr(BSTATE_CHECKED));
-				SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_MATCHSIZE,ToPtr(BSTATE_UNCHECKED));
-				SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_MATCHDATE,ToPtr(BSTATE_UNCHECKED));
-				SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_DATERELATIVE,ToPtr(BSTATE_UNCHECKED));
+				SendDlgMessage(hDlg,DM_LISTSETCURPOS,ID_FF_DATETYPE,(LONG_PTR)&LPos);
+				SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_MATCHMASK,BSTATE_CHECKED);
+				SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_MATCHSIZE,BSTATE_UNCHECKED);
+				SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_MATCHDATE,BSTATE_UNCHECKED);
+				SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_DATERELATIVE,BSTATE_UNCHECKED);
 				FilterDlgRelativeDateItemsUpdate(hDlg, true);
-				SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_MATCHATTRIBUTES,ToPtr(ColorConfig?BSTATE_UNCHECKED:BSTATE_CHECKED));
+				SendDlgMessage(hDlg,DM_SETCHECK,ID_FF_MATCHATTRIBUTES,ColorConfig?BSTATE_UNCHECKED:BSTATE_CHECKED);
 				SendDlgMessage(hDlg,DM_ENABLEREDRAW,TRUE,0);
 				break;
 			}
@@ -741,7 +740,7 @@ INT_PTR WINAPI FileFilterConfigDlgProc(HANDLE hDlg,int Msg,int Param1,void* Para
 					for (int j=0; j<4; j++)
 						Colors->Color[i][j]|=0xFF00;
 
-				SendDlgMessage(hDlg,DM_SETCHECK,ID_HER_MARKTRANSPARENT,ToPtr(BSTATE_CHECKED));
+				SendDlgMessage(hDlg,DM_SETCHECK,ID_HER_MARKTRANSPARENT,BSTATE_CHECKED);
 				break;
 			}
 			else if (Param1==ID_FF_DATERELATIVE)
@@ -750,33 +749,33 @@ INT_PTR WINAPI FileFilterConfigDlgProc(HANDLE hDlg,int Msg,int Param1,void* Para
 				break;
 			}
 		}
-		case DN_CONTROLINPUT:
+		case DN_MOUSECLICK:
 
 			if ((Msg==DN_BTNCLICK && Param1 >= ID_HER_NORMALFILE && Param1 <= ID_HER_SELECTEDCURSORMARKING)
-			        || (Msg==DN_CONTROLINPUT && Param1==ID_HER_COLOREXAMPLE && ((INPUT_RECORD *)Param2)->EventType == MOUSE_EVENT && ((INPUT_RECORD *)Param2)->Event.MouseEvent.dwButtonState==FROM_LEFT_1ST_BUTTON_PRESSED))
+			        || (Msg==DN_MOUSECLICK && Param1==ID_HER_COLOREXAMPLE && ((MOUSE_EVENT_RECORD *)Param2)->dwButtonState==FROM_LEFT_1ST_BUTTON_PRESSED))
 			{
 				HighlightDataColor *EditData = (HighlightDataColor *) SendDlgMessage(hDlg, DM_GETDLGDATA, 0, 0);
 
-				if (Msg==DN_CONTROLINPUT)
+				if (Msg==DN_MOUSECLICK)
 				{
-					Param1 = ID_HER_NORMALFILE + ((INPUT_RECORD *)Param2)->Event.MouseEvent.dwMousePosition.Y*2;
+					Param1 = ID_HER_NORMALFILE + ((MOUSE_EVENT_RECORD *)Param2)->dwMousePosition.Y*2;
 
-					if (((INPUT_RECORD *)Param2)->Event.MouseEvent.dwMousePosition.X==1 && (EditData->MarkChar&0x0000FFFF))
-						Param1 = ID_HER_NORMALMARKING + ((INPUT_RECORD *)Param2)->Event.MouseEvent.dwMousePosition.Y*2;
+					if (((MOUSE_EVENT_RECORD *)Param2)->dwMousePosition.X==1 && (EditData->MarkChar&0x0000FFFF))
+						Param1 = ID_HER_NORMALMARKING + ((MOUSE_EVENT_RECORD *)Param2)->dwMousePosition.Y*2;
 				}
 
 				//Color[0=file, 1=mark][0=normal,1=selected,2=undercursor,3=selectedundercursor]
 				WORD Color=EditData->Color[(Param1-ID_HER_NORMALFILE)&1][(Param1-ID_HER_NORMALFILE)/2];
 				GetColorDialog(Color,true,true);
-				EditData->Color[(Param1-ID_HER_NORMALFILE)&1][(Param1-ID_HER_NORMALFILE)/2]=Color;
+				EditData->Color[(Param1-ID_HER_NORMALFILE)&1][(Param1-ID_HER_NORMALFILE)/2]=(WORD)Color;
 				FarDialogItem *ColorExample = (FarDialogItem *)xf_malloc(SendDlgMessage(hDlg,DM_GETDLGITEM,ID_HER_COLOREXAMPLE,0));
-				SendDlgMessage(hDlg,DM_GETDLGITEM,ID_HER_COLOREXAMPLE,ColorExample);
+				SendDlgMessage(hDlg,DM_GETDLGITEM,ID_HER_COLOREXAMPLE,(LONG_PTR)ColorExample);
 				wchar_t MarkChar[2];
 				//MarkChar это FIXEDIT размером в 1 символ так что проверять размер строки не надо
-				SendDlgMessage(hDlg,DM_GETTEXTPTR,ID_HER_MARKEDIT,MarkChar);
+				SendDlgMessage(hDlg,DM_GETTEXTPTR,ID_HER_MARKEDIT,(LONG_PTR)MarkChar);
 				EditData->MarkChar=*MarkChar;
-				HighlightDlgUpdateUserControl(ColorExample->VBuf,*EditData);
-				SendDlgMessage(hDlg,DM_SETDLGITEM,ID_HER_COLOREXAMPLE,ColorExample);
+				HighlightDlgUpdateUserControl(ColorExample->Param.VBuf,*EditData);
+				SendDlgMessage(hDlg,DM_SETDLGITEM,ID_HER_COLOREXAMPLE,(LONG_PTR)ColorExample);
 				xf_free(ColorExample);
 				return TRUE;
 			}
@@ -788,13 +787,13 @@ INT_PTR WINAPI FileFilterConfigDlgProc(HANDLE hDlg,int Msg,int Param1,void* Para
 			{
 				HighlightDataColor *EditData = (HighlightDataColor *) SendDlgMessage(hDlg, DM_GETDLGDATA, 0, 0);
 				FarDialogItem *ColorExample = (FarDialogItem *)xf_malloc(SendDlgMessage(hDlg,DM_GETDLGITEM,ID_HER_COLOREXAMPLE,0));
-				SendDlgMessage(hDlg,DM_GETDLGITEM,ID_HER_COLOREXAMPLE,ColorExample);
+				SendDlgMessage(hDlg,DM_GETDLGITEM,ID_HER_COLOREXAMPLE,(LONG_PTR)ColorExample);
 				wchar_t MarkChar[2];
 				//MarkChar это FIXEDIT размером в 1 символ так что проверять размер строки не надо
-				SendDlgMessage(hDlg,DM_GETTEXTPTR,ID_HER_MARKEDIT,MarkChar);
+				SendDlgMessage(hDlg,DM_GETTEXTPTR,ID_HER_MARKEDIT,(LONG_PTR)MarkChar);
 				EditData->MarkChar=*MarkChar;
-				HighlightDlgUpdateUserControl(ColorExample->VBuf,*EditData);
-				SendDlgMessage(hDlg,DM_SETDLGITEM,ID_HER_COLOREXAMPLE,ColorExample);
+				HighlightDlgUpdateUserControl(ColorExample->Param.VBuf,*EditData);
+				SendDlgMessage(hDlg,DM_SETDLGITEM,ID_HER_COLOREXAMPLE,(LONG_PTR)ColorExample);
 				xf_free(ColorExample);
 				return TRUE;
 			}
@@ -807,22 +806,20 @@ INT_PTR WINAPI FileFilterConfigDlgProc(HANDLE hDlg,int Msg,int Param1,void* Para
 				string strTemp;
 				wchar_t *temp;
 				temp = strTemp.GetBuffer(SendDlgMessage(hDlg,DM_GETTEXTPTR,ID_FF_SIZEFROMEDIT,0)+1);
-				SendDlgMessage(hDlg,DM_GETTEXTPTR,ID_FF_SIZEFROMEDIT,temp);
+				SendDlgMessage(hDlg,DM_GETTEXTPTR,ID_FF_SIZEFROMEDIT,(LONG_PTR)temp);
 				bool bTemp = !*temp || CheckFileSizeStringFormat(temp);
 				temp = strTemp.GetBuffer(SendDlgMessage(hDlg,DM_GETTEXTPTR,ID_FF_SIZETOEDIT,0)+1);
-				SendDlgMessage(hDlg,DM_GETTEXTPTR,ID_FF_SIZETOEDIT,temp);
+				SendDlgMessage(hDlg,DM_GETTEXTPTR,ID_FF_SIZETOEDIT,(LONG_PTR)temp);
 				bTemp = bTemp && (!*temp || CheckFileSizeStringFormat(temp));
 
 				if (!bTemp)
 				{
-					INT_PTR ColorConfig = SendDlgMessage(hDlg, DM_GETDLGDATA, 0, 0);
+					LONG_PTR ColorConfig = SendDlgMessage(hDlg, DM_GETDLGDATA, 0, 0);
 					Message(MSG_WARNING,1,ColorConfig?MSG(MFileHilightTitle):MSG(MFileFilterTitle),MSG(MBadFileSizeFormat),MSG(MOk));
 					return FALSE;
 				}
 			}
 
-			break;
-		default:
 			break;
 	}
 
@@ -866,83 +863,83 @@ bool FileFilterConfig(FileFilterParams *FF, bool ColorConfig)
 
 	// Маска времени
 	strTimeMask.Format(L"99%c99%c99%c999",TimeSeparator,TimeSeparator,DecimalSeparator);
-	FarDialogItem FilterDlgData[]=
+	DialogDataEx FilterDlgData[]=
 	{
-		{DI_DOUBLEBOX,3,1,76,18,0,nullptr,nullptr,DIF_SHOWAMPERSAND,MSG(MFileFilterTitle)},
+		DI_DOUBLEBOX,3,1,76,18,0,DIF_SHOWAMPERSAND,MSG(MFileFilterTitle),
 
-		{DI_TEXT,5,2,0,2,0,nullptr,nullptr,DIF_FOCUS,MSG(MFileFilterName)},
-		{DI_EDIT,5,2,74,2,0,FilterNameHistoryName,nullptr,DIF_HISTORY,L""},
+		DI_TEXT,5,2,0,2,0,DIF_FOCUS,MSG(MFileFilterName),
+		DI_EDIT,5,2,74,2,(DWORD_PTR)FilterNameHistoryName,DIF_HISTORY,L"",
 
-		{DI_TEXT,0,3,0,3,0,nullptr,nullptr,DIF_SEPARATOR,L""},
+		DI_TEXT,0,3,0,3,0,DIF_SEPARATOR,L"",
 
-		{DI_CHECKBOX,5,4,0,4,0,nullptr,nullptr,DIF_AUTOMATION,MSG(MFileFilterMatchMask)},
-		{DI_EDIT,5,4,74,4,0,FilterMasksHistoryName,nullptr,DIF_HISTORY,L""},
+		DI_CHECKBOX,5,4,0,4,0,DIF_AUTOMATION,MSG(MFileFilterMatchMask),
+		DI_EDIT,5,4,74,4,(DWORD_PTR)FilterMasksHistoryName,DIF_HISTORY,L"",
 
-		{DI_TEXT,0,5,0,5,0,nullptr,nullptr,DIF_SEPARATOR,L""},
+		DI_TEXT,0,5,0,5,0,DIF_SEPARATOR,L"",
 
-		{DI_CHECKBOX,5,6,0,6,0,nullptr,nullptr,DIF_AUTOMATION,MSG(MFileFilterSize)},
-		{DI_TEXT,7,7,8,7,0,nullptr,nullptr,0,MSG(MFileFilterSizeFromSign)},
-		{DI_EDIT,10,7,20,7,0,nullptr,nullptr,0,L""},
-		{DI_TEXT,7,8,8,8,0,nullptr,nullptr,0,MSG(MFileFilterSizeToSign)},
-		{DI_EDIT,10,8,20,8,0,nullptr,nullptr,0,L""},
+		DI_CHECKBOX,5,6,0,6,0,DIF_AUTOMATION,MSG(MFileFilterSize),
+		DI_TEXT,7,7,8,7,0,0,MSG(MFileFilterSizeFromSign),
+		DI_EDIT,10,7,20,7,0,0,L"",
+		DI_TEXT,7,8,8,8,0,0,MSG(MFileFilterSizeToSign),
+		DI_EDIT,10,8,20,8,0,0,L"",
 
-		{DI_CHECKBOX,24,6,0,6,0,nullptr,nullptr,DIF_AUTOMATION,MSG(MFileFilterDate)},
-		{DI_COMBOBOX,26,7,41,7,0,nullptr,nullptr,DIF_DROPDOWNLIST|DIF_LISTNOAMPERSAND,L""},
-		{DI_CHECKBOX,26,8,0,8,0,nullptr,nullptr,0,MSG(MFileFilterDateRelative)},
-		{DI_TEXT,48,7,50,7,0,nullptr,nullptr,0,MSG(MFileFilterDateBeforeSign)},
-		{DI_FIXEDIT,51,7,61,7,0,nullptr,strDateMask.CPtr(),DIF_MASKEDIT,L""},
-		{DI_FIXEDIT,51,7,61,7,0,nullptr,DaysMask,DIF_MASKEDIT,L""},
-		{DI_FIXEDIT,63,7,74,7,0,nullptr,strTimeMask.CPtr(),DIF_MASKEDIT,L""},
-		{DI_TEXT,48,8,50,8,0,nullptr,nullptr,0,MSG(MFileFilterDateAfterSign)},
-		{DI_FIXEDIT,51,8,61,8,0,nullptr,strDateMask.CPtr(),DIF_MASKEDIT,L""},
-		{DI_FIXEDIT,51,8,61,8,0,nullptr,DaysMask,DIF_MASKEDIT,L""},
-		{DI_FIXEDIT,63,8,74,8,0,nullptr,strTimeMask.CPtr(),DIF_MASKEDIT,L""},
-		{DI_BUTTON,0,6,0,6,0,nullptr,nullptr,DIF_BTNNOCLOSE,MSG(MFileFilterCurrent)},
-		{DI_BUTTON,0,6,74,6,0,nullptr,nullptr,DIF_BTNNOCLOSE,MSG(MFileFilterBlank)},
+		DI_CHECKBOX,24,6,0,6,0,DIF_AUTOMATION,MSG(MFileFilterDate),
+		DI_COMBOBOX,26,7,41,7,0,DIF_DROPDOWNLIST|DIF_LISTNOAMPERSAND,L"",
+		DI_CHECKBOX,26,8,0,8,0,0,MSG(MFileFilterDateRelative),
+		DI_TEXT,48,7,50,7,0,0,MSG(MFileFilterDateBeforeSign),
+		DI_FIXEDIT,51,7,61,7,(DWORD_PTR)strDateMask.CPtr(),DIF_MASKEDIT,L"",
+		DI_FIXEDIT,51,7,61,7,(DWORD_PTR)DaysMask,DIF_MASKEDIT,L"",
+		DI_FIXEDIT,63,7,74,7,(DWORD_PTR)strTimeMask.CPtr(),DIF_MASKEDIT,L"",
+		DI_TEXT,48,8,50,8,0,0,MSG(MFileFilterDateAfterSign),
+		DI_FIXEDIT,51,8,61,8,(DWORD_PTR)strDateMask.CPtr(),DIF_MASKEDIT,L"",
+		DI_FIXEDIT,51,8,61,8,(DWORD_PTR)DaysMask,DIF_MASKEDIT,L"",
+		DI_FIXEDIT,63,8,74,8,(DWORD_PTR)strTimeMask.CPtr(),DIF_MASKEDIT,L"",
+		DI_BUTTON,0,6,0,6,0,DIF_BTNNOCLOSE,MSG(MFileFilterCurrent),
+		DI_BUTTON,0,6,74,6,0,DIF_BTNNOCLOSE,MSG(MFileFilterBlank),
 
-		{DI_TEXT,0,9,0,9,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-		{DI_VTEXT,22,5,22,9,0,nullptr,nullptr,DIF_BOXCOLOR,VerticalLine},
+		DI_TEXT,0,9,0,9,0,DIF_SEPARATOR,L"",
+		DI_VTEXT,22,5,22,9,0,DIF_BOXCOLOR,VerticalLine,
 
-		{DI_CHECKBOX, 5,10,0,10,0,nullptr,nullptr,DIF_AUTOMATION,MSG(MFileFilterAttr)},
-		{DI_CHECKBOX, 7,11,0,11,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrR)},
-		{DI_CHECKBOX, 7,12,0,12,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrA)},
-		{DI_CHECKBOX, 7,13,0,13,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrH)},
-		{DI_CHECKBOX, 7,14,0,14,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrS)},
+		DI_CHECKBOX, 5,10,0,10,0,DIF_AUTOMATION,MSG(MFileFilterAttr),
+		DI_CHECKBOX, 7,11,0,11,0,DIF_3STATE,MSG(MFileFilterAttrR),
+		DI_CHECKBOX, 7,12,0,12,0,DIF_3STATE,MSG(MFileFilterAttrA),
+		DI_CHECKBOX, 7,13,0,13,0,DIF_3STATE,MSG(MFileFilterAttrH),
+		DI_CHECKBOX, 7,14,0,14,0,DIF_3STATE,MSG(MFileFilterAttrS),
 
-		{DI_CHECKBOX,29,11,0,11,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrD)},
-		{DI_CHECKBOX,29,12,0,12,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrC)},
-		{DI_CHECKBOX,29,13,0,13,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrE)},
-		{DI_CHECKBOX,29,14,0,14,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrNI)},
-		{DI_CHECKBOX,29,15,0,15,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrReparse)},
+		DI_CHECKBOX,29,11,0,11,0,DIF_3STATE,MSG(MFileFilterAttrD),
+		DI_CHECKBOX,29,12,0,12,0,DIF_3STATE,MSG(MFileFilterAttrC),
+		DI_CHECKBOX,29,13,0,13,0,DIF_3STATE,MSG(MFileFilterAttrE),
+		DI_CHECKBOX,29,14,0,14,0,DIF_3STATE,MSG(MFileFilterAttrNI),
+		DI_CHECKBOX,29,15,0,15,0,DIF_3STATE,MSG(MFileFilterAttrReparse),
 
-		{DI_CHECKBOX,51,11,0,11,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrSparse)},
-		{DI_CHECKBOX,51,12,0,12,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrT)},
-		{DI_CHECKBOX,51,13,0,13,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrOffline)},
-		{DI_CHECKBOX,51,14,0,14,0,nullptr,nullptr,DIF_3STATE,MSG(MFileFilterAttrVirtual)},
+		DI_CHECKBOX,51,11,0,11,0,DIF_3STATE,MSG(MFileFilterAttrSparse),
+		DI_CHECKBOX,51,12,0,12,0,DIF_3STATE,MSG(MFileFilterAttrT),
+		DI_CHECKBOX,51,13,0,13,0,DIF_3STATE,MSG(MFileFilterAttrOffline),
+		DI_CHECKBOX,51,14,0,14,0,DIF_3STATE,MSG(MFileFilterAttrVirtual),
 
-		{DI_TEXT,-1,14,0,14,0,nullptr,nullptr,DIF_SEPARATOR,MSG(MHighlightColors)},
-		{DI_TEXT,7,15,0,15,0,nullptr,nullptr,0,MSG(MHighlightMarkChar)},
-		{DI_FIXEDIT,5,15,5,15,0,nullptr,nullptr,0,L""},
-		{DI_CHECKBOX,0,15,0,15,0,nullptr,nullptr,0,MSG(MHighlightTransparentMarkChar)},
+		DI_TEXT,-1,14,0,14,0,DIF_SEPARATOR,MSG(MHighlightColors),
+		DI_TEXT,7,15,0,15,0,0,MSG(MHighlightMarkChar),
+		DI_FIXEDIT,5,15,5,15,0,0,L"",
+		DI_CHECKBOX,0,15,0,15,0,0,MSG(MHighlightTransparentMarkChar),
 
-		{DI_BUTTON,5,16,0,16,0,nullptr,nullptr,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightFileName1)},
-		{DI_BUTTON,0,16,0,16,0,nullptr,nullptr,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightMarking1)},
-		{DI_BUTTON,5,17,0,17,0,nullptr,nullptr,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightFileName2)},
-		{DI_BUTTON,0,17,0,17,0,nullptr,nullptr,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightMarking2)},
-		{DI_BUTTON,5,18,0,18,0,nullptr,nullptr,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightFileName3)},
-		{DI_BUTTON,0,18,0,18,0,nullptr,nullptr,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightMarking3)},
-		{DI_BUTTON,5,19,0,19,0,nullptr,nullptr,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightFileName4)},
-		{DI_BUTTON,0,19,0,19,0,nullptr,nullptr,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightMarking4)},
+		DI_BUTTON,5,16,0,16,0,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightFileName1),
+		DI_BUTTON,0,16,0,16,0,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightMarking1),
+		DI_BUTTON,5,17,0,17,0,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightFileName2),
+		DI_BUTTON,0,17,0,17,0,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightMarking2),
+		DI_BUTTON,5,18,0,18,0,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightFileName3),
+		DI_BUTTON,0,18,0,18,0,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightMarking3),
+		DI_BUTTON,5,19,0,19,0,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightFileName4),
+		DI_BUTTON,0,19,0,19,0,DIF_BTNNOCLOSE|DIF_NOBRACKETS,MSG(MHighlightMarking4),
 
-		{DI_USERCONTROL,73-15-1,16,73-2,19,0,nullptr,nullptr,DIF_NOFOCUS,L""},
-		{DI_CHECKBOX,5,20,0,20,0,nullptr,nullptr,0,MSG(MHighlightContinueProcessing)},
+		DI_USERCONTROL,73-15-1,16,73-2,19,0,DIF_NOFOCUS,L"",
+		DI_CHECKBOX,5,20,0,20,0,0,MSG(MHighlightContinueProcessing),
 
-		{DI_TEXT,0,16,0,16,0,nullptr,nullptr,DIF_SEPARATOR,L""},
+		DI_TEXT,0,16,0,16,0,DIF_SEPARATOR,L"",
 
-		{DI_BUTTON,0,17,0,17,0,nullptr,nullptr,DIF_DEFAULTBUTTON|DIF_CENTERGROUP,MSG(MOk)},
-		{DI_BUTTON,0,17,0,17,0,nullptr,nullptr,DIF_CENTERGROUP|DIF_BTNNOCLOSE,MSG(MFileFilterReset)},
-		{DI_BUTTON,0,17,0,17,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MFileFilterCancel)},
-		{DI_BUTTON,0,17,0,17,0,nullptr,nullptr,DIF_CENTERGROUP|DIF_BTNNOCLOSE,MSG(MFileFilterMakeTransparent)},
+		DI_BUTTON,0,17,0,17,0,DIF_DEFAULT|DIF_CENTERGROUP,MSG(MOk),
+		DI_BUTTON,0,17,0,17,0,DIF_CENTERGROUP|DIF_BTNNOCLOSE,MSG(MFileFilterReset),
+		DI_BUTTON,0,17,0,17,0,DIF_CENTERGROUP,MSG(MFileFilterCancel),
+		DI_BUTTON,0,17,0,17,0,DIF_CENTERGROUP|DIF_BTNNOCLOSE,MSG(MFileFilterMakeTransparent),
 	};
 	FilterDlgData[0].Data=MSG(ColorConfig?MFileHilightTitle:MFileFilterTitle);
 	MakeDialogItemsEx(FilterDlgData,FilterDlg);
@@ -1065,7 +1062,7 @@ bool FileFilterConfig(FileFilterParams *FF, bool ColorConfig)
 			FilterDlg[i].Flags|=DIF_DISABLE;
 	}
 
-	Dialog Dlg(FilterDlg,ARRAYSIZE(FilterDlg),FileFilterConfigDlgProc,ColorConfig?&Colors:nullptr);
+	Dialog Dlg(FilterDlg,ARRAYSIZE(FilterDlg),FileFilterConfigDlgProc,(LONG_PTR)(ColorConfig?&Colors:nullptr));
 	Dlg.SetHelp(ColorConfig?L"HighlightEdit":L"Filter");
 	Dlg.SetPosition(-1,-1,FilterDlg[ID_FF_TITLE].X2+4,FilterDlg[ID_FF_TITLE].Y2+2);
 	Dlg.SetAutomation(ID_FF_MATCHMASK,ID_FF_MASKEDIT,DIF_DISABLE,DIF_NONE,DIF_NONE,DIF_DISABLE);

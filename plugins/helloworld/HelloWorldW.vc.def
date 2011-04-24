@@ -1,7 +1,7 @@
 LIBRARY        HelloWorld
 ; DESCRIPTION    'HelloWorld Far Plugin'
 EXPORTS
-  GetGlobalInfoW
+  GetMinFarVersionW
   SetStartupInfoW
   GetPluginInfoW
-  OpenW
+  OpenPluginW

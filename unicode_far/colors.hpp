@@ -16,13 +16,13 @@ colors.hpp
   farcolor.hpp
 
   Colors Index for FAR Manager <%VERSION%>
-  HKCU\Software\Far Manager\Colors\CurrentPalette
+  HKCU\Software\Far\Colors\CurrentPalette
 */
 #endif // END FAR_USE_INTERNALS
 
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -58,7 +58,7 @@ other possible license with no implications from the above license on them.
   Пункт COL_LASTPALETTECOLOR должен быть самым последним!!!!!!
 */
 
-// Стандартные цвета Far Manager
+// Стандартные цвета FAR Manager
 enum
 {
 	F_BLACK=0,

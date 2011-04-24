@@ -7,22 +7,20 @@ CArchiveOpenVolumeCallback::CArchiveOpenVolumeCallback(SevenZipArchive* pArchive
 	m_nRefCount = 1;
 
 	m_pArchive = pArchive;
-	m_pVolumeFile = pArchive->GetFile();
-
-	m_uOpenedVolumes = 0;
+	m_pVolumeFile = NULL;
 }
 
-CArchiveOpenVolumeCallback::~CArchiveOpenVolumeCallback()
+CArchiveOpenVolumeCallback::~CArchiveOpenVolumeCallback ()
 {
 }
 
 
-ULONG __stdcall CArchiveOpenVolumeCallback::AddRef()
+ULONG __stdcall CArchiveOpenVolumeCallback::AddRef ()
 {
 	return ++m_nRefCount;
 }
 
-ULONG __stdcall CArchiveOpenVolumeCallback::Release()
+ULONG __stdcall CArchiveOpenVolumeCallback::Release ()
 {
 	if ( --m_nRefCount == 0 )
 	{
@@ -50,41 +48,31 @@ HRESULT __stdcall CArchiveOpenVolumeCallback::QueryInterface(const IID &iid, voi
 }
 
 
-HRESULT __stdcall CArchiveOpenVolumeCallback::GetProperty(PROPID propID, PROPVARIANT* value)
+HRESULT __stdcall CArchiveOpenVolumeCallback::GetProperty(PROPID propID, PROPVARIANT *value)
 {
-	WIN32_FIND_DATA fData;
-	CPropVariant val;
-
-	if ( m_pVolumeFile->GetFindData(fData) )
+	if ( propID == kpidName )
 	{
-		switch (propID) {
+		string strNameOnly;
 
-		case kpidName:
-			val = fData.cFileName;
-			break;
+		if ( m_pVolumeFile )
+			strNameOnly = FSF.PointToName(m_pVolumeFile->GetName());
+		else
+			strNameOnly = FSF.PointToName(m_pArchive->GetFileName());
 
-		case kpidSize:
-			val = ((unsigned __int64)fData.nFileSizeHigh << 32)+fData.nFileSizeLow;
-			break;
+		value->vt = VT_BSTR;
+		value->bstrVal = strNameOnly.ToBSTR();
+	}
 
-		case kpidCTime:
-			val = fData.ftCreationTime;
-			break;
+	if ( propID == kpidSize )
+	{
+		/*value->vt = VT_UI8;
 
-		case kpidATime:
-			val = fData.ftLastAccessTime;
-			break;
+		if ( m_pVolumeFile )
+			value->uhVal.QuadPart = m_pVolumeFile->GetSize();
+		else
+			value->uhVal.QuadPart = m_pHandle->pFile->GetSize(); */
 
-		case kpidMTime:
-			val = fData.ftLastWriteTime;
-			break;
-
-		case kpidAttrib:
-			val = (unsigned int)fData.dwFileAttributes;
-			break;
-		}
-
-		val.Detach(value);
+		__debug(_T("BUGBUG!!!"));
 	}
 
 	return S_OK;
@@ -92,9 +80,6 @@ HRESULT __stdcall CArchiveOpenVolumeCallback::GetProperty(PROPID propID, PROPVAR
 
 HRESULT __stdcall CArchiveOpenVolumeCallback::GetStream(const wchar_t *name, IInStream **inStream)
 {
-//	if ( m_uOpenedVolumes == m_pArchive->GetNumberOfVolumes() )
-//		return S_FALSE;
-
 	string strFullName;
 	string strFileName;
 
@@ -108,41 +93,9 @@ HRESULT __stdcall CArchiveOpenVolumeCallback::GetStream(const wchar_t *name, IIn
 	CutTo(strFullName, _T('\\'), false);
 	strFullName += strFileName;
 
-	//bool bResult = false;
-
-	//CInFile* file = nullptr;
-
-	CInFile* file = new CInFile(strFullName);
+	CInFile *file = new CInFile (strFullName);
 
 	bool bResult = file->Open();
-
-/*	while ( true )
-	{
-		file = new CInFile(strFullName);
-
-		if ( file->Open() )
-		{
-			m_uOpenedVolumes++;
-
-			bResult = true;
-			break;
-		}
-		else
-		{
-			TCHAR cBuffer[512];
-			
-			if ( m_pArchive->OnNeedVolume(strFullName, 512, (TCHAR*)&cBuffer) )
-			{
-				strFullName = (const TCHAR*)&cBuffer;
-				delete file;
-			}
-			else
-			{
-				bResult = false;
-				break;
-			}
-		}
-	} */
 
 	*inStream = file;
 	m_pVolumeFile = file;

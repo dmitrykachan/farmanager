@@ -1,6 +1,5 @@
 ﻿.Language=English,English
 
-lang = en
 plugin.name = <(NAME)>
 
 # Extract dialog
@@ -18,8 +17,7 @@ extract.dlg.password = Pass&word:
 extract.dlg.separate_dir = Ex&tract archive into separate directory
 extract.dlg.delete_archive = De&lete archive after extraction
 extract.dlg.open_dir = &Go to target directory after extraction
-extract.dlg.save_params = Sa&ve settings
-extract.dlg.params_saved = Settings saved
+extract.dlg.save_params = Re&member current settings
 
 # Update dialog
 update.dlg.title = Add files to archive

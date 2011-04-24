@@ -9,7 +9,7 @@ Push, Unshift, InsertBefore или InsertAfter с item должен так же
       const Type& operator=(const Type &)
 */
 /*
-Copyright © 2009 lort
+Copyright (c) 2009 lort
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -78,7 +78,7 @@ class DList : public CDList
 		Node *Type2Node(const Type *item) {return item ? (Node*)((BYTE*)item-sizeof(Node)) : &root;}
 
 	public:
-		virtual ~DList() {Clear();};
+		~DList() {Clear();};
 
 		//создать новый элемент и поместить его в конец сприска
 		//возвращает указатель на созданный элемент

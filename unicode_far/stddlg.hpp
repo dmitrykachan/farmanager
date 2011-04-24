@@ -6,8 +6,8 @@ stddlg.hpp
 Куча разных стандартных диалогов
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -113,8 +113,7 @@ int __stdcall GetString(
     const wchar_t *HelpTopic = nullptr,
     DWORD Flags = 0,
     int *CheckBoxValue = nullptr,
-    const wchar_t *CheckBoxText = nullptr,
-    INT_PTR PluginNumber = -1
+    const wchar_t *CheckBoxText = nullptr
 );
 
 // для диалога GetNameAndPassword()

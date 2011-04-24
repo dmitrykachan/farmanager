@@ -4,8 +4,8 @@ dirinfo.cpp
 GetDirInfo & GetPluginDirInfo
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -54,27 +54,23 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "strmix.hpp"
 #include "wakeful.hpp"
 
-static void DrawGetDirInfoMsg(const wchar_t *Title,const wchar_t *Name,const UINT64* Size)
+static void DrawGetDirInfoMsg(const wchar_t *Title,const wchar_t *Name,const UINT64 Size)
 {
 	string strSize;
-	FileSizeToStr(strSize,*Size,8,COLUMN_FLOATSIZE|COLUMN_COMMAS);
+	FileSizeToStr(strSize,Size,8,COLUMN_FLOATSIZE|COLUMN_COMMAS);
 	RemoveLeadingSpaces(strSize);
 	Message(0,0,Title,MSG(MScanningFolder),Name,strSize);
 	PreRedrawItem preRedrawItem=PreRedraw.Peek();
-	preRedrawItem.Param.Param1=Title;
-	preRedrawItem.Param.Param2=Name;
-	preRedrawItem.Param.Param3=Size;
+	preRedrawItem.Param.Param1=(void*)Title;
+	preRedrawItem.Param.Param2=(void*)Name;
+	preRedrawItem.Param.Param3=reinterpret_cast<LPCVOID>(Size);
 	PreRedraw.SetParam(preRedrawItem.Param);
 }
 
 static void PR_DrawGetDirInfoMsg()
 {
 	PreRedrawItem preRedrawItem=PreRedraw.Peek();
-	DrawGetDirInfoMsg(
-		static_cast<const wchar_t*>(preRedrawItem.Param.Param1),
-		static_cast<const wchar_t*>(preRedrawItem.Param.Param2),
-		static_cast<const UINT64*>(preRedrawItem.Param.Param3)
-	);
+	DrawGetDirInfoMsg((const wchar_t*)preRedrawItem.Param.Param1,(const wchar_t *)preRedrawItem.Param.Param2,reinterpret_cast<const UINT64>(preRedrawItem.Param.Param3));
 }
 
 int GetDirInfo(const wchar_t *Title,
@@ -172,7 +168,7 @@ int GetDirInfo(const wchar_t *Title,
 			MsgWaitTime=500;
 			OldTitle.Set(L"%s %s",MSG(MScanningFolder), ShowDirName); // покажем заголовок консоли
 			SetCursorType(FALSE,0);
-			DrawGetDirInfoMsg(Title,ShowDirName,&FileSize);
+			DrawGetDirInfoMsg(Title,ShowDirName,FileSize);
 		}
 
 		if (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
@@ -261,15 +257,15 @@ int GetPluginDirInfo(HANDLE hPlugin,const wchar_t *DirName,unsigned long &DirCou
 	{
 		for (int I=0; I<ItemsNumber; I++)
 		{
-			if (PanelItem[I].FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			if (PanelItem[I].FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 			{
 				DirCount++;
 			}
 			else
 			{
 				FileCount++;
-				FileSize+=PanelItem[I].FileSize;
-				CompressedFileSize+=PanelItem[I].PackSize?PanelItem[I].PackSize:PanelItem[I].FileSize;
+				FileSize+=PanelItem[I].FindData.nFileSize;
+				CompressedFileSize+=PanelItem[I].FindData.nPackSize?PanelItem[I].FindData.nPackSize:PanelItem[I].FindData.nFileSize;
 			}
 		}
 	}

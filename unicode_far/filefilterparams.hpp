@@ -6,8 +6,8 @@ filefilterparams.hpp
 Параметры Файлового фильтра
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -155,7 +155,7 @@ class FileFilterParams
 		//            false - не попадает.
 		bool FileInFilter(const FileListItem& fli, unsigned __int64 CurrentTime);
 		bool FileInFilter(const FAR_FIND_DATA_EX& fde, unsigned __int64 CurrentTime);
-		bool FileInFilter(const PluginPanelItem& fd, unsigned __int64 CurrentTime);
+		bool FileInFilter(const FAR_FIND_DATA& fd, unsigned __int64 CurrentTime);
 };
 
 bool FileFilterConfig(FileFilterParams *FF, bool ColorConfig=false);

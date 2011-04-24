@@ -6,8 +6,8 @@ filestr.hpp
  Î‡ÒÒ GetFileString
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -40,8 +40,8 @@ class OldGetFileString
 		FILE *SrcFile;
 		int ReadPos, ReadSize;
 
-		char* ReadBuf;
-		wchar_t* wReadBuf;
+		char ReadBuf[8192];
+		wchar_t wReadBuf[8192];
 
 		int m_nStrLength;
 		char *Str;
@@ -89,8 +89,8 @@ class GetFileString
 		LPWSTR* LastString;
 		int LastResult;
 
-		char* ReadBuf;
-		wchar_t* wReadBuf;
+		char ReadBuf[8192];
+		wchar_t wReadBuf[8192];
 
 		int m_nStrLength;
 		char *Str;

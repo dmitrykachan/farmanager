@@ -1,12 +1,10 @@
-#include <plugin.hpp>
+#define STRICT
+#define _FAR_USE_FARFINDDATA
 #include <CRT/crt.hpp>
-#include <PluginSettings.hpp>
-#include <DlgBuilder.hpp>
+#include <plugin.hpp>
+#include <farkeys.hpp>
+#include "HlfViewer.hpp"
 #include "Lang.hpp"
-#include "version.hpp"
-#include <initguid.h>
-#include "guid.hpp"
-
 
 #if defined(__GNUC__)
 #ifdef __cplusplus
@@ -27,105 +25,71 @@ BOOL WINAPI DllMainCRTStartup(HANDLE hDll,DWORD dwReason,LPVOID lpReserved)
 }
 #endif
 
-const wchar_t *FindTopic(void);
-BOOL IsHlf(void);
-void RestorePosition(void);
-BOOL CheckExtension(const wchar_t *ptrName);
-void ShowHelp(const wchar_t *fullfilename,const wchar_t *topic, bool CmdLine=false);
-const wchar_t *GetMsg(int MsgId);
-void ShowCurrentHelpTopic();
-void ShowHelpFromTempFile();
-void GetPluginConfig(void);
+#ifndef UNICODE
+#define GetCheck(i) DialogItems[i].Selected
+#define GetDataPtr(i) DialogItems[i].Data
+#else
+#define GetCheck(i) (int)Info.SendDlgMessage(hDlg,DM_GETCHECK,i,0)
+#define GetDataPtr(i) ((const TCHAR *)Info.SendDlgMessage(hDlg,DM_GETCONSTTEXTPTR,i,0))
+#endif
 
-static struct Options
+#include "Reg.cpp"
+#include "Mix.cpp"
+#include "FarEditor.cpp"
+
+int WINAPI EXP_NAME(GetMinFarVersion)()
 {
-	int ProcessEditorInput;
-	wchar_t KeyNameFromReg[34];
-	int Key;
-	int Style;
-} Opt;
-
-static struct PluginStartupInfo Info;
-static struct FarStandardFunctions FSF;
-
-static struct EditorInfo ei;
-static struct EditorGetString egs;
-static struct EditorSetPosition esp;
-
-
-BOOL CheckExtension(const wchar_t *ptrName)
-{
-	return FSF.ProcessName(L"*.hlf", (wchar_t*)ptrName, 0, PN_CMPNAME|PN_SKIPPATH);
+	return FARMANAGERVERSION;
 }
 
-void ShowHelp(const wchar_t *fullfilename,const wchar_t *topic, bool CmdLine)
+void WINAPI EXP_NAME(SetStartupInfo)(const struct PluginStartupInfo *Info)
 {
-	if (CmdLine || CheckExtension(fullfilename))
+	::Info=*Info;
+	lstrcpy(PluginRootKey,Info->RootKey);
+	lstrcat(PluginRootKey,_T("\\HlfViewer"));
+	::FSF=*Info->FSF;
+	::Info.FSF=&::FSF;
+	PointToName=::FSF.PointToName;
+	GetPathRoot=::FSF.GetPathRoot;
+	AddEndSlash=::FSF.AddEndSlash;
+	FarSprintf=::FSF.sprintf;
+	GetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.EditorKey,KeyNameFromReg,_T("F1"),ARRAYSIZE(KeyNameFromReg)-1);
+	Opt.Key=::FSF.FarNameToKey(KeyNameFromReg);
+	Opt.ProcessEditorInput=GetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.ProcessEditorInput,1);
+	Opt.Style=GetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.Style,0);
+}
+
+HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom,INT_PTR Item)
+{
+	if (OpenFrom==OPEN_COMMANDLINE)
 	{
-		const wchar_t *Topic=topic;
-
-		if (NULL == Topic)
-			Topic=GetMsg(MDefaultTopic);
-
-		Info.ShowHelp(fullfilename,Topic,FHELP_CUSTOMFILE);
-	}
-}
-
-const wchar_t *GetMsg(int MsgId)
-{
-	return Info.GetMsg(&MainGuid,MsgId);
-}
-
-void WINAPI GetGlobalInfoW(struct GlobalInfo *Info)
-{
-	Info->StructSize=sizeof(GlobalInfo);
-	Info->MinFarVersion=FARMANAGERVERSION;
-	Info->Version=PLUGIN_VERSION;
-	Info->Guid=MainGuid;
-	Info->Title=PLUGIN_NAME;
-	Info->Description=PLUGIN_DESC;
-	Info->Author=PLUGIN_AUTHOR;
-}
-
-void WINAPI SetStartupInfoW(const struct PluginStartupInfo *PSInfo)
-{
-	Info=*PSInfo;
-	FSF=*PSInfo->FSF;
-
-	GetPluginConfig();
-}
-
-HANDLE WINAPI OpenW(const struct OpenInfo *OInfo)
-{
-	if (OInfo->OpenFrom==OPEN_COMMANDLINE)
-	{
-		if (lstrlen((const wchar_t *)OInfo->Data))
+		if (lstrlen((TCHAR *)Item))
 		{
-			static wchar_t cmdbuf[1024], FileName[MAX_PATH], *ptrTopic, *ptrName;
-			lstrcpyn(cmdbuf,(const wchar_t *)OInfo->Data,ARRAYSIZE(cmdbuf));
+			static TCHAR cmdbuf[1024], FileName[MAX_PATH], *ptrTopic, *ptrName;
+			lstrcpy(cmdbuf,(TCHAR *)Item);
 			FSF.Trim(cmdbuf);
 			ptrName=ptrTopic=cmdbuf;
 
-			if (*cmdbuf==L'\"')
+			if (*cmdbuf==_T('\"'))
 			{
 				ptrName++;
 				ptrTopic++;
 
-				while (*ptrTopic!=L'\"' && *ptrTopic)
+				while (*ptrTopic!=_T('\"') && *ptrTopic)
 					ptrTopic++;
 			}
 			else
 			{
-				while (*ptrTopic!=L' ' && *ptrTopic)
+				while (*ptrTopic!=_T(' ') && *ptrTopic)
 					ptrTopic++;
 			}
 
-			int hasTopic = (*ptrTopic == L' ');
+			int hasTopic = (*ptrTopic == _T(' '));
 			*ptrTopic=0;
+#ifdef UNICODE
+			TCHAR *ptrCurDir=NULL;
 
-			wchar_t *ptrCurDir=NULL;
-
-			if (FSF.PointToName(ptrName) == ptrName)
+			if (PointToName(ptrName) == ptrName)
 			{
 				DWORD Size=FSF.GetCurrentDirectory(0,NULL);
 
@@ -133,16 +97,20 @@ HANDLE WINAPI OpenW(const struct OpenInfo *OInfo)
 				{
 					ptrCurDir=new WCHAR[Size+lstrlen(ptrName)+8];
 					FSF.GetCurrentDirectory(Size,ptrCurDir);
-					lstrcat(ptrCurDir,L"\\");
+					lstrcat(ptrCurDir,_T("\\"));
 					lstrcat(ptrCurDir,ptrName);
-					ptrName=(wchar_t *)ptrCurDir;
+					ptrName=(TCHAR *)ptrCurDir;
 				}
 			}
 
+#endif
 			GetFullPathName(ptrName,MAX_PATH,FileName,&ptrName);
+#ifdef UNICODE
 
 			if (ptrCurDir)
 				delete[] ptrCurDir;
+
+#endif
 
 			if (hasTopic)
 			{
@@ -154,59 +122,57 @@ HANDLE WINAPI OpenW(const struct OpenInfo *OInfo)
 					ptrTopic=NULL;
 			}
 			else
-			{
 				ptrTopic = NULL;
-			}
 
 			ShowHelp(FileName,ptrTopic,true);
 		}
 		else
-		{
-			Info.ShowHelp(Info.ModuleName,L"cmd",FHELP_SELFHELP);
-		}
+			Info.ShowHelp(Info.ModuleName,HlfId.cmd,FHELP_SELFHELP);
 	}
-	else if (OInfo->OpenFrom == OPEN_EDITOR)
+	else if (OpenFrom == OPEN_EDITOR)
 	{
 		if (IsHlf())
-		{
 			ShowCurrentHelpTopic();
-		}
 		else
 		{
-			const wchar_t *Items[] = { GetMsg(MTitle), GetMsg(MNotAnHLF), GetMsg(MOk) };
-			Info.Message(&MainGuid, 0, NULL, Items, ARRAYSIZE(Items), 1);
+			const TCHAR *Items[] = { GetMsg(MTitle), GetMsg(MNotAnHLF), GetMsg(MOk) };
+			Info.Message(Info.ModuleNumber, 0,
+			             NULL, Items, 3, 1);
 		}
 	}
 
-	return INVALID_HANDLE_VALUE;
+	return(INVALID_HANDLE_VALUE);
 }
 
-void WINAPI GetPluginInfoW(struct PluginInfo *Info)
+void WINAPI EXP_NAME(GetPluginInfo)(struct PluginInfo *Info)
 {
 	Info->StructSize=sizeof(*Info);
 	Info->Flags=PF_EDITOR|PF_DISABLEPANELS;
-
-	static const wchar_t *PluginConfigStrings[1];
+	static const TCHAR * PluginMenuStrings[1], *PluginConfigStrings[1];
 	PluginConfigStrings[0]=GetMsg(MTitle);
-	Info->PluginConfig.Guids=&MenuGuid;
-	Info->PluginConfig.Strings=PluginConfigStrings;
-	Info->PluginConfig.Count=ARRAYSIZE(PluginConfigStrings);
+	Info->PluginConfigStrings=PluginConfigStrings;
+	Info->PluginConfigStringsNumber=ARRAYSIZE(PluginConfigStrings);
 
-	if (!Opt.ProcessEditorInput)
+	if (Opt.ProcessEditorInput)
 	{
-		static const wchar_t *PluginMenuStrings[1];
+		Info->PluginMenuStrings=0;
+		Info->PluginMenuStringsNumber=0;
+	}
+	else
+	{
 		PluginMenuStrings[0]=GetMsg(MShowHelpTopic);
-		Info->PluginMenu.Guids=&MenuGuid;
-		Info->PluginMenu.Strings=PluginMenuStrings;
-		Info->PluginMenu.Count=ARRAYSIZE(PluginMenuStrings);
+		Info->PluginMenuStrings=PluginMenuStrings;
+		Info->PluginMenuStringsNumber=ARRAYSIZE(PluginMenuStrings);
 	}
 
-	Info->CommandPrefix=L"HLF";
+	Info->CommandPrefix=_T("HLF");
 }
 
-int WINAPI ProcessEditorInputW(const INPUT_RECORD *Rec)
+int WINAPI EXP_NAME(ProcessEditorInput)(const INPUT_RECORD *Rec)
 {
+#ifdef UNICODE
 	LPWSTR FileName=NULL;
+#endif
 	BOOL Result=FALSE;
 
 	if (Opt.ProcessEditorInput)
@@ -214,8 +180,9 @@ int WINAPI ProcessEditorInputW(const INPUT_RECORD *Rec)
 		if (Rec->EventType==KEY_EVENT && Rec->Event.KeyEvent.bKeyDown &&
 		        FSF.FarInputRecordToKey((INPUT_RECORD *)Rec)==Opt.Key)
 		{
-			Info.EditorControl(-1,ECTL_GETINFO,0,(INT_PTR)&ei);
-			size_t FileNameSize=Info.EditorControl(-1,ECTL_GETFILENAME,0,0);
+			Info.EditorControl(ECTL_GETINFO,&ei);
+#ifdef UNICODE
+			size_t FileNameSize=Info.EditorControl(ECTL_GETFILENAME,NULL);
 
 			if (FileNameSize)
 			{
@@ -223,11 +190,17 @@ int WINAPI ProcessEditorInputW(const INPUT_RECORD *Rec)
 
 				if (FileName)
 				{
-					Info.EditorControl(-1,ECTL_GETFILENAME,0,(INT_PTR)FileName);
+					Info.EditorControl(ECTL_GETFILENAME,FileName);
 				}
 			}
 
-			if (CheckExtension(FileName))
+#endif
+
+			if (CheckExtension(
+#ifndef UNICODE
+			            ei.
+#endif
+			            FileName))
 			{
 				ShowCurrentHelpTopic();
 				Result=TRUE;
@@ -235,19 +208,25 @@ int WINAPI ProcessEditorInputW(const INPUT_RECORD *Rec)
 		}
 	}
 
+#ifdef UNICODE
+
 	if (FileName)
 	{
 		delete[] FileName;
 	}
 
+#endif
 	return Result;
 }
 
 void ShowCurrentHelpTopic()
 {
-	size_t FileNameSize=Info.EditorControl(-1,ECTL_GETFILENAME,0,0);
+#ifdef UNICODE
+	size_t FileNameSize=Info.EditorControl(ECTL_GETFILENAME,NULL);
 	LPWSTR FileName=NULL;
-	Info.EditorControl(-1,ECTL_GETINFO,0,(INT_PTR)&ei);
+#endif
+	Info.EditorControl(ECTL_GETINFO,&ei);
+#ifdef UNICODE
 
 	if (FileNameSize)
 	{
@@ -255,9 +234,11 @@ void ShowCurrentHelpTopic()
 
 		if (FileName)
 		{
-			Info.EditorControl(-1,ECTL_GETFILENAME,0,(INT_PTR)FileName);
+			Info.EditorControl(ECTL_GETFILENAME,FileName);
 		}
 	}
+
+#endif
 
 	switch (Opt.Style)
 	{
@@ -266,35 +247,50 @@ void ShowCurrentHelpTopic()
 			if (!(ei.CurState&ECSTATE_SAVED))
 				ShowHelpFromTempFile();
 			else
-				ShowHelp(FileName,FindTopic());
+				ShowHelp(
+#ifndef UNICODE
+				    ei.
+#endif
+				    FileName,FindTopic());
 
 			break;
 		case 2:
 
 			if (!(ei.CurState&ECSTATE_SAVED))
-				Info.EditorControl(-1,ECTL_SAVEFILE, 0, 0);
+				Info.EditorControl(ECTL_SAVEFILE, NULL);
 
 		default:
-			ShowHelp(FileName,FindTopic());
+			ShowHelp(
+#ifndef UNICODE
+			    ei.
+#endif
+			    FileName,FindTopic());
 			break;
 	}
+
+#ifdef UNICODE
 
 	if (FileName)
 	{
 		delete[] FileName;
 	}
 
+#endif
 }
 
 void ShowHelpFromTempFile()
 {
 	struct EditorSaveFile esf;
+#ifdef UNICODE
 	wchar_t fname[MAX_PATH];
 	esf.FileName = fname;
 
-	if (FSF.MkTemp(fname, ARRAYSIZE(fname)-4,L"HLF")>1)
+	if (FSF.MkTemp(fname, ARRAYSIZE(fname)-4,_T("HLF"))>1)
+#else
+	if (FSF.MkTemp(esf.FileName,_T("HLF")))
+#endif
 	{
-		lstrcat(fname,L".hlf");
+		lstrcat((TCHAR*)esf.FileName,_T(".hlf"));
 		/*
 		  esf.FileEOL=NULL;
 		  Info.EditorControl(ECTL_SAVEFILE, &esf);
@@ -310,16 +306,18 @@ void ShowHelpFromTempFile()
 
 		if (Handle != INVALID_HANDLE_VALUE)
 		{
-			Info.EditorControl(-1,ECTL_GETINFO,0,(INT_PTR)&ei);
-		#define SIGN_UNICODE    0xFEFF
+			Info.EditorControl(ECTL_GETINFO,&ei);
+#ifdef UNICODE
+#define SIGN_UNICODE    0xFEFF
 			WORD sign=SIGN_UNICODE;
 			WriteFile(Handle, &sign, 2, &Count, NULL);
+#endif
 
 			for (egs.StringNumber=0; egs.StringNumber<ei.TotalLines; egs.StringNumber++)
 			{
-				Info.EditorControl(-1,ECTL_GETSTRING,0,(INT_PTR)&egs);
-				WriteFile(Handle, egs.StringText, egs.StringLength*sizeof(wchar_t), &Count, NULL);
-				WriteFile(Handle, L"\r\n", 2*sizeof(wchar_t), &Count, NULL);
+				Info.EditorControl(ECTL_GETSTRING, &egs);
+				WriteFile(Handle, egs.StringText, egs.StringLength*sizeof(TCHAR), &Count, NULL);
+				WriteFile(Handle, _T("\r\n"), 2*sizeof(TCHAR), &Count, NULL);
 			}
 
 			CloseHandle(Handle);
@@ -330,121 +328,78 @@ void ShowHelpFromTempFile()
 		}
 	}
 	else
-	{
 		; //??
-	}
 }
 
-int WINAPI ConfigureW(const GUID* Guid)
+#if 0
+int WINAPI EXP_NAME(ProcessEditorEvent)(int Event, void * /*Param*/)
 {
-	GetPluginConfig();
-
-	PluginDialogBuilder Builder(Info, MainGuid, DialogGuid, MConfig, L"Config");
-
-	Builder.StartColumns();
-	Builder.AddCheckbox(MProcessEditorInput, &Opt.ProcessEditorInput);
-	Builder.ColumnBreak();
-	Builder.AddEditField(Opt.KeyNameFromReg, ARRAYSIZE(Opt.KeyNameFromReg), 20);
-	Builder.EndColumns();
-
-    Builder.AddSeparator();
-
-	Builder.AddText(MStyle);
-
-    const int StyleIDs[] = {MStr1, MStr2, MStr3};
-    Builder.AddRadioButtons((int*)&Opt.Style, ARRAYSIZE(StyleIDs), StyleIDs);
-
-    Builder.AddOKCancel(MOk, MCancel);
-
-	if (Builder.ShowDialog())
+	if (Event==EE_READ || Event==EE_SAVE)
 	{
-		if ((Opt.Key=FSF.FarNameToKey(Opt.KeyNameFromReg)) == -1)
-		{
-			lstrcpyn(Opt.KeyNameFromReg,L"F1",ARRAYSIZE(Opt.KeyNameFromReg));
-			Opt.Key=VK_F1;
-		}
-
-		PluginSettings settings(MainGuid, Info.SettingsControl);
-		settings.Set(0,L"ProcessEditorInput",Opt.ProcessEditorInput);
-		settings.Set(0,L"Style",Opt.Style);
-		settings.Set(0,L"EditorKey",Opt.KeyNameFromReg);
-		return TRUE;
+		GetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.EditorKey,KeyNameFromReg,_T("F1"),ARRAYSIZE(KeyNameFromReg)-1);
+		Opt.Key=FSF.FarNameToKey(KeyNameFromReg);
+		Opt.ProcessEditorInput=GetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.ProcessEditorInput,1);
+		Opt.Style=GetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.Style,0);
 	}
-	return FALSE;
+
+	return 0;
 }
+#endif
 
-void RestorePosition(void)
+int WINAPI EXP_NAME(Configure)(int ItemNumber)
 {
-	esp.CurLine=ei.CurLine;
-	esp.CurPos=ei.CurPos;
-	esp.TopScreenLine=ei.TopScreenLine;
-	esp.LeftPos=ei.LeftPos;
-	esp.CurTabPos=-1;
-	esp.Overtype=-1;
-	Info.EditorControl(-1,ECTL_SETPOSITION,0,(INT_PTR)&esp);
-}
-
-BOOL IsHlf(void)
-{
-	BOOL ret=FALSE;
-	Info.EditorControl(-1,ECTL_GETINFO,0,(INT_PTR)&ei);
-	memset(&esp,-1,sizeof(esp));
-	egs.StringNumber=-1;
-	int total=(ei.TotalLines<3)?ei.TotalLines:3;
-
-	if (total>2) for (esp.CurLine=0; esp.CurLine<total; esp.CurLine++)
+	GetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.EditorKey,KeyNameFromReg,_T("F1"),ARRAYSIZE(KeyNameFromReg)-1);
+	static struct InitDialogItem InitItems[]=
 	{
-		{
-			Info.EditorControl(-1,ECTL_SETPOSITION,0,(INT_PTR)&esp);
-			Info.EditorControl(-1,ECTL_GETSTRING,0,(INT_PTR)&egs);
+		/*00*/{DI_DOUBLEBOX,3,1,70,10,0,0,0,0,(TCHAR *)MTitle},
+		/*01*/{DI_CHECKBOX,5,2,0,0,TRUE,0,0,0,(TCHAR *)MProcessEditorInput},
+		/*02*/{DI_FIXEDIT,10,2,68,2,0,0,0,0,KeyNameFromReg},
+		/*03*/{DI_TEXT,0,3,0,0,0,0,DIF_SEPARATOR,0,_T("")},
+		/*04*/{DI_TEXT,5,4,0,0,0,0,0,0,(TCHAR *)MStyle},
+		/*05*/{DI_RADIOBUTTON,5,5,0,0,0,0,DIF_GROUP,0,(TCHAR *)MStr1},
+		/*06*/{DI_RADIOBUTTON,5,6,0,0,0,0,0,0,(TCHAR *)MStr2},
+		/*07*/{DI_RADIOBUTTON,5,7,0,0,0,0,0,0,(TCHAR *)MStr3},
+		/*08*/{DI_TEXT,0,8,0,0,0,0,DIF_SEPARATOR,0,_T("")},
+		/*09*/{DI_BUTTON,0,9,0,0,0,0,DIF_CENTERGROUP,1,(TCHAR *)MOk},
+		/*10*/{DI_BUTTON,0,9,0,0,0,0,DIF_CENTERGROUP,0,(TCHAR *)MCancel}
+	};
+	struct FarDialogItem DialogItems[ARRAYSIZE(InitItems)];
+	InitDialogItems(InitItems,DialogItems,ARRAYSIZE(InitItems));
+	int ret=FALSE;
+	DialogItems[1].Selected=Opt.ProcessEditorInput=GetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.ProcessEditorInput,1);
+	DialogItems[2].X1+=lstrlen(GetMsg(MProcessEditorInput));
+	Opt.Style=GetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.Style,0);
+	DialogItems[5].Selected=DialogItems[6].Selected=DialogItems[7].Selected=0;
+	DialogItems[5+(Opt.Style>2?0:Opt.Style)].Selected=1;
+#ifndef UNICODE
+	int ExitCode = Info.Dialog(Info.ModuleNumber,-1,-1,74,12, HlfId.Config,
+	                           DialogItems,ARRAYSIZE(InitItems));
+#else
+	HANDLE hDlg = Info.DialogInit(Info.ModuleNumber,-1,-1,74,12, HlfId.Config,
+	                              DialogItems,ARRAYSIZE(InitItems),0,0,NULL,0);
 
-			if (!FSF.LStrnicmp(_T(".Language="),egs.StringText,10))
-			{
-				ret=TRUE;
-				break;
-			}
-		}
+	if (hDlg == INVALID_HANDLE_VALUE)
+		return ret;
+
+	int ExitCode = Info.DialogRun(hDlg);
+#endif
+
+	if (ExitCode==9)
+	{
+		Opt.ProcessEditorInput=GetCheck(1);
+
+		if ((Opt.Key=FSF.FarNameToKey(GetDataPtr(2)))==-1) Opt.Key=KEY_F1;
+
+		FSF.FarKeyToName(Opt.Key,KeyNameFromReg,ARRAYSIZE(KeyNameFromReg)-1);
+		Opt.Style=(GetCheck(6)!=0)+((GetCheck(7)!=0)<<1);
+		SetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.ProcessEditorInput,Opt.ProcessEditorInput);
+		SetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.EditorKey,KeyNameFromReg);
+		SetRegKey(HKEY_CURRENT_USER,_T(""),REGStr.Style,Opt.Style);
+		ret=TRUE;
 	}
 
-	RestorePosition();
+#ifdef UNICODE
+	Info.DialogFree(hDlg);
+#endif
 	return ret;
-}
-
-const wchar_t *FindTopic(void)
-{
-	const wchar_t *ret=NULL;
-	const wchar_t *tmp;
-	Info.EditorControl(-1,ECTL_GETINFO,0,(INT_PTR)&ei);
-	memset(&esp,-1,sizeof(esp));
-	egs.StringNumber=-1;
-
-	for (esp.CurLine=ei.CurLine; esp.CurLine>=0; esp.CurLine--)
-	{
-		Info.EditorControl(-1,ECTL_SETPOSITION,0,(INT_PTR)&esp);
-		Info.EditorControl(-1,ECTL_GETSTRING,0,(INT_PTR)&egs);
-		tmp=egs.StringText;
-
-		if (lstrlen(tmp)>1 && *tmp==_T('@') && *(tmp+1)!=_T('-') && *(tmp+1)!=_T('+'))
-		{
-			ret=tmp+1;
-			break;
-		}
-	}
-
-	RestorePosition();
-	return ret;
-}
-
-void GetPluginConfig(void)
-{
-	PluginSettings settings(MainGuid, Info.SettingsControl);
-
-	settings.Get(0,L"EditorKey",Opt.KeyNameFromReg,ARRAYSIZE(Opt.KeyNameFromReg),L"F1");
-	if ((Opt.Key=FSF.FarNameToKey(Opt.KeyNameFromReg)) == -1)
-	{
-		lstrcpyn(Opt.KeyNameFromReg,L"F1",ARRAYSIZE(Opt.KeyNameFromReg));
-		Opt.Key=VK_F1;
-	}
-	Opt.ProcessEditorInput=settings.Get(0,L"ProcessEditorInput",1);
-	Opt.Style=settings.Get(0,L"Style",0);
 }

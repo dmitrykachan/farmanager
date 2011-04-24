@@ -6,8 +6,8 @@ fileview.hpp
 Просмотр файла - надстройка над viewer.cpp
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@ class FileViewer:public Frame
 		int RedrawTitle;
 		KeyBar ViewKeyBar;
 		bool F3KeyOnly;
-		bool FullScreen;
+		int FullScreen;
 		int DisableEdit;
 		int DisableHistory;
 
@@ -98,10 +98,9 @@ class FileViewer:public Frame
 		*/
 		void SetSaveToSaveAs(int ToSaveAs) { SaveToSaveAs=ToSaveAs; InitKeyBar(); }
 		int  ViewerControl(int Command,void *Param);
-		bool IsFullScreen() {return FullScreen;}
+		BOOL IsFullScreen() {return FullScreen;}
 		virtual string &GetTitle(string &Title,int SubLen=-1,int TruncSize=0);
 		__int64 GetViewFileSize() const;
 		__int64 GetViewFilePos() const;
 		void ShowStatus();
-		int GetId(void) const { return View.ViewerID; };
 };

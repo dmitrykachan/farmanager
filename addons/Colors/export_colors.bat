@@ -5,5 +5,5 @@ goto export
 :noname
 set FILENAME=FarColors.reg
 :export
-regedit /ea %FILENAME% HKEY_CURRENT_USER\Software\Far2\Colors
+regedit /ea %FILENAME% HKEY_CURRENT_USER\Software\Far\Colors
 echo FAR color settings saved to file %FILENAME%

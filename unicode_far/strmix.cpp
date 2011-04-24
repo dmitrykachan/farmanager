@@ -4,8 +4,8 @@ strmix.cpp
 Куча разных вспомогательных функций по работе со строками
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -485,7 +485,7 @@ string& CenterStr(const wchar_t *Src, string &strDest, int Length)
 		int Space=(Length-SrcLength)/2;
 		FormatString FString;
 		FString<<fmt::Width(Space)<<L""<<strTempStr<<fmt::Width(Length-Space-SrcLength)<<L"";
-		strDest=FString;
+		strDest=FString.strValue();
 	}
 
 	return strDest;
@@ -630,7 +630,7 @@ void PrepareUnitStr()
 
 string & WINAPI FileSizeToStr(string &strDestStr, unsigned __int64 Size, int Width, int ViewFlags)
 {
-	FormatString strStr;
+	string strStr;
 	unsigned __int64 Divider;
 	int IndexDiv, IndexB;
 
@@ -676,9 +676,7 @@ string & WINAPI FileSizeToStr(string &strDestStr, unsigned __int64 Size, int Wid
 		}
 
 		if (!IndexB)
-		{
-			strStr << Sz;
-		}
+			strStr.Format(L"%d", (DWORD)Sz);
 		else
 		{
 			Sz = (OldSize=Sz) / Divider64F2;
@@ -691,7 +689,7 @@ string & WINAPI FileSizeToStr(string &strDestStr, unsigned __int64 Size, int Wid
 				Sz++;
 			}
 
-			strStr << Sz << L"." << fmt::Width(2) << fmt::FillChar(L'0') << Decimal;
+			strStr.Format(L"%d.%02d", (DWORD)Sz,Decimal);
 			FormatNumber(strStr,strStr,2);
 		}
 
@@ -716,7 +714,7 @@ string & WINAPI FileSizeToStr(string &strDestStr, unsigned __int64 Size, int Wid
 	if (Commas)
 		InsertCommas(Sz,strStr);
 	else
-		strStr << Sz;
+		strStr.Format(L"%I64u", Sz);
 
 	if ((!UseMinSizeIndex && strStr.GetLength()<=static_cast<size_t>(Width)) || Width<5)
 	{
@@ -751,14 +749,9 @@ string & WINAPI FileSizeToStr(string &strDestStr, unsigned __int64 Size, int Wid
 			IndexB++;
 
 			if (Commas)
-			{
 				InsertCommas(Sz,strStr);
-			}
 			else
-			{
-				strStr.Clear();
-				strStr << Sz;
-			}
+				strStr.Format(L"%I64u",Sz);
 		}
 		while ((UseMinSizeIndex && IndexB<MinSizeIndex) || strStr.GetLength() > static_cast<size_t>(Width));
 
@@ -1320,7 +1313,7 @@ string ReplaceBrackets(const string& SearchStr,const string& ReplaceStr,RegExpMa
 
 			if (index>=0)
 			{
-				if (index<Count&&Match[index].end>=0)
+				if (index<Count)
 				{
 					string bracket(SearchStr.CPtr()+Match[index].start,Match[index].end-Match[index].start);
 					result+=bracket;
@@ -1339,24 +1332,4 @@ string ReplaceBrackets(const string& SearchStr,const string& ReplaceStr,RegExpMa
 	}
 
 	return result;
-}
-
-string GuidToStr(const GUID& Guid)
-{
-	string result;
-/*
-	unsigned short* str;
-	if(UuidToString((UUID*)&Guid,&str)==RPC_S_OK)
-	{
-		result=(wchar_t*)str;
-		RpcStringFree(&str);
-	}
-*/
-	result.Format(L"%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X",Guid.Data1,Guid.Data2,Guid.Data3,Guid.Data4[0],Guid.Data4[1],Guid.Data4[2],Guid.Data4[3],Guid.Data4[4],Guid.Data4[5],Guid.Data4[6],Guid.Data4[7]);
-	return result;
-}
-
-bool StrToGuid(const string& Value,GUID& Guid)
-{
-	return (UuidFromString((unsigned short*)Value.CPtr(),&Guid)==RPC_S_OK)?true:false;
 }

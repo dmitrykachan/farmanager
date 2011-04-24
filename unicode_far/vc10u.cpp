@@ -4,7 +4,7 @@ vc10u.cpp
 Workaround for VC2010 and old Windows
 */
 /*
-Copyright © 2010 Far Group
+Copyright (c) 2010 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -54,7 +54,7 @@ static FARPROC WINAPI delayFailureHook(/*dliNotification*/unsigned dliNotify,
     {
       return (FARPROC)no_recode_pointer;
     }
-    return nullptr;
+    return NULL;
 }
 
 //----------------------------------------------------------------------------

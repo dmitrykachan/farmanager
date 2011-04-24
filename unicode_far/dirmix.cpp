@@ -4,8 +4,8 @@ dirmix.cpp
 Misc functions for working with directories
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -245,7 +245,7 @@ int CheckShortcutFolder(string *pTestPath,int IsHostFile, BOOL Silent)
 	return 1;
 }
 
-void CreatePath(string &strPath, bool Simple)
+void CreatePath(string &strPath)
 {
 	wchar_t *ChPtr = strPath.GetBuffer();
 	wchar_t *DirPart = ChPtr;
@@ -260,11 +260,10 @@ void CreatePath(string &strPath, bool Simple)
 
 			*ChPtr = 0;
 
-			bool Exist = apiGetFileAttributes(strPath) != INVALID_FILE_ATTRIBUTES;
-			if (!Simple && Opt.CreateUppercaseFolders && !IsCaseMixed(DirPart) && !Exist)  //BUGBUG
+			if (Opt.CreateUppercaseFolders && !IsCaseMixed(DirPart) && apiGetFileAttributes(strPath) == INVALID_FILE_ATTRIBUTES)  //BUGBUG
 				CharUpper(DirPart);
 
-			if(!Exist && apiCreateDirectory(strPath, nullptr) && !Simple)
+			if (apiCreateDirectory(strPath, nullptr))
 				TreeList::AddTreeName(strPath);
 
 			if (bEnd)

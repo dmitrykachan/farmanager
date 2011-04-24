@@ -4,12 +4,12 @@
 /*
   farkeys.hpp
 
-  Inside KeyName for Far Manager 3.0 build 1988
+  Inside KeyName for FAR Manager 2.0 build 1761
 */
 
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

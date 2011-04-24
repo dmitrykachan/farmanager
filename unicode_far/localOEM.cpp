@@ -4,8 +4,8 @@ localOEM.cpp
 Сравнение без учета регистра, преобразование регистра для OEM кодировки
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "localOEM.hpp"
 #include "syslog.hpp"
+#include "registry.hpp"
 #include "config.hpp"
-#include "configdb.hpp"
 
 static int _cdecl LCSort(const void *el1,const void *el2);
 
@@ -56,7 +56,7 @@ void LocalUpperInit()
 		CharToOemA(CvtStr,ReverseCvtStr);
 		IsUpperOrLower[I]=0;
 
-		if (IsCharAlphaA(CvtStr[0]) && ReverseCvtStr[0]==static_cast<char>(I))
+		if (IsCharAlphaA(CvtStr[0]) && ReverseCvtStr[0]==I)
 		{
 			IsUpperOrLower[I]=IsCharLowerA(CvtStr[0])?1:(IsCharUpperA(CvtStr[0])?2:0);
 			CharUpperA(CvtStr);
@@ -86,7 +86,7 @@ void InitLCIDSort()
 		LCSortBuffer[i]=static_cast<BYTE>(i);
 	}
 
-	Opt.LCIDSort=GeneralCfg->GetValue(L"System",L"LCID",LOCALE_USER_DEFAULT);
+	Opt.LCIDSort=GetRegKey(L"System",L"LCID",LOCALE_USER_DEFAULT);
 	far_qsort(LCSortBuffer,256,sizeof(LCSortBuffer[0]),LCSort);
 
 	for (size_t i=0; i<ARRAYSIZE(LCSortBuffer); i++)
@@ -288,8 +288,8 @@ int WINAPI LStrnicmp(const char *s1,const char *s2,int n)
 
 int _cdecl LCSort(const void *el1,const void *el2)
 {
-	char Str1[]={*static_cast<const char*>(el1),L'\0'},
-		Str2[]={*static_cast<const char*>(el2),L'\0'};
+	char Str1[]={*reinterpret_cast<const char*>(el1),L'\0'},
+		Str2[]={*reinterpret_cast<const char*>(el2),L'\0'};
 	OemToCharBuffA(Str1,Str1,1);
 	OemToCharBuffA(Str2,Str2,1);
 	return(CompareStringA(Opt.LCIDSort,NORM_IGNORENONSPACE|SORT_STRINGSORT|NORM_IGNORECASE,Str1,1,Str2,1)-2);

@@ -4,8 +4,8 @@ fnparce.cpp
 Парсер файловых ассоциаций
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -545,8 +545,8 @@ int ReplaceVariables(string &strStr,TSubstData *PSubstData)
 
 		if (!DlgSize)
 		{
-			DlgData[DlgSize+1].Flags|=DIF_DEFAULTBUTTON;
-			DlgData[DlgSize+1].Flags|=DIF_FOCUS;
+			DlgData[DlgSize+1].DefaultButton=TRUE;
+			DlgData[DlgSize+1].Focus=TRUE;
 		}
 
 		string strTitle;
@@ -761,7 +761,7 @@ bool Panel::MakeListFile(string &strListFileName,bool ShortNames,const wchar_t *
 					if (Signature && SignatureSize)
 					{
 						DWORD NumberOfBytesWritten;
-						ListFile.Write(&Signature,SignatureSize, NumberOfBytesWritten);
+						ListFile.Write(&Signature,SignatureSize, &NumberOfBytesWritten);
 					}
 				}
 			}
@@ -834,14 +834,14 @@ bool Panel::MakeListFile(string &strListFileName,bool ShortNames,const wchar_t *
 					}
 				}
 
-				BOOL Written=ListFile.Write(Ptr,NumberOfBytesToWrite,NumberOfBytesWritten);
+				BOOL Written=ListFile.Write(Ptr,NumberOfBytesToWrite,&NumberOfBytesWritten);
 
 				if (Buffer)
 					xf_free(Buffer);
 
 				if (Written && NumberOfBytesWritten==NumberOfBytesToWrite)
 				{
-					if (ListFile.Write(Eol,EolSize,NumberOfBytesWritten) && NumberOfBytesWritten==EolSize)
+					if (ListFile.Write(Eol,EolSize,&NumberOfBytesWritten) && NumberOfBytesWritten==EolSize)
 					{
 						Ret=true;
 					}

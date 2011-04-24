@@ -6,8 +6,8 @@ plugapi.hpp
 API, доступное плагинам (диалоги, меню, ...)
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,6 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-
-#include "plugin.hpp"
 
 //----------- PLUGIN API/FSF ---------------------------------------------------
 //все эти функции, за исключение sprintf/sscanf имеют тип вызова __stdcall
@@ -61,13 +59,13 @@ int __stdcall farIsUpper(wchar_t Ch);
 int __stdcall farIsAlpha(wchar_t Ch);
 int __stdcall farIsAlphaNum(wchar_t Ch);
 
-size_t WINAPI farGetFileOwner(const wchar_t *Computer,const wchar_t *Name, wchar_t *Owner,size_t Size);
+int WINAPI farGetFileOwner(const wchar_t *Computer,const wchar_t *Name, wchar_t *Owner,int Size);
 
-size_t WINAPI farConvertPath(CONVERTPATHMODES Mode,const wchar_t *Src,wchar_t *Dest,size_t DestSize);
+int WINAPI farConvertPath(CONVERTPATHMODES Mode,const wchar_t *Src,wchar_t *Dest,int DestSize);
 
-size_t WINAPI farGetReparsePointInfo(const wchar_t *Src,wchar_t *Dest,size_t DestSize);
+int WINAPI farGetReparsePointInfo(const wchar_t *Src,wchar_t *Dest,int DestSize);
 
-size_t WINAPI farGetPathRoot(const wchar_t *Path, wchar_t *Root, size_t DestSize);
+int WINAPI farGetPathRoot(const wchar_t *Path, wchar_t *Root, int DestSize);
 
 int WINAPI FarGetPluginDirList(INT_PTR PluginNumber,HANDLE hPlugin,
                                const wchar_t *Dir,struct PluginPanelItem **pPanelItem,
@@ -75,64 +73,61 @@ int WINAPI FarGetPluginDirList(INT_PTR PluginNumber,HANDLE hPlugin,
 void WINAPI FarFreePluginDirList(PluginPanelItem *PanelItem, int ItemsNumber);
 
 int WINAPI FarMenuFn(INT_PTR PluginNumber,int X,int Y,int MaxHeight,
-                     unsigned __int64 Flags,const wchar_t *Title,const wchar_t *Bottom,
-                     const wchar_t *HelpTopic,const FarKey *BreakKeys,int *BreakCode,
-                     const struct FarMenuItem *Item, size_t ItemsNumber);
+                     DWORD Flags,const wchar_t *Title,const wchar_t *Bottom,
+                     const wchar_t *HelpTopic,const int *BreakKeys,int *BreakCode,
+                     const struct FarMenuItem *Item, int ItemsNumber);
 const wchar_t* WINAPI FarGetMsgFn(INT_PTR PluginHandle,int MsgId);
-int WINAPI FarMessageFn(INT_PTR PluginNumber,unsigned __int64 Flags,
-                        const wchar_t *HelpTopic,const wchar_t * const *Items,size_t ItemsNumber,
+int WINAPI FarMessageFn(INT_PTR PluginNumber,DWORD Flags,
+                        const wchar_t *HelpTopic,const wchar_t * const *Items,int ItemsNumber,
                         int ButtonsNumber);
-INT_PTR WINAPI FarPanelControl(HANDLE hPlugin,FILE_CONTROL_COMMANDS Command,int Param1,void* Param2);
+int WINAPI FarControl(HANDLE hPlugin,int Command,int Param1,LONG_PTR Param2);
 HANDLE WINAPI FarSaveScreen(int X1,int Y1,int X2,int Y2);
 void WINAPI FarRestoreScreen(HANDLE hScreen);
 
-int WINAPI FarGetDirList(const wchar_t *Dir, PluginPanelItem **pPanelItem, int *pItemsNumber);
-void WINAPI FarFreeDirList(PluginPanelItem *PanelItem, int nItemsNumber);
+int WINAPI FarGetDirList(const wchar_t *Dir, FAR_FIND_DATA **pPanelItem, int *pItemsNumber);
+void WINAPI FarFreeDirList(FAR_FIND_DATA *PanelItem, int nItemsNumber);
 
 int WINAPI FarViewer(const wchar_t *FileName,const wchar_t *Title,
-                     int X1,int Y1,int X2,int Y2,unsigned __int64 Flags, UINT CodePage);
+                     int X1,int Y1,int X2,int Y2,DWORD Flags, UINT CodePage);
 int WINAPI FarEditor(const wchar_t *FileName,const wchar_t *Title,
-                     int X1,int Y1,int X2, int Y2,unsigned __int64 Flags,
+                     int X1,int Y1,int X2, int Y2,DWORD Flags,
                      int StartLine,int StartChar, UINT CodePage);
+int WINAPI FarCmpName(const wchar_t *pattern,const wchar_t *string,int skippath);
 void WINAPI FarText(int X,int Y,int Color,const wchar_t *Str);
 int WINAPI TextToCharInfo(const char *Text,WORD Attr, CHAR_INFO *CharInfo, int Length, DWORD Reserved);
-INT_PTR WINAPI FarEditorControl(int EditorID, EDITOR_CONTROL_COMMANDS Command, int Param1, void* Param2);
+int WINAPI FarEditorControl(int Command,void *Param);
 
-INT_PTR WINAPI FarViewerControl(int ViewerID, VIEWER_CONTROL_COMMANDS Command, int Param1, void* Param2);
+int WINAPI FarViewerControl(int Command,void *Param);
 
 /* Функция вывода помощи */
 BOOL WINAPI FarShowHelp(const wchar_t *ModuleName,
-                        const wchar_t *HelpTopic, FARHELPFLAGS Flags);
+                        const wchar_t *HelpTopic,DWORD Flags);
 
 /* Обертка вокруг GetString для плагинов - с меньшей функциональностью.
    Сделано для того, чтобы не дублировать код GetString.*/
 
-int WINAPI FarInputBox(INT_PTR PluginNumber,const wchar_t *Title,const wchar_t *Prompt,
+int WINAPI FarInputBox(const wchar_t *Title,const wchar_t *Prompt,
                        const wchar_t *HistoryName,const wchar_t *SrcText,
                        wchar_t *DestText,int DestLength,
-                       const wchar_t *HelpTopic,unsigned __int64 Flags);
+                       const wchar_t *HelpTopic,DWORD Flags);
 /* Функция, которая будет действовать и в редакторе, и в панелях, и... */
-INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Command, int Param1, void* Param2);
+INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, int Command, void *Param);
 //  Функция расширенного диалога
-HANDLE WINAPI FarDialogInit(INT_PTR PluginNumber, const GUID* Id, int X1, int Y1, int X2, int Y2,
+HANDLE WINAPI FarDialogInit(INT_PTR PluginNumber, int X1, int Y1, int X2, int Y2,
                             const wchar_t *HelpTopic, struct FarDialogItem *Item,
-                            unsigned int ItemsNumber, DWORD Reserved, unsigned __int64 Flags,
-                            FARWINDOWPROC Proc, void* Param);
+                            unsigned int ItemsNumber, DWORD Reserved, DWORD Flags,
+                            FARWINDOWPROC Proc, LONG_PTR Param);
 int WINAPI FarDialogRun(HANDLE hDlg);
 void WINAPI FarDialogFree(HANDLE hDlg);
 //  Функция обработки диалога по умолчанию
-INT_PTR WINAPI FarDefDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2);
+LONG_PTR WINAPI FarDefDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2);
 // Посылка сообщения диалогу
-INT_PTR WINAPI FarSendDlgMessage(HANDLE hDlg,int Msg,int Param1, void* Param2);
+LONG_PTR WINAPI FarSendDlgMessage(HANDLE hDlg,int Msg,int Param1, LONG_PTR Param2);
 
-INT_PTR WINAPI farPluginsControl(HANDLE hHandle, FAR_PLUGINS_CONTROL_COMMANDS Command, int Param1, void* Param2);
+int WINAPI farPluginsControl(HANDLE hHandle, int Command, int Param1, LONG_PTR Param2);
 
-INT_PTR WINAPI farFileFilterControl(HANDLE hHandle, FAR_FILE_FILTER_CONTROL_COMMANDS Command, int Param1, void* Param2);
+int WINAPI farFileFilterControl(HANDLE hHandle, int Command, int Param1, LONG_PTR Param2);
 
-INT_PTR WINAPI farRegExpControl(HANDLE hHandle, FAR_REGEXP_CONTROL_COMMANDS Command, int Param1, void* Param2);
+int WINAPI farRegExpControl(HANDLE hHandle, int Command, LONG_PTR Param);
 
-INT_PTR WINAPI farMacroControl(HANDLE hHandle, FAR_MACRO_CONTROL_COMMANDS Command, int Param1, void* Param2);
-
-INT_PTR WINAPI farSettingsControl(HANDLE hHandle, FAR_SETTINGS_CONTROL_COMMANDS Command, int Param1, void* Param2);
-
-size_t WINAPI farGetCurrentDirectory(size_t Size,wchar_t* Buffer);
+DWORD WINAPI farGetCurrentDirectory(DWORD Size,wchar_t* Buffer);

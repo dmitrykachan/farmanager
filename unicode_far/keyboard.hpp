@@ -6,8 +6,8 @@ keyboard.hpp
 Функции, имеющие отношение к клавитуре
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -62,11 +62,9 @@ int TranslateKeyToVK(int Key,int &VirtKey,int &ControlState,INPUT_RECORD *rec=nu
 int WINAPI KeyNameToKey(const wchar_t *Name);
 BOOL WINAPI KeyToText(int Key, string &strKeyText);
 int WINAPI InputRecordToKey(const INPUT_RECORD *Rec);
-int WINAPI KeyToInputRecord(int Key, INPUT_RECORD *Rec);
-void ProcessKeyToInputRecord(int Key, unsigned int dwControlState, INPUT_RECORD *Rec);
 DWORD GetInputRecord(INPUT_RECORD *rec,bool ExcludeMacro=false,bool ProcessMouse=false,bool AllowSynchro=true);
 DWORD PeekInputRecord(INPUT_RECORD *rec,bool ExcludeMacro=true);
-DWORD CalcKeyCode(INPUT_RECORD *rec,int RealKey,int *NotMacros=nullptr, bool ProcessCtrlCode=false);
+DWORD CalcKeyCode(INPUT_RECORD *rec,int RealKey,int *NotMacros=nullptr);
 DWORD WaitKey(DWORD KeyWait=(DWORD)-1,DWORD delayMS=0,bool ExcludeMacro=true);
 int SetFLockState(UINT vkKey, int State);
 int WriteInput(int Key,DWORD Flags=0);

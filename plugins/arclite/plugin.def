@@ -1,12 +1,13 @@
 LIBRARY <(MODULE)> BASE=0x64000000
 EXPORTS
-  GetGlobalInfoW
+  GetMinFarVersion
+  GetMinFarVersionW
   SetStartupInfoW
   GetPluginInfoW
-  AnalyseW
-  OpenW
-  ClosePanelW
-  GetOpenPanelInfoW
+  OpenPluginW
+  OpenFilePluginW
+  ClosePluginW
+  GetOpenPluginInfoW
   SetDirectoryW
   GetFindDataW
   FreeFindDataW

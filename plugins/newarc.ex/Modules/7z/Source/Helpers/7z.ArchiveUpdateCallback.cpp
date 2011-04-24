@@ -21,8 +21,6 @@ CArchiveUpdateCallback::CArchiveUpdateCallback(
 	m_strPathInArchive = lpPathInArchive;
 
 	m_uItemsNumber = indicies.count();
-
-	m_uSuccessCount = 0;
 }
 
 CArchiveUpdateCallback::~CArchiveUpdateCallback()
@@ -76,6 +74,16 @@ HRESULT __stdcall CArchiveUpdateCallback::QueryInterface(const IID &iid, void **
 		return S_OK;
 	}
 	else
+/*	if ( iid == IID_ICryptoGetTextPassword )
+	{
+		m_pGetTextPassword = new CCryptoGetTextPassword(m_pArchive, PASSWORD_LIST);
+		m_pGetTextPassword->AddRef(); //??
+		//new CCryp
+		*ppvObject = m_pGetTextPassword;
+		//(void*)(ICryptoGetTextPassword2*)this;
+		//AddRef ();
+	}
+	else */
 
 	if ( iid == IID_ICryptoGetTextPassword2 )
 	{
@@ -97,30 +105,25 @@ HRESULT __stdcall CArchiveUpdateCallback::QueryInterface(const IID &iid, void **
 
 
 
-
-
 HRESULT __stdcall CArchiveUpdateCallback::SetTotal(unsigned __int64 total)
 {
-	m_uProcessedBytesTotal = 0;
-	m_uTotalBytes = total;
-
-	m_pArchive->OnStartOperation(OPERATION_ADD, m_uTotalBytes, m_uItemsNumber);
+	m_uProcessedBytes = (unsigned __int64)-1;
+	m_pArchive->OnStartOperation(OPERATION_ADD, 1, total);
 
 	return S_OK;
 }
 
 HRESULT __stdcall CArchiveUpdateCallback::SetCompleted(const unsigned __int64* completeValue)
 {
-	m_uProcessedBytesFile += *completeValue-m_uProcessedBytesTotal;
-	m_uProcessedBytesTotal = *completeValue;
+	if ( m_uProcessedBytes != (unsigned __int64)-1 )
+	{
+		unsigned __int64 diff = *completeValue-m_uProcessedBytes;
 
-	if ( !m_pArchive->OnProcessData(
-			m_uProcessedBytesFile,
-			m_uTotalBytesFile,
-			m_uProcessedBytesTotal,
-			m_uTotalBytes
-			) )
-		return E_ABORT;
+		if ( !m_pArchive->OnProcessData((unsigned int)diff) )
+			return E_ABORT;
+
+		m_uProcessedBytes = *completeValue;
+	}
 
 	return S_OK;
 }
@@ -152,9 +155,6 @@ HRESULT __stdcall CArchiveUpdateCallback::GetUpdateItemInfo(
 		else
 			*newProperties = 0;
 	}
-
-	if ( !item->bNewFile )
-		m_uSuccessCount++; //???AAAA
 
 	return S_OK;
 }
@@ -250,35 +250,24 @@ HRESULT __stdcall CArchiveUpdateCallback::GetStream(unsigned int index, ISequent
 
 		strFullName += pitem->lpFileName;
 
-		m_uProcessedBytesFile = 0;
-		m_uTotalBytesFile = pitem->nFileSize;
-
-		m_pArchive->OnEnterStage(STAGE_ADDING);
-		m_pArchive->OnProcessFile(pitem, strFullName);
-
 		if ( !OptionIsOn(pitem->dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY) )
 		{
 			CInFile *file = new CInFile(strFullName);
 
 			if ( file->Open () )
+			{
+				m_pArchive->OnProcessFile(pitem, strFullName);
+
+		//а это что за бред?
+				if ( m_uProcessedBytes == (unsigned __int64)-1 )
+					m_uProcessedBytes = 0;
+
+
 				*inStream = file;
+			}
 			else
 				delete file;
 		}
-	}
-	else
-	{
-		ArchiveItem item;
-
-		m_pArchive->GetArchiveItem(index, &item);
-
-		m_uProcessedBytesFile = 0;
-		m_uTotalBytesFile = item.nFileSize;
-
-		m_pArchive->OnEnterStage(STAGE_UPDATING);
-		m_pArchive->OnProcessFile(&item, nullptr);
-
-		m_pArchive->FreeArchiveItem(&item);
 	}
 
 	return S_OK;

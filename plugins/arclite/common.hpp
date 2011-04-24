@@ -106,11 +106,12 @@ struct ExtractOptions {
   wstring password;
   TriState separate_dir;
   bool delete_archive;
+  bool save_params;
   bool open_dir;
   ExtractOptions();
 };
 
-struct SfxVersionInfo {
+struct VersionInfo {
   wstring version;
   wstring comments;
   wstring company_name;
@@ -134,7 +135,7 @@ struct SfxOptions {
   bool replace_icon;
   wstring icon_path;
   bool replace_version;
-  SfxVersionInfo ver_info;
+  VersionInfo ver_info;
   bool append_install_config;
   SfxInstallConfig install_config;
   SfxOptions();

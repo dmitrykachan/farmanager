@@ -9,8 +9,8 @@ dialog.hpp
 Является производным от класса Frame.
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -76,14 +76,14 @@ enum DIALOG_MODES
 
 #define MakeDialogItemsEx(Data,Item) \
 	DialogItemEx Item[ARRAYSIZE(Data)]; \
-	ItemToItemEx(Data,Item,ARRAYSIZE(Data));
+	DataToItemEx(Data,Item,ARRAYSIZE(Data));
 
 // Структура, описывающая автоматизацию для DIF_AUTOMATION
 // на первом этапе - примитивная - выставление флагов у элементов для CheckBox
 struct DialogItemAutomation
 {
 	WORD ID;                    // Для этого элемента...
-	FARDIALOGITEMFLAGS Flags[3][2];          // ...выставить вот эти флаги
+	DWORD Flags[3][2];          // ...выставить вот эти флаги
 	// [0] - Unchecked, [1] - Checked, [2] - 3Checked
 	// [][0] - Set, [][1] - Skip
 };
@@ -107,35 +107,58 @@ class DlgUserControl
 
 /*
 Описывает один элемент диалога - внутренне представление.
-Для плагинов это FarDialogItem
+Для плагинов это FarDialogItem (за исключением ObjPtr)
 */
-struct DialogItemEx: public FarDialogItem
+struct DialogItemEx
 {
-	int ListPos;
+	int Type;
+	int X1,Y1,X2,Y2;
+	int Focus;
+	union
+	{
+		DWORD_PTR Reserved;
+		int Selected;
+		FarList *ListItems;
+		int  ListPos;
+		CHAR_INFO *VBuf;
+	};
 	string strHistory;
 	string strMask;
-	string strData;
+	DWORD Flags;
+	int DefaultButton;
 
-	int ID;
+	string strData;
+	size_t nMaxLength;
+
+	WORD ID;
 	BitFlags IFlags;
+	unsigned AutoCount;   // Автоматизация
 	DialogItemAutomation* AutoPtr;
-	size_t AutoCount;
+	DWORD_PTR UserData; // ассоциированные данные
+
+	// прочее
 	void *ObjPtr;
 	VMenu *ListPtr;
 	DlgUserControl *UCData;
+
 	int SelStart;
 	int SelEnd;
 
-	DialogItemEx() {Clear();}
-
 	void Clear()
 	{
-		memset(static_cast<FarDialogItem*>(this), 0, sizeof(FarDialogItem));
-
-		ListPos=0;
+		Type=0;
+		X1=0;
+		Y1=0;
+		X2=0;
+		Y2=0;
+		Focus=0;
+		Reserved=0;
 		strHistory.Clear();
 		strMask.Clear();
+		Flags=0;
+		DefaultButton=0;
 		strData.Clear();
+		nMaxLength=0;
 		ID=0;
 		IFlags.ClearAll();
 		AutoCount=0;
@@ -148,9 +171,29 @@ struct DialogItemEx: public FarDialogItem
 		SelEnd=0;
 	}
 
-	const DialogItemEx &operator=(const FarDialogItem &Other)
+	const DialogItemEx &operator=(const DialogItemEx &Other)
 	{
-		*static_cast<FarDialogItem*>(this) = Other;
+		Type          = Other.Type;
+		X1            = Other.X1;
+		X2            = Other.X2;
+		Y1            = Other.Y1;
+		Y2            = Other.Y2;
+		Focus         = Other.Focus;
+		Reserved      = Other.Reserved;
+		Flags         = Other.Flags;
+		DefaultButton = Other.DefaultButton;
+		strData       = Other.strData;
+		nMaxLength    = Other.nMaxLength;
+		ID            = Other.ID;
+		IFlags        = Other.IFlags;
+		AutoCount     = Other.AutoCount;
+		AutoPtr       = Other.AutoPtr;
+		UserData      = Other.UserData;
+		ObjPtr        = Other.ObjPtr;
+		ListPtr       = Other.ListPtr;
+		UCData        = Other.UCData;
+		SelStart      = Other.SelStart;
+		SelEnd        = Other.SelEnd;
 		return *this;
 	}
 
@@ -161,9 +204,9 @@ struct DialogItemEx: public FarDialogItem
 	}
 
 	bool AddAutomation(int id,
-		FARDIALOGITEMFLAGS UncheckedSet,FARDIALOGITEMFLAGS UncheckedSkip,
-		FARDIALOGITEMFLAGS CheckedSet,FARDIALOGITEMFLAGS CheckedSkip,
-		FARDIALOGITEMFLAGS Checked3Set,FARDIALOGITEMFLAGS Checked3Skip)
+		FarDialogItemFlags UncheckedSet,FarDialogItemFlags UncheckedSkip,
+		FarDialogItemFlags CheckedSet,FarDialogItemFlags CheckedSkip,
+		FarDialogItemFlags Checked3Set,FarDialogItemFlags Checked3Skip)
 	{
 		DialogItemAutomation *Auto;
 
@@ -185,14 +228,38 @@ struct DialogItemEx: public FarDialogItem
 	}
 };
 
+/*
+Описывает один элемент диалога - для сокращения объемов
+Структура аналогичена структуре InitDialogItem (см. "Far PlugRinG
+Russian Help Encyclopedia of Developer")
+*/
+
+struct DialogDataEx
+{
+	WORD  Type;
+	short X1,Y1,X2,Y2;
+	union
+	{
+		DWORD_PTR Reserved;
+		unsigned int Selected;
+		const wchar_t *History;
+		const wchar_t *Mask;
+		FarList *ListItems;
+		int  ListPos;
+		CHAR_INFO *VBuf;
+	};
+	DWORD Flags;
+	const wchar_t *Data;
+};
+
 class DlgEdit;
 class ConsoleTitle;
 
 class Dialog: public Frame
 {
 		friend class DlgEdit;
-		friend INT_PTR WINAPI SendDlgMessage(HANDLE hDlg,int Msg,int Param1,void* Param2);
-		friend INT_PTR WINAPI DefDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2);
+		friend LONG_PTR WINAPI SendDlgMessage(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2);
+		friend LONG_PTR WINAPI DefDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2);
 
 	private:
 		bool bInitOK;               // диалог был успешно инициализирован
@@ -202,7 +269,7 @@ class Dialog: public Frame
 		int IsEnableRedraw;         // Разрешена перерисовка диалога? ( 0 - разрешена)
 		BitFlags DialogMode;        // Флаги текущего режима диалога
 
-		void* DataDialog;        // Данные, специфические для конкретного экземпляра диалога (первоначально здесь параметр, переданный в конструктор)
+		LONG_PTR DataDialog;        // Данные, специфические для конкретного экземпляра диалога (первоначально здесь параметр, переданный в конструктор)
 
 		DialogItemEx **Item; // массив элементов диалога
 		DialogItemEx *pSaveItemEx; // пользовательский массив элементов диалога
@@ -229,14 +296,14 @@ class Dialog: public Frame
 		bool IdExist;
 
 	private:
-		void Init(FARWINDOWPROC DlgProc,void* InitParam);
+		void Init(FARWINDOWPROC DlgProc,LONG_PTR InitParam);
 		virtual void DisplayObject();
 		void DeleteDialogObjects();
 		int  LenStrItem(int ID, const wchar_t *lpwszStr = nullptr);
 
 		void ShowDialog(unsigned ID=(unsigned)-1);  //    ID=-1 - отрисовать весь диалог
 
-		INT_PTR CtlColorDlgItem(int ItemPos,int Type,int Focus,int Default,FARDIALOGITEMFLAGS Flags);
+		LONG_PTR CtlColorDlgItem(int ItemPos,int Type,int Focus,int Default,DWORD Flags);
 		/* $ 28.07.2000 SVS
 		   + Изменяет фокус ввода между двумя элементами.
 		     Вынесен отдельно для того, чтобы обработать DMSG_KILLFOCUS & DMSG_SETFOCUS
@@ -246,7 +313,7 @@ class Dialog: public Frame
 		unsigned ChangeFocus(unsigned FocusPos,int Step,int SkipGroup);
 		BOOL SelectFromEditHistory(DialogItemEx *CurItem,DlgEdit *EditLine,const wchar_t *HistoryName,string &strStr);
 		int SelectFromComboBox(DialogItemEx *CurItem,DlgEdit*EditLine,VMenu *List);
-		int AddToEditHistory(DialogItemEx* CurItem, const wchar_t *AddStr);
+		int AddToEditHistory(const wchar_t *AddStr,const wchar_t *HistoryName);
 
 		void ProcessLastHistory(DialogItemEx *CurItem, int MsgIndex);  // обработка DIF_USELASTHISTORY
 
@@ -276,7 +343,7 @@ class Dialog: public Frame
 
 		unsigned InitDialogObjects(unsigned ID=(unsigned)-1);
 
-		int ProcessOpenComboBox(FARDIALOGITEMTYPES Type,DialogItemEx *CurItem,unsigned CurFocusPos);
+		int ProcessOpenComboBox(int Type,DialogItemEx *CurItem,unsigned CurFocusPos);
 		int ProcessMoveDialog(DWORD Key);
 
 		int Do_ProcessTab(int Next);
@@ -285,15 +352,15 @@ class Dialog: public Frame
 		int Do_ProcessSpace();
 		void SetComboBoxPos(DialogItemEx* Item=nullptr);
 
-		INT_PTR CallDlgProc(int nMsg, int nParam1, void* Param2);
+		LONG_PTR CallDlgProc(int nMsg, int nParam1, LONG_PTR nParam2);
 
 		void ProcessKey(int Key, unsigned ItemPos);
 
 	public:
-		Dialog(DialogItemEx *SrcItem, size_t SrcItemCount,
-		       FARWINDOWPROC DlgProc=nullptr,void* InitParam=nullptr);
-		Dialog(FarDialogItem *SrcItem, size_t SrcItemCount,
-		       FARWINDOWPROC DlgProc=nullptr,void* InitParam=nullptr);
+		Dialog(DialogItemEx *SrcItem, unsigned SrcItemCount,
+		       FARWINDOWPROC DlgProc=nullptr,LONG_PTR InitParam=0);
+		Dialog(FarDialogItem *SrcItem, unsigned SrcItemCount,
+		       FARWINDOWPROC DlgProc=nullptr,LONG_PTR InitParam=0);
 		bool InitOK() {return bInitOK;}
 		virtual ~Dialog();
 
@@ -316,8 +383,8 @@ class Dialog: public Frame
 		int IsMoving() {return DialogMode.Check(DMODE_DRAGGED);}
 		void SetModeMoving(int IsMoving) { DialogMode.Change(DMODE_ISCANMOVE,IsMoving);}
 		int  GetModeMoving() {return DialogMode.Check(DMODE_ISCANMOVE);}
-		void SetDialogData(void* NewDataDialog);
-		void* GetDialogData() {return DataDialog;};
+		void SetDialogData(LONG_PTR NewDataDialog);
+		LONG_PTR GetDialogData() {return DataDialog;};
 
 		void InitDialog();
 		void Process();
@@ -329,7 +396,7 @@ class Dialog: public Frame
 		void ClearDone();
 		virtual void SetExitCode(int Code);
 
-		INT_PTR CloseDialog();
+		void CloseDialog();
 
 		virtual int GetTypeAndName(string &strType, string &strName);
 		virtual int GetType() { return MODALTYPE_DIALOG; }
@@ -349,11 +416,11 @@ class Dialog: public Frame
 
 
 		int SetAutomation(WORD IDParent,WORD id,
-		                  FARDIALOGITEMFLAGS UncheckedSet,FARDIALOGITEMFLAGS UncheckedSkip,
-		                  FARDIALOGITEMFLAGS CheckedSet,FARDIALOGITEMFLAGS CheckedSkip,
-		                  FARDIALOGITEMFLAGS Checked3Set=DIF_NONE,FARDIALOGITEMFLAGS Checked3Skip=DIF_NONE);
+		                  FarDialogItemFlags UncheckedSet,FarDialogItemFlags UncheckedSkip,
+		                  FarDialogItemFlags CheckedSet,FarDialogItemFlags CheckedSkip,
+		                  FarDialogItemFlags Checked3Set=DIF_NONE,FarDialogItemFlags Checked3Skip=DIF_NONE);
 
-		INT_PTR WINAPI DlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2);
+		LONG_PTR WINAPI DlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2);
 
 		virtual void SetPosition(int X1,int Y1,int X2,int Y2);
 
@@ -365,12 +432,14 @@ class Dialog: public Frame
 		friend class History;
 };
 
-typedef INT_PTR(WINAPI *SENDDLGMESSAGE)(HANDLE hDlg,int Msg,int Param1,void* Param2);
+typedef LONG_PTR(WINAPI *SENDDLGMESSAGE)(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2);
 
-INT_PTR WINAPI SendDlgMessage(HANDLE hDlg,int Msg,int Param1,void* Param2);
+LONG_PTR WINAPI SendDlgMessage(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2);
 
-INT_PTR WINAPI DefDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2);
+LONG_PTR WINAPI DefDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2);
 
 bool IsKeyHighlighted(const wchar_t *Str,int Key,int Translate,int AmpPos=-1);
 
-void ItemToItemEx(const FarDialogItem *Data, DialogItemEx *Item, size_t Count, bool Short = false);
+void DataToItemEx(const DialogDataEx *Data,DialogItemEx *Item,int Count);
+
+extern const wchar_t* fmtSavedDialogHistory;

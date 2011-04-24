@@ -6,8 +6,8 @@ drivemix.hpp
 Misc functions for drive/disk info
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -51,9 +51,9 @@ enum
 	DRIVE_DVD_RW                =21,
 	DRIVE_DVD_RAM               =22,
 	DRIVE_BD_ROM                =23,
-	DRIVE_BD_RW                 =24,
-	DRIVE_HDDVD_ROM             =25,
-	DRIVE_HDDVD_RW              =26,
+	DRIVE_BD_RW					=24,
+	DRIVE_HDDVD_ROM				=25,
+	DRIVE_HDDVD_RW				=26,
 	DRIVE_USBDRIVE              =40,
 	DRIVE_VIRTUAL               =41,
 	DRIVE_NOT_INIT              =255,

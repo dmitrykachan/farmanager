@@ -4,8 +4,8 @@ treelist.cpp
 Tree panel
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -65,7 +65,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mkdir.hpp"
 #include "setattr.hpp"
 #include "execute.hpp"
-#include "shortcuts.hpp"
+#include "ffolders.hpp"
 #include "dirmix.hpp"
 #include "pathmix.hpp"
 #include "processname.hpp"
@@ -844,10 +844,10 @@ int TreeList::ProcessKey(int Key)
 
 	string strTemp;
 
-	if ((Key>=KEY_CTRLSHIFT0 && Key<=KEY_CTRLSHIFT9) || (Key>=KEY_CTRLALT0 && Key<=KEY_CTRLALT9))
+	if (Key>=KEY_CTRLSHIFT0 && Key<=KEY_CTRLSHIFT9)
 	{
-		bool Add = (Key>=KEY_CTRLALT0 && Key<=KEY_CTRLALT9);
-		SaveShortcutFolder(Key-(Add?KEY_CTRLALT0:KEY_CTRLSHIFT0), Add);
+		//SaveFolderShortcut(Key-KEY_CTRLSHIFT0,&strCurDir,&strTemp,&strTemp,&strTemp);
+		SaveShortcutFolder(Key-KEY_CTRLSHIFT0);
 		return TRUE;
 	}
 
@@ -1253,7 +1253,7 @@ void TreeList::CorrectPosition()
 		CurTopFile=CurFile-(Height-1);
 }
 
-BOOL TreeList::SetCurDir(const wchar_t *NewDir,int ClosePanel)
+BOOL TreeList::SetCurDir(const wchar_t *NewDir,int ClosePlugin)
 {
 	if (!TreeCount)
 		Update(0);

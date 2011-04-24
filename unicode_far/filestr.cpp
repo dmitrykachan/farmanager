@@ -4,8 +4,8 @@ filestr.cpp
  Î‡ÒÒ GetFileString
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -58,12 +58,10 @@ OldGetFileString::OldGetFileString(FILE *SrcFile):
 	SrcFile(SrcFile),
 	ReadPos(0),
 	ReadSize(0),
-	ReadBuf(new char[0x2000]),
-	wReadBuf(new wchar_t[0x2000]),
 	m_nStrLength(DELTA),
-	Str(static_cast<char*>(xf_malloc(m_nStrLength))),
+	Str(reinterpret_cast<char*>(xf_malloc(m_nStrLength))),
 	m_nwStrLength(DELTA),
-	wStr(static_cast<wchar_t*>(xf_malloc(m_nwStrLength * sizeof(wchar_t)))),
+	wStr(reinterpret_cast<wchar_t*>(xf_malloc(m_nwStrLength * sizeof(wchar_t)))),
 	SomeDataLost(false),
 	bCrCr(false)
 {
@@ -71,10 +69,11 @@ OldGetFileString::OldGetFileString(FILE *SrcFile):
 
 OldGetFileString::~OldGetFileString()
 {
-	xf_free(wStr);
-	xf_free(Str);
-	delete[] wReadBuf;
-	delete[] ReadBuf;
+	if (Str)
+		xf_free(Str);
+
+	if (wStr)
+		xf_free(wStr);
 }
 
 
@@ -565,12 +564,10 @@ GetFileString::GetFileString(File& SrcFile):
 	LastLength(0),
 	LastString(nullptr),
 	LastResult(0),
-	ReadBuf(new char[0x2000]),
-	wReadBuf(new wchar_t[0x2000]),
 	m_nStrLength(DELTA),
-	Str(static_cast<LPSTR>(xf_malloc(m_nStrLength))),
+	Str(reinterpret_cast<LPSTR>(xf_malloc(m_nStrLength))),
 	m_nwStrLength(DELTA),
-	wStr(static_cast<LPWSTR>(xf_malloc(m_nwStrLength * sizeof(wchar_t)))),
+	wStr(reinterpret_cast<LPWSTR>(xf_malloc(m_nwStrLength * sizeof(wchar_t)))),
 	SomeDataLost(false),
 	bCrCr(false)
 {
@@ -578,10 +575,15 @@ GetFileString::GetFileString(File& SrcFile):
 
 GetFileString::~GetFileString()
 {
-	xf_free(wStr);
-	xf_free(Str);
-	delete[] wReadBuf;
-	delete[] ReadBuf;
+	if (Str)
+	{
+		xf_free(Str);
+	}
+
+	if (wStr)
+	{
+		xf_free(wStr);
+	}
 }
 
 int GetFileString::PeekString(LPWSTR* DestStr, UINT nCodePage, int& Length)
@@ -662,7 +664,7 @@ int GetFileString::GetString(LPWSTR* DestStr, UINT nCodePage, int& Length)
 			if (Result == ERROR_INSUFFICIENT_BUFFER)
 			{
 				nResultLength = MultiByteToWideChar(nCodePage, 0, Str, Length, nullptr, 0);
-				wStr = static_cast<LPWSTR>(xf_realloc_nomove(wStr, (nResultLength + 1) * sizeof(wchar_t)));
+				wStr = reinterpret_cast<LPWSTR>(xf_realloc_nomove(wStr, (nResultLength + 1) * sizeof(wchar_t)));
 				*wStr = L'\0';
 				m_nwStrLength = nResultLength+1;
 				nResultLength = MultiByteToWideChar(nCodePage, 0, Str, Length, wStr, nResultLength);
@@ -700,7 +702,7 @@ int GetFileString::GetAnsiString(LPSTR* DestStr, int& Length)
 		{
 			if (ReadPos >= ReadSize)
 			{
-				if (!(SrcFile.Read(ReadBuf, sizeof(ReadBuf), ReadSize) && ReadSize))
+				if (!(SrcFile.Read(ReadBuf, sizeof(ReadBuf), &ReadSize) && ReadSize))
 				{
 					if (!CurLength)
 					{
@@ -767,7 +769,7 @@ int GetFileString::GetAnsiString(LPSTR* DestStr, int& Length)
 			ReadPos++;
 			if (CurLength >= m_nStrLength - 1)
 			{
-				LPSTR NewStr = static_cast<LPSTR>(xf_realloc(Str, m_nStrLength + (DELTA << x)));
+				LPSTR NewStr = reinterpret_cast<LPSTR>(xf_realloc(Str, m_nStrLength + (DELTA << x)));
 				if (!NewStr)
 				{
 					return -1;
@@ -809,7 +811,7 @@ int GetFileString::GetUnicodeString(LPWSTR* DestStr, int& Length, bool bBigEndia
 		{
 			if (ReadPos >= ReadSize)
 			{
-				if (!(SrcFile.Read(wReadBuf, sizeof(wReadBuf), ReadSize) && ReadSize))
+				if (!(SrcFile.Read(wReadBuf, sizeof(wReadBuf), &ReadSize) && ReadSize))
 				{
 					if (!CurLength)
 					{
@@ -820,7 +822,7 @@ int GetFileString::GetUnicodeString(LPWSTR* DestStr, int& Length, bool bBigEndia
 
 				if (bBigEndian)
 				{
-					_swab(reinterpret_cast<LPSTR>(wReadBuf), reinterpret_cast<LPSTR>(wReadBuf), ReadSize);
+					_swab(reinterpret_cast<LPSTR>(&wReadBuf), reinterpret_cast<LPSTR>(&wReadBuf), ReadSize);
 				}
 				ReadPos = 0;
 				ReadBufPtr = wReadBuf;
@@ -881,7 +883,7 @@ int GetFileString::GetUnicodeString(LPWSTR* DestStr, int& Length, bool bBigEndia
 			ReadPos += sizeof(wchar_t);
 			if (CurLength >= m_nwStrLength - 1)
 			{
-				LPWSTR NewStr = static_cast<LPWSTR>(xf_realloc(wStr, (m_nwStrLength + (DELTA << x)) * sizeof(wchar_t)));
+				LPWSTR NewStr = reinterpret_cast<LPWSTR>(xf_realloc(wStr, (m_nwStrLength + (DELTA << x)) * sizeof(wchar_t)));
 				if (!NewStr)
 				{
 					return -1;
@@ -907,7 +909,7 @@ bool GetFileFormat(File& file, UINT& nCodePage, bool* pSignatureFound, bool bUse
 	bool bDetect=false;
 
 	DWORD Readed = 0;
-	if (file.Read(&dwTemp, sizeof(dwTemp), Readed) && Readed > 1 ) // minimum signature size is 2 bytes
+	if (file.Read(&dwTemp, sizeof(dwTemp), &Readed) && Readed > 1 ) // minimum signature size is 2 bytes
 	{
 		if (LOWORD(dwTemp) == SIGN_UNICODE)
 		{
@@ -943,7 +945,7 @@ bool GetFileFormat(File& file, UINT& nCodePage, bool* pSignatureFound, bool bUse
 		DWORD Size=0x8000; // BUGBUG. TODO: configurable
 		LPVOID Buffer=xf_malloc(Size);
 		DWORD ReadSize = 0;
-		bool ReadResult = file.Read(Buffer, Size, ReadSize);
+		bool ReadResult = file.Read(Buffer, Size, &ReadSize);
 		file.SetPointer(0, nullptr, FILE_BEGIN);
 
 		if (ReadResult && ReadSize)
@@ -976,7 +978,7 @@ bool GetFileFormat(File& file, UINT& nCodePage, bool* pSignatureFound, bool bUse
 					}
 				}
 			}
-			else if (IsTextUTF8(static_cast<LPBYTE>(Buffer), ReadSize))
+			else if (IsTextUTF8(reinterpret_cast<LPBYTE>(Buffer), ReadSize))
 			{
 				nCodePage=CP_UTF8;
 				bDetect=true;
@@ -984,7 +986,7 @@ bool GetFileFormat(File& file, UINT& nCodePage, bool* pSignatureFound, bool bUse
 			else
 			{
 				nsUniversalDetectorEx *ns = new nsUniversalDetectorEx();
-				ns->HandleData(static_cast<LPCSTR>(Buffer), ReadSize);
+				ns->HandleData(reinterpret_cast<LPCSTR>(Buffer), ReadSize);
 				ns->DataEnd();
 				int cp = ns->getCodePage();
 

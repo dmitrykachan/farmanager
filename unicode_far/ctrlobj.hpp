@@ -6,8 +6,8 @@ ctrlobj.hpp
 ”правление остальными объектами, раздача сообщений клавиатуры и мыши
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,6 @@ class MenuBar;
 class HighlightFiles;
 class FilePositionCache;
 class FilePanels;
-class Shortcuts;
 
 class ControlObject
 {
@@ -68,9 +67,9 @@ class ControlObject
 		KeyBar *MainKeyBar;
 		MenuBar *TopMenuBar;
 		HighlightFiles *HiFiles;
+		FilePositionCache *ViewerPosCache,*EditorPosCache;
 		KeyMacro Macro;
 		PluginManager Plugins;
-		Shortcuts* FolderShortcuts;
 
 		static void ShowCopyright(DWORD Flags=0);
 };

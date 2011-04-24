@@ -4,8 +4,8 @@ keybar.cpp
 Keybar
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -40,10 +40,10 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "keys.hpp"
 #include "manager.hpp"
 #include "syslog.hpp"
+#include "registry.hpp"
 #include "language.hpp"
 #include "interf.hpp"
 #include "config.hpp"
-#include "configdb.hpp"
 
 KeyBar::KeyBar():
 	Owner(nullptr),
@@ -168,48 +168,58 @@ void KeyBar::ReadRegGroup(const wchar_t *RegGroup, const wchar_t *Language)
 {
 	if (!RegReaded || StrCmpI(strLanguage,Language) || StrCmpI(strRegGroupName,RegGroup))
 	{
-		DWORD Index=0;
+		DWORD I;
 		string strRegName;
 		string strValue;
 		string strValueName;
 		memset(RegKeyTitles, 0, sizeof(RegKeyTitles));
 		strLanguage=Language;
 		strRegGroupName=RegGroup;
-		strRegName=L"KeyBarLabels.";
+		strRegName=L"KeyBarLabels\\";
 		strRegName+=strLanguage;
-		strRegName+=L".";
+		strRegName+=L"\\";
 		strRegName+=RegGroup;
 
-		while (GeneralCfg->EnumValues(strRegName,Index++,strValueName,strValue))
+		for (I=0;; I++)
 		{
-			DWORD Key=KeyNameToKey(strValueName);
-			DWORD Key0=Key&(~KEY_CTRLMASK);
-			DWORD Ctrl=Key&KEY_CTRLMASK;
+			strValueName.Clear();
+			strValue.Clear();
+			int Type=EnumRegValueEx(strRegName,I,strValueName,strValue);
 
-			if (Key0 >= KEY_F1 && Key0 <= KEY_F24)
+			if (Type == REG_NONE)
+				break;
+
+			if (Type == REG_SZ)
 			{
-				size_t J;
-				static DWORD Area[][2]=
-				{
-					{ KBL_MAIN,         0 },
-					{ KBL_SHIFT,        KEY_SHIFT },
-					{ KBL_CTRL,         KEY_CTRL },
-					{ KBL_ALT,          KEY_ALT },
-					{ KBL_CTRLSHIFT,    KEY_CTRL|KEY_SHIFT },
-					{ KBL_ALTSHIFT,     KEY_ALT|KEY_SHIFT },
-					{ KBL_CTRLALT,      KEY_CTRL|KEY_ALT },
-					{ KBL_CTRLALTSHIFT, KEY_CTRL|KEY_ALT|KEY_SHIFT },
-				};
+				DWORD Key=KeyNameToKey(strValueName);
+				DWORD Key0=Key&(~KEY_CTRLMASK);
+				DWORD Ctrl=Key&KEY_CTRLMASK;
 
-				for (J=0; J < ARRAYSIZE(Area); ++J)
-					if (Area[J][1] == Ctrl)
-						break;
-
-				if (J <= ARRAYSIZE(Area))
+				if (Key0 >= KEY_F1 && Key0 <= KEY_F24)
 				{
-					Key0 -= KEY_F1;
-					int Group=Area[J][0];
-					xwcsncpy(RegKeyTitles[Group][Key0], strValue, ARRAYSIZE(KeyTitles[Group][Key0]));
+					size_t J;
+					static DWORD Area[][2]=
+					{
+						{ KBL_MAIN,         0 },
+						{ KBL_SHIFT,        KEY_SHIFT },
+						{ KBL_CTRL,         KEY_CTRL },
+						{ KBL_ALT,          KEY_ALT },
+						{ KBL_CTRLSHIFT,    KEY_CTRL|KEY_SHIFT },
+						{ KBL_ALTSHIFT,     KEY_ALT|KEY_SHIFT },
+						{ KBL_CTRLALT,      KEY_CTRL|KEY_ALT },
+						{ KBL_CTRLALTSHIFT, KEY_CTRL|KEY_ALT|KEY_SHIFT },
+					};
+
+					for (J=0; J < ARRAYSIZE(Area); ++J)
+						if (Area[J][1] == Ctrl)
+							break;
+
+					if (J <= ARRAYSIZE(Area))
+					{
+						Key0 -= KEY_F1;
+						int Group=Area[J][0];
+						xwcsncpy(RegKeyTitles[Group][Key0], strValue, ARRAYSIZE(KeyTitles[Group][Key0]));
+					}
 				}
 			}
 		}
@@ -383,49 +393,4 @@ void KeyBar::SetDisableMask(int Mask)
 
 void KeyBar::ResizeConsole()
 {
-}
-
-size_t KeyBar::Change(const KeyBarTitles *Kbt)
-{
-	size_t Result=0;
-
-	if (!Kbt)
-		return Result;
-
-	static DWORD Groups[]=
-	{
-		0,KBL_MAIN,
-		KEY_SHIFT,KBL_SHIFT,
-		KEY_CTRL,KBL_CTRL,
-		KEY_ALT,KBL_ALT,
-		KEY_CTRL|KEY_SHIFT,KBL_CTRLSHIFT,
-		KEY_ALT|KEY_SHIFT,KBL_ALTSHIFT,
-		KEY_CTRL|KEY_ALT,KBL_CTRLALT,
-		KEY_CTRL|KEY_ALT|KEY_SHIFT,KBL_CTRLALTSHIFT,
-	};
-
-	for (size_t I = 0; I < Kbt->CountLabels; ++I)
-	{
-
-		WORD Pos=Kbt->Labels[I].Key.VirtualKeyCode;
-		DWORD Shift=0,Flags=Kbt->Labels[I].Key.ControlKeyState;
-		if(Flags&(LEFT_CTRL_PRESSED|RIGHT_CTRL_PRESSED)) Shift|=KEY_CTRL;
-		if(Flags&(LEFT_ALT_PRESSED|RIGHT_ALT_PRESSED)) Shift|=KEY_ALT;
-		if(Flags&SHIFT_PRESSED) Shift|=KEY_SHIFT;
-
-		if (Pos >= VK_F1 && Pos <= VK_F24)
-		{
-			for (unsigned J=0; J < ARRAYSIZE(Groups); J+=2)
-			{
-				if (Groups[J] == Shift)
-				{
-					Change(Groups[J+1],Kbt->Labels[I].Text,Pos-VK_F1);
-					Result++;
-					break;
-				}
-			}
-		}
-	}
-
-	return Result;
 }

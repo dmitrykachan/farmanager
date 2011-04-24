@@ -7,8 +7,8 @@ dlgedit.hpp
 Мультиредактор
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -146,8 +146,6 @@ class DlgEdit: public ScreenObject
 		void RevertAC(){return lineEdit->RevertAC();}
 
 		bool HistoryGetSimilar(string &strStr, int LastCmdPartLength, bool bAppend=false);
-
-		History* GetHistory() const {return iHistory;}
 
 	private:
 		Dialog* m_Dialog;

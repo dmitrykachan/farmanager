@@ -3,7 +3,7 @@ synchro.cpp
 синхронизация для плагинов.
 */
 /*
-Copyright © 2009 Far Group
+Copyright (c) 2009 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,9 +35,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "synchro.hpp"
 #include "plclass.hpp"
 #include "plugin.hpp"
+
 #include "elevation.hpp"
-#include "FarGuid.hpp"
-#include "ctrlobj.hpp"
 
 PluginSynchro PluginSynchroManager;
 
@@ -51,7 +50,7 @@ PluginSynchro::~PluginSynchro()
 	CloseHandle(Mutex);
 }
 
-void PluginSynchro::Synchro(bool Plugin, const GUID& PluginId,void* Param)
+void PluginSynchro::Synchro(bool Plugin, INT_PTR ModuleNumber,void* Param)
 {
 	if (Mutex)
 	{
@@ -59,7 +58,7 @@ void PluginSynchro::Synchro(bool Plugin, const GUID& PluginId,void* Param)
 		{
 			SynchroData* item=Data.Push();
 			item->Plugin=Plugin;
-			item->PluginId=PluginId;
+			item->ModuleNumber=ModuleNumber;
 			item->Param=Param;
 			ReleaseMutex(Mutex);
 		}
@@ -72,7 +71,7 @@ bool PluginSynchro::Process(void)
 
 	if (Mutex)
 	{
-		bool process=false; bool plugin=false; GUID PluginId=FarGuid; void* param=nullptr;
+		bool process=false; bool plugin=false; INT_PTR module=0; void* param=nullptr;
 
 		if (WaitForSingleObject(Mutex,INFINITE)==WAIT_OBJECT_0)
 		{
@@ -82,7 +81,7 @@ bool PluginSynchro::Process(void)
 			{
 				process=true;
 				plugin=item->Plugin;
-				PluginId=item->PluginId;
+				module=item->ModuleNumber;
 				param=item->Param;
 				Data.Delete(item);
 			}
@@ -94,7 +93,7 @@ bool PluginSynchro::Process(void)
 		{
 			if(plugin)
 			{
-				Plugin* pPlugin=CtrlObject?CtrlObject->Plugins.FindPlugin(PluginId):nullptr;
+				Plugin* pPlugin=(Plugin*)module;
 
 				if (pPlugin)
 				{

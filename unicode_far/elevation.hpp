@@ -6,7 +6,7 @@ elevation.hpp
 Elevation
 */
 /*
-Copyright © 2010 Far Group
+Copyright (c) 2010 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -33,6 +33,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "CriticalSections.hpp"
+#include "noncopyable.hpp"
 
 enum ELEVATION_MODE
 {
@@ -105,7 +106,7 @@ private:
 	string strPipeID;
 
 	bool ReadData(AutoObject& Data) const;
-	bool WriteData(LPCVOID Data, size_t DataSize) const;
+	bool WriteData(LPCVOID Data, DWORD DataSize) const;
 	bool ReadInt(int& Data) const;
 	bool ReadInt64(INT64& Data) const;
 	bool WriteInt(int Data) const;

@@ -6,8 +6,8 @@ exception.cpp
 Все про исключения
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -34,6 +34,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "plugins.hpp"
+
+#if defined(__GNUC__)
+#pragma pack(2)
+#else
+#pragma pack(push,2)
+#endif
 
 #ifndef MAKEFOURCC
 #define MAKEFOURCC(ch0, ch1, ch2, ch3)                  \
@@ -74,7 +80,7 @@ struct SYSINFOHEADER      // информация о системе
 	DWORD SizeRec;          // Размер данных = sizeof(DUMPHEADER)-sizeof(WORD)*2
 	RECHEADER *Next; // Следующий элемент в списке
 	DWORD DumpFlags;        // дополнительные флаги (пока =0)
-	VersionInfo FARVersion;       // версия FAR Manager в формате FAR_VERSION
+	DWORD FARVersion;       // версия FAR Manager в формате FAR_VERSION
 	SYSTEMTIME DumpTime;    // the system time is expressed in Coordinated Universal Time (UTC))
 	OSVERSIONINFO WinVer;   // версия виндов
 };
@@ -86,7 +92,6 @@ enum EX_PLUGINITEMWORKFLAGS
 	EXPIWF_PRELOADED     = 0x00000002, //
 	EXPIWF_DONTLOADAGAIN = 0x00000004, // не загружать плагин снова, ставится в
 	//   результате проверки требуемой версии фара
-	EXPIWF_DATALOADED    = 0x00000008, // LoadData успешно выполнилась
 };
 
 
@@ -100,7 +105,7 @@ struct PLUGINRECORD       // информация о плагине
 	DWORD FuncFlags;        // битовые маски эксп.функций плагина (бит есть - ест и функция)
 	DWORD CallFlags;        // битовые маски вызова эксп.функций плагина
 
-	// DWORD SysID; GUID
+	DWORD SysID;
 
 	const wchar_t *ModuleName;
 
@@ -193,20 +198,25 @@ struct FARExceptionState
 	RECHEADER   *Head;
 };
 
+#if defined(__GNUC__)
+#pragma pack()
+#else
+#pragma pack(pop)
+#endif
+
 /* $ 17.10.2000 SVS
    ИСКЛЮЧЕНИЯ!
 */
 enum ExceptFunctionsType
 {
 	EXCEPT_KERNEL=-1,
-	EXCEPT_GETGLOBALINFO,
 	EXCEPT_SETSTARTUPINFO,
 	EXCEPT_GETVIRTUALFINDDATA,
-	EXCEPT_OPEN,
+	EXCEPT_OPENPLUGIN,
 	EXCEPT_OPENFILEPLUGIN,
-	EXCEPT_CLOSEPANEL,
+	EXCEPT_CLOSEPLUGIN,
 	EXCEPT_GETPLUGININFO,
-	EXCEPT_GETOPENPANELINFO,
+	EXCEPT_GETOPENPLUGININFO,
 	EXCEPT_GETFINDDATA,
 	EXCEPT_FREEFINDDATA,
 	EXCEPT_FREEVIRTUALFINDDATA,

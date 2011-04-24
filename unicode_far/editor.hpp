@@ -6,8 +6,8 @@ editor.hpp
 Редактор
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -39,9 +39,18 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "bitflags.hpp"
 #include "config.hpp"
 #include "DList.hpp"
+#include "noncopyable.hpp"
 
 class FileEditor;
 class KeyBar;
+
+struct InternalEditorBookMark
+{
+	DWORD64 Line[BOOKMARK_COUNT];
+	DWORD64 Cursor[BOOKMARK_COUNT];
+	DWORD64 ScreenLine[BOOKMARK_COUNT];
+	DWORD64 LeftPos[BOOKMARK_COUNT];
+};
 
 struct InternalEditorStackBookMark
 {
@@ -50,6 +59,17 @@ struct InternalEditorStackBookMark
 	DWORD ScreenLine;
 	DWORD LeftPos;
 	InternalEditorStackBookMark *prev, *next;
+};
+
+struct EditorCacheParams
+{
+	int Line;
+	int LinePos;
+	int ScreenLine;
+	int LeftPos;
+	int CodePage;
+
+	InternalEditorBookMark SavePos;
 };
 
 struct EditorUndoData
@@ -204,7 +224,7 @@ class Editor:public ScreenObject
 		int StartLine;
 		int StartChar;
 
-		EditorBookmark SavePos;
+		InternalEditorBookMark SavePos;
 
 		InternalEditorStackBookMark *StackPos;
 		BOOL NewStackPos;
@@ -250,8 +270,8 @@ class Editor:public ScreenObject
 		Edit* GetStringByNumber(int DestLine);
 		static void EditorShowMsg(const wchar_t *Title,const wchar_t *Msg, const wchar_t* Name,int Percent);
 
-		int SetBookmark(int Pos);
-		int GotoBookmark(int Pos);
+		int SetBookmark(DWORD Pos);
+		int GotoBookmark(DWORD Pos);
 
 		int ClearStackBookmarks();
 		int DeleteStackBookmark(InternalEditorStackBookMark *sb_delete);
@@ -283,8 +303,8 @@ class Editor:public ScreenObject
 
 	public:
 
-		void SetCacheParams(EditorPosCache &pc);
-		void GetCacheParams(EditorPosCache &pc);
+		void SetCacheParams(EditorCacheParams *pp);
+		void GetCacheParams(EditorCacheParams *pp);
 
 		bool SetCodePage(UINT codepage);  //BUGBUG
 		UINT GetCodePage();  //BUGBUG

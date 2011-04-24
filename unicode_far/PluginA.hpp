@@ -1,8 +1,8 @@
 #pragma once
 
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -28,11 +28,15 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+class PluginManager;
+
+#include "language.hpp"
+#include "bitflags.hpp"
+#include "plugin.hpp"
 #include "plclass.hpp"
 #include "pluginold.hpp"
-#include "FarGuid.hpp"
 
-typedef void (WINAPI *PLUGINCLOSEPANEL)(HANDLE hPlugin);
+typedef void (WINAPI *PLUGINCLOSEPLUGIN)(HANDLE hPlugin);
 typedef int (WINAPI *PLUGINCOMPARE)(HANDLE hPlugin,const oldfar::PluginPanelItem *Item1,const oldfar::PluginPanelItem *Item2,unsigned int Mode);
 typedef int (WINAPI *PLUGINCONFIGURE)(int ItemNumber);
 typedef int (WINAPI *PLUGINDELETEFILES)(HANDLE hPlugin,oldfar::PluginPanelItem *PanelItem,int ItemsNumber,int OpMode);
@@ -42,12 +46,12 @@ typedef void (WINAPI *PLUGINFREEVIRTUALFINDDATA)(HANDLE hPlugin,oldfar::PluginPa
 typedef int (WINAPI *PLUGINGETFILES)(HANDLE hPlugin,oldfar::PluginPanelItem *PanelItem,int ItemsNumber,int Move,char *DestPath,int OpMode);
 typedef int (WINAPI *PLUGINGETFINDDATA)(HANDLE hPlugin,oldfar::PluginPanelItem **pPanelItem,int *pItemsNumber,int OpMode);
 typedef int (WINAPI *PLUGINMINFARVERSION)();
-typedef void (WINAPI *PLUGINGETOPENPANELINFO)(HANDLE hPlugin,oldfar::OpenPanelInfo *Info);
+typedef void (WINAPI *PLUGINGETOPENPLUGININFO)(HANDLE hPlugin,oldfar::OpenPluginInfo *Info);
 typedef void (WINAPI *PLUGINGETPLUGININFO)(oldfar::PluginInfo *Info);
 typedef int (WINAPI *PLUGINGETVIRTUALFINDDATA)(HANDLE hPlugin,oldfar::PluginPanelItem **pPanelItem,int *pItemsNumber,const char *Path);
 typedef int (WINAPI *PLUGINMAKEDIRECTORY)(HANDLE hPlugin,char *Name,int OpMode);
 typedef HANDLE(WINAPI *PLUGINOPENFILEPLUGIN)(char *Name,const unsigned char *Data,int DataSize);
-typedef HANDLE(WINAPI *PLUGINOPENPANEL)(int OpenFrom,INT_PTR Item);
+typedef HANDLE(WINAPI *PLUGINOPENPLUGIN)(int OpenFrom,INT_PTR Item);
 typedef int (WINAPI *PLUGINPROCESSEDITOREVENT)(int Event,void *Param);
 typedef int (WINAPI *PLUGINPROCESSEDITORINPUT)(const INPUT_RECORD *Rec);
 typedef int (WINAPI *PLUGINPROCESSEVENT)(HANDLE hPlugin,int Event,void *Param);
@@ -65,21 +69,40 @@ class PluginA: public Plugin
 {
 	private:
 
+		PluginManager *m_owner; //BUGBUG
+
+		string m_strModuleName;
+		string m_strCacheName;
+
+		BitFlags WorkFlags;      // рабочие флаги текущего плагина
+		BitFlags FuncFlags;      // битовые маски вызова эксп.функций плагина
+
+		HMODULE m_hModule;
+		Language Lang;
+
+		/* $ 21.09.2000 SVS
+		   поле - системный идентификатор плагина
+		   Плагин должен сам задавать, например для
+		   Network      = 0x5774654E (NetW)
+		   PrintManager = 0x6E614D50 (PMan)  SYSID_PRINTMANAGER
+		*/
+		DWORD SysID;
+
 		string strRootKey;
 		char *RootKey;
 
 		PluginInfo PI;
-		OpenPanelInfo OPI;
+		OpenPluginInfo OPI;
 
 		oldfar::PluginPanelItem  *pFDPanelItemA;
 		oldfar::PluginPanelItem  *pVFDPanelItemA;
 
 		PLUGINSETSTARTUPINFO        pSetStartupInfo;
-		PLUGINOPENPANEL             pOpenPanel;
+		PLUGINOPENPLUGIN            pOpenPlugin;
 		PLUGINOPENFILEPLUGIN        pOpenFilePlugin;
-		PLUGINCLOSEPANEL            pClosePanel;
+		PLUGINCLOSEPLUGIN           pClosePlugin;
 		PLUGINGETPLUGININFO         pGetPluginInfo;
-		PLUGINGETOPENPANELINFO      pGetOpenPanelInfo;
+		PLUGINGETOPENPLUGININFO     pGetOpenPluginInfo;
 		PLUGINGETFINDDATA           pGetFindData;
 		PLUGINFREEFINDDATA          pFreeFindData;
 		PLUGINGETVIRTUALFINDDATA    pGetVirtualFindData;
@@ -102,11 +125,6 @@ class PluginA: public Plugin
 		PLUGINPROCESSVIEWEREVENT    pProcessViewerEvent;
 		PLUGINPROCESSDIALOGEVENT    pProcessDialogEvent;
 
-		UINT64 OEMApiCnt;
-		void __Prolog() { SetFileApisToOEM(); OEMApiCnt++; }
-		void __Epilog() { OEMApiCnt--; if(!OEMApiCnt) SetFileApisToANSI(); }
-		void ReadCache(unsigned __int64 id);
-
 	public:
 
 		PluginA(PluginManager *owner, const wchar_t *lpwzModuleName);
@@ -114,21 +132,25 @@ class PluginA: public Plugin
 
 		bool IsOemPlugin() {return true;}
 
+		bool Load();
+		bool LoadFromCache(const FAR_FIND_DATA_EX &FindData);
+
 		bool SaveToCache();
+
+		int Unload(bool bExitFAR = false);
 
 		bool IsPanelPlugin();
 
-		bool HasGetGlobalInfo() { return false; }
-		bool HasOpenPanel() { return pOpenPanel!=nullptr; }
+		bool HasOpenPlugin() { return pOpenPlugin!=nullptr; }
 		bool HasMakeDirectory() { return pMakeDirectory!=nullptr; }
 		bool HasDeleteFiles() { return pDeleteFiles!=nullptr; }
 		bool HasPutFiles() { return pPutFiles!=nullptr; }
 		bool HasGetFiles() { return pGetFiles!=nullptr; }
 		bool HasSetStartupInfo() { return pSetStartupInfo!=nullptr; }
 		bool HasOpenFilePlugin() { return pOpenFilePlugin!=nullptr; }
-		bool HasClosePanel() { return pClosePanel!=nullptr; }
+		bool HasClosePlugin() { return pClosePlugin!=nullptr; }
 		bool HasGetPluginInfo() { return pGetPluginInfo!=nullptr; }
-		bool HasGetOpenPanelInfo() { return pGetOpenPanelInfo!=nullptr; }
+		bool HasGetOpenPluginInfo() { return pGetOpenPluginInfo!=nullptr; }
 		bool HasGetFindData() { return pGetFindData!=nullptr; }
 		bool HasFreeFindData() { return pFreeFindData!=nullptr; }
 		bool HasGetVirtualFindData() { return pGetVirtualFindData!=nullptr; }
@@ -156,22 +178,21 @@ class PluginA: public Plugin
 
 		const string &GetModuleName() { return m_strModuleName; }
 		const wchar_t *GetCacheName() { return m_strCacheName; }
-		const wchar_t *GetHotkeyName() { return GetCacheName(); }
-		const GUID& GetGUID(void) { return FarGuid; }
+		DWORD GetSysID() { return SysID; }
 		bool CheckWorkFlags(DWORD flags) { return WorkFlags.Check(flags)==TRUE; }
 		DWORD GetWorkFlags() { return WorkFlags.Flags; }
 		DWORD GetFuncFlags() { return FuncFlags.Flags; }
 
-		bool InitLang(const wchar_t *Path) { return PluginLang.Init(Path,false); }
-		void CloseLang() { PluginLang.Close(); }
-		const char *GetMsgA(int nID) { return PluginLang.GetMsgA(nID); }
+		bool InitLang(const wchar_t *Path) { return Lang.Init(Path,false); }
+		void CloseLang() { Lang.Close(); }
+		const char *GetMsgA(int nID) { return Lang.GetMsgA(nID); }
 
 	public:
-		bool GetGlobalInfo(GlobalInfo *Info) { return false; }
+
 		bool SetStartupInfo(bool &bUnloaded);
 		bool CheckMinFarVersion(bool &bUnloaded);
 
-		HANDLE Open(int OpenFrom, const GUID& Guid, INT_PTR Item);
+		HANDLE OpenPlugin(int OpenFrom, INT_PTR Item);
 		HANDLE OpenFilePlugin(const wchar_t *Name, const unsigned char *Data, int DataSize, int OpMode);
 
 		int SetFindList(HANDLE hPlugin, const PluginPanelItem *PanelItem, int ItemsNumber);
@@ -183,17 +204,17 @@ class PluginA: public Plugin
 		int DeleteFiles(HANDLE hPlugin, PluginPanelItem *PanelItem, int ItemsNumber, int OpMode);
 		int MakeDirectory(HANDLE hPlugin, const wchar_t **Name, int OpMode);
 		int ProcessHostFile(HANDLE hPlugin, PluginPanelItem *PanelItem, int ItemsNumber, int OpMode);
-		int ProcessKey(HANDLE hPlugin, const INPUT_RECORD *Rec, bool Pred);
+		int ProcessKey(HANDLE hPlugin, int Key, unsigned int dwControlState);
 		int ProcessEvent(HANDLE hPlugin, int Event, PVOID Param);
 		int Compare(HANDLE hPlugin, const PluginPanelItem *Item1, const PluginPanelItem *Item2, unsigned long Mode);
 
 		int GetCustomData(const wchar_t *FilePath, wchar_t **CustomData) { return 0; }
 		void FreeCustomData(wchar_t *CustomData) {}
 
-		void GetOpenPanelInfo(HANDLE hPlugin, OpenPanelInfo *Info);
+		void GetOpenPluginInfo(HANDLE hPlugin, OpenPluginInfo *Info);
 		void FreeFindData(HANDLE hPlugin, PluginPanelItem *PanelItem, int ItemsNumber);
 		void FreeVirtualFindData(HANDLE hPlugin, PluginPanelItem *PanelItem, int ItemsNumber);
-		void ClosePanel(HANDLE hPlugin);
+		void ClosePlugin(HANDLE hPlugin);
 
 		int ProcessEditorInput(const INPUT_RECORD *D);
 		int ProcessEditorEvent(int Event, PVOID Param);
@@ -204,21 +225,19 @@ class PluginA: public Plugin
 		int ProcessMacroFunc(const wchar_t *Name, const FarMacroValue *Params, int nParams, FarMacroValue **Results, int *nResults) {return 0;}
 #endif
 
-		int Analyse(const AnalyseInfo *Info) { return FALSE; }
+		int Analyse(const AnalyseData *pData) { return FALSE; }
 
 		bool GetPluginInfo(PluginInfo *pi);
-		int Configure(const GUID& Guid);
+		int Configure(int MenuItem);
 
 		void ExitFAR();
-		const wchar_t* GetTitle(void) { return nullptr; }
 
 	private:
 
-		void InitExports();
 		void ClearExports();
 
 		void FreePluginInfo();
 		void ConvertPluginInfo(oldfar::PluginInfo &Src, PluginInfo *Dest);
-		void FreeOpenPanelInfo();
-		void ConvertOpenPanelInfo(oldfar::OpenPanelInfo &Src, OpenPanelInfo *Dest);
+		void FreeOpenPluginInfo();
+		void ConvertOpenPluginInfo(oldfar::OpenPluginInfo &Src, OpenPluginInfo *Dest);
 };

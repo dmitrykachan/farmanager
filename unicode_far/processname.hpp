@@ -6,8 +6,8 @@ processname.hpp
 Обработать имя файла: сравнить с маской, масками, сгенерировать по маске
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -33,9 +33,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "plugin.hpp"
-
 // обработать имя файла: сравнить с маской, масками, сгенерировать по маске
-size_t WINAPI ProcessName(const wchar_t *param1, wchar_t *param2, size_t size, PROCESSNAME_FLAGS flags);
+int WINAPI ProcessName(const wchar_t *param1, wchar_t *param2, DWORD size, DWORD flags);
 int ConvertWildcards(const wchar_t *SrcName,string &strDest, int SelectedFolderNameLength);
 int CmpName(const wchar_t *pattern, const wchar_t *str, bool skippath=true, bool CmpNameSearchMode=false);

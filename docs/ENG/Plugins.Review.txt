@@ -1,12 +1,12 @@
-﻿
-                    The Far File and Archive Manager
+
+                    The FAR File and Archive Manager
                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
                      Overview of plugin capabilities
                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   Far Manager is so tightly integrated with its plugins that it is  simply
-meaningless to talk about Far and  not  to  mention  the  plugins.  Plugins
-present an almost limitless expansion of the features of Far.
+   FAR Manager is so tightly integrated with its plugins that it is  simply
+meaningless to talk about FAR and  not  to  mention  the  plugins.  Plugins
+present an almost limitless expansion of the features of FAR.
 
    Without going into details, some of the capabilities can be noted:
 
@@ -33,14 +33,14 @@ present an almost limitless expansion of the features of Far.
     databases.
   * RAS service control.
   * External programs executing (compilers, converters etc.) while
-    editing text in Far editor.
+    editing text in FAR editor.
   * Windows help files contents displaying (.hlp and .chm)
   * Calculators with different possibilities.
   * Several games :-)
-  * Spell checker functions while editing text in Far editor.
+  * Spell checker functions while editing text in FAR editor.
   * Removable drives catalog preparation and much more...
 
-   It is useless to list all the functions provided by Far and its  plugins,
+   It is useless to list all the functions provided by FAR and its  plugins,
 because this list is constantly growing. As an information source, which can
 be used to search for specific plugins, one can recommend:
 
@@ -48,10 +48,6 @@ be used to search for specific plugins, one can recommend:
     http://plugring.farmanager.com
   - Online forum
     http://forum.farmanager.com
-  - Mailing lists
-    http://groups.google.com/group/fardev
-    http://groups.google.com/group/fardeven
-    http://groups.google.com/group/farcommits
   - USENET echo conference
     news:fido7.far.support
     Google Groups: http://groups.google.ru/groups?hl=ru&lr=&ie=UTF-8&group=fido7.far.support
@@ -60,5 +56,12 @@ be used to search for specific plugins, one can recommend:
   - FidoNet echo conference
     far.support
     far.development
+  - Mailing lists
+    http://groups.yahoo.com/group/plugringenglish
+    http://groups.yahoo.com/group/farpluginsapi
+    http://groups.yahoo.com/group/plugring_announce
+  - The PlugRinG viewer plugin allows you to view and download all the latest
+    plugins directly from FAR.
+    http://plugring.farmanager.com/cgi-bin/downld.cgi?Draw=List&Select=PlugIn&SelectPlugIn=259&Lang=Eng
 
-                                     [ Far Manager development group ]
+                                     [ FAR manager development group ]

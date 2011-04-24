@@ -1,7 +1,5 @@
 #pragma once
 
-#define _M(id) (TCHAR*)Info.GetMsg(Info.ModuleNumber, id)
-
 //far
 #include "FarPluginBase.hpp"
 #include "SystemApi.hpp"
@@ -36,7 +34,12 @@ extern "C" const GUID CLSID_CXzHandler;
 extern "C" const GUID CLSID_CTarHandler;
 extern "C" const GUID CLSID_CGZipHandler;
 
-#include "7z.Messages.h"
+struct ArchiveItemEx {
+	unsigned int nIndex;
+	const ArchiveItem *pItem;
+};
+
+
 #include "7z.Commands.h"
 #include "7z.Module.h"
 #include "7z.DetectArchive.h"
@@ -54,9 +57,6 @@ class CCryptoGetTextPassword;
 #include "Helpers/7z.ArchiveUpdateCallback.h"
 #include "Helpers/7z.CryptoGetTextPassword.h"
 
-
 #include "7z.Plugin.h"
 #include "7z.Archive.h"
 #include "PropVariant.h"
-#include "7z.Config.h"
-#include "7z.Properties.h"

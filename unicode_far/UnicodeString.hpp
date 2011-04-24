@@ -6,8 +6,8 @@ UnicodeString.hpp
 Unicode строка
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -101,7 +101,7 @@ class UnicodeStringData
 			FreeData(pOldData);
 		}
 
-		wchar_t *GetData() const { return m_pData; }
+		wchar_t *GetData() { return m_pData; }
 		size_t GetLength() const { return m_nLength; }
 		size_t GetSize() const { return m_nSize; }
 
@@ -199,17 +199,14 @@ typedef class UnicodeString
 		friend const UnicodeString operator+(const UnicodeString &strSrc1, const char *lpszSrc2);
 		friend const UnicodeString operator+(const UnicodeString &strSrc1, const wchar_t *lpwszSrc2);
 
-		bool IsSubStrAt(size_t Pos, size_t Len, const wchar_t* Data, size_t DataLen) const;
-		bool IsSubStrAt(size_t Pos, const wchar_t* Str, size_t StrLen) const { return IsSubStrAt(Pos, StrLen, Str, StrLen); }
-		bool IsSubStrAt(size_t Pos, const wchar_t* Str) const { return IsSubStrAt(Pos, StrLength(Str), Str, StrLength(Str)); }
-		bool IsSubStrAt(size_t Pos, const UnicodeString& Str) const { return IsSubStrAt(Pos, Str.GetLength(), Str.CPtr(), Str.GetLength()); }
-		bool IsSubStrAt(size_t Pos, wchar_t Ch) const { return IsSubStrAt(Pos, 1, &Ch, 1); }
-		bool operator==(const UnicodeString& Str) const { return IsSubStrAt(0, GetLength(), Str.CPtr(), Str.GetLength()); }
-		bool operator==(const wchar_t* Str) const { return IsSubStrAt(0, GetLength(), Str, StrLength(Str)); }
-		bool operator==(wchar_t Ch) const { return IsSubStrAt(0, GetLength(), &Ch, 1); }
-		bool operator!=(const UnicodeString& Str) const { return !IsSubStrAt(0, GetLength(), Str.CPtr(), Str.GetLength()); }
-		bool operator!=(const wchar_t* Str) const { return !IsSubStrAt(0, GetLength(), Str, StrLength(Str)); }
-		bool operator!=(wchar_t Ch) const { return !IsSubStrAt(0, GetLength(), &Ch, 1); }
+		bool Equal(size_t Pos, size_t Len, const wchar_t* Data, size_t DataLen) const;
+		bool Equal(size_t Pos, const wchar_t* Str, size_t StrLen) const { return Equal(Pos, StrLen, Str, StrLen); }
+		bool Equal(size_t Pos, const wchar_t* Str) const { return Equal(Pos, StrLength(Str), Str, StrLength(Str)); }
+		bool Equal(size_t Pos, const UnicodeString& Str) const { return Equal(Pos, Str.GetLength(), Str.CPtr(), Str.GetLength()); }
+		bool Equal(size_t Pos, wchar_t Ch) const { return Equal(Pos, 1, &Ch, 1); }
+		bool operator==(const UnicodeString& Str) const { return Equal(0, GetLength(), Str.CPtr(), Str.GetLength()); }
+		bool operator==(const wchar_t* Str) const { return Equal(0, GetLength(), Str, StrLength(Str)); }
+		bool operator==(wchar_t Ch) const { return Equal(0, GetLength(), &Ch, 1); }
 
 		UnicodeString& Lower(size_t nStartPos=0, size_t nLength=(size_t)-1);
 		UnicodeString& Upper(size_t nStartPos=0, size_t nLength=(size_t)-1);

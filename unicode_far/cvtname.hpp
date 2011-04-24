@@ -6,8 +6,8 @@ cvtname.hpp
 Функций для преобразования имен файлов/путей.
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-void ConvertNameToFull(const wchar_t *lpwszSrc, string &strDest, LPCWSTR CurrentDirectory = nullptr);
+void ConvertNameToFull(const wchar_t *lpwszSrc, string &strDest);
 
 void ConvertNameToReal(const wchar_t *Src, string &strDest);
 

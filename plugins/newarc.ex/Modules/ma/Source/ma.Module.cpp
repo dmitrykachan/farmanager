@@ -38,18 +38,10 @@ bool MaModule::Load()
 	strPluginsPath += _T("ansi.dll");
 
 	bool bAnsiModuleLoaded = false;
-	GETPLUGINSSTARTUPINFO pfnGetPluginStartupInfo = nullptr;
 
-
-
-	if ( Info.PluginsControl(
-			INVALID_HANDLE_VALUE, 
-			2/*PCTL_FORCEDLOADPLUGIN*/,  //BUGBUG
-			PLT_PATH, 
-			(LONG_PTR)strPluginsPath.GetString()
-			) )
+	//if ( Info.PluginsControl(INVALID_HANDLE_VALUE, PCTL_LOADPLUGIN, PLT_PATH, (LONG_PTR)strPluginsPath.GetString()) )
 	{
-		HMODULE hAnsiModule = LoadLibraryEx(
+		HMODULE hAnsiModule = LoadLibraryEx (
 				strPluginsPath, 
 				NULL, 
 				LOAD_WITH_ALTERED_SEARCH_PATH
@@ -57,7 +49,7 @@ bool MaModule::Load()
 
 		if ( hAnsiModule )
 		{
-			pfnGetPluginStartupInfo = (GETPLUGINSSTARTUPINFO)GetProcAddress(hAnsiModule, "GetPluginStartupInfo");
+			GETPLUGINSSTARTUPINFO pfnGetPluginStartupInfo = (GETPLUGINSSTARTUPINFO)GetProcAddress(hAnsiModule, "GetPluginStartupInfo");
 
 			if ( pfnGetPluginStartupInfo && pfnGetPluginStartupInfo(&m_pInfo, &m_pFSF) )
 				bAnsiModuleLoaded = true;
@@ -68,7 +60,7 @@ bool MaModule::Load()
 
 	if ( !bAnsiModuleLoaded )
 	{
-		__debug(pfnGetPluginStartupInfo ? _T("ansi.dll was not loaded before ma.module") : _T("error with ansi.dll"));
+		__debug(_T("error with ansi.dll"));
 		return false;
 	}
 

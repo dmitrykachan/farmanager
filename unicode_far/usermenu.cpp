@@ -4,8 +4,8 @@ usermenu.cpp
 User menu и есть
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -43,9 +43,11 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "dialog.hpp"
 #include "fileedit.hpp"
 #include "plognmn.hpp"
+#include "savefpos.hpp"
 #include "ctrlobj.hpp"
 #include "manager.hpp"
 #include "constitle.hpp"
+#include "registry.hpp"
 #include "message.hpp"
 #include "usermenu.hpp"
 #include "filetype.hpp"
@@ -104,58 +106,81 @@ int PrepareHotKey(string &strHotKey)
 	return FuncNum;
 }
 
-void MenuListToFile(DList<UserMenuItem> *Menu, CachedWrite& CW)
+void MenuRegToFile(const wchar_t *MenuKey, File& MenuFile, CachedWrite& CW, bool SingleItemMenu=false)
 {
-	for (UserMenuItem *MenuItem=Menu->First(); MenuItem; MenuItem=Menu->Next(MenuItem))
+	for (int i=0;;i++)
 	{
-		CW.Write(MenuItem->strHotKey.CPtr(), static_cast<DWORD>(MenuItem->strHotKey.GetLength()*sizeof(WCHAR)));
+		string strItemKey;
+		strItemKey.Format(L"%s\\Item%d",MenuKey,i);
+		string strLabel;
+
+		if (!GetRegKey(strItemKey,L"Label",strLabel,L""))
+			break;
+
+		string strHotKey;
+		GetRegKey(strItemKey,L"HotKey",strHotKey,L"");
+		BOOL SubMenu;
+		GetRegKey(strItemKey,L"Submenu",SubMenu,0);
+		CW.Write(strHotKey.CPtr(), static_cast<DWORD>(strHotKey.GetLength()*sizeof(WCHAR)));
 		CW.Write(L":  ", 3*sizeof(WCHAR));
-		CW.Write(MenuItem->strLabel.CPtr(), static_cast<DWORD>(MenuItem->strLabel.GetLength()*sizeof(WCHAR)));
+		CW.Write(strLabel.CPtr(), static_cast<DWORD>(strLabel.GetLength()*sizeof(WCHAR)));
 		CW.Write(L"\r\n", 2*sizeof(WCHAR));
 
-		if (MenuItem->Submenu)
+		if (SubMenu)
 		{
 			CW.Write(L"{\r\n", 3*sizeof(WCHAR));
-			if (MenuItem->Menu)
-				MenuListToFile(MenuItem->Menu, CW);
+			MenuRegToFile(strItemKey, MenuFile, CW, false);
 			CW.Write(L"}\r\n", 3*sizeof(WCHAR));
 		}
 		else
 		{
-			for (string *str=MenuItem->Commands.First(); str; str=MenuItem->Commands.Next(str))
+			for (int i=0;; i++)
 			{
+				string strLineName;
+				strLineName.Format(L"Command%d",i);
+				string strCommand;
+
+				if (!GetRegKey(strItemKey,strLineName,strCommand,L""))
+					break;
 				CW.Write(L"    ", 4*sizeof(WCHAR));
-				CW.Write(str->CPtr(), static_cast<DWORD>(str->GetLength()*sizeof(WCHAR)));
+				CW.Write(strCommand.CPtr(), static_cast<DWORD>(strCommand.GetLength()*sizeof(WCHAR)));
 				CW.Write(L"\r\n", 2*sizeof(WCHAR));
 			}
 		}
 	}
 }
 
-void MenuFileToList(DList<UserMenuItem> *Menu, File& MenuFile, GetFileString& GetStr, UINT MenuCP = CP_UNICODE)
+void MenuFileToReg(const wchar_t *MenuKey, File& MenuFile, GetFileString& GetStr, bool SingleItemMenu = false, UINT MenuCP = CP_UNICODE)
 {
-	INT64 Pos = MenuFile.GetPointer();
-	if (!Pos)
+	INT64 Pos = 0;
+	MenuFile.GetPointer(Pos);
+	if(!Pos)
 	{
 		if (!GetFileFormat(MenuFile,MenuCP))
-			MenuCP = CP_OEMCP;
+			MenuCP=CP_OEMCP;
 	}
 
 	LPWSTR MenuStr = nullptr;
 	int MenuStrLength = 0;
-	UserMenuItem *MenuItem = nullptr;
+	int KeyNumber=-1,CommandNumber=0;
 
-	while (GetStr.GetString(&MenuStr, MenuCP, MenuStrLength))
+	while(GetStr.GetString(&MenuStr, MenuCP, MenuStrLength))
 	{
+		string strItemKey;
+
+		if (!SingleItemMenu)
+			strItemKey.Format(L"%s\\Item%d",MenuKey,KeyNumber);
+		else
+			strItemKey=MenuKey;
+
 		RemoveTrailingSpaces(MenuStr);
 
 		if (!*MenuStr)
 			continue;
 
-		if (*MenuStr==L'{' && MenuItem && MenuItem->Menu)
+		if (*MenuStr==L'{' && KeyNumber>=0)
 		{
-			MenuFileToList(MenuItem->Menu, MenuFile, GetStr, MenuCP);
-			MenuItem = nullptr;
+			MenuFileToReg(strItemKey,MenuFile, GetStr, false,MenuCP);
 			continue;
 		}
 
@@ -164,34 +189,52 @@ void MenuFileToList(DList<UserMenuItem> *Menu, File& MenuFile, GetFileString& Ge
 
 		if (!IsSpace(*MenuStr))
 		{
-			wchar_t *ChPtr = nullptr;
+			wchar_t *ChPtr=nullptr;
 
 			if (!(ChPtr=wcschr(MenuStr,L':')))
 				continue;
 
-			MenuItem = Menu->Push();
+			if (!SingleItemMenu)
+			{
+				strItemKey.Format(L"%s\\Item%d",MenuKey,++KeyNumber);
+			}
+			else
+			{
+				strItemKey=MenuKey;
+				++KeyNumber;
+			}
 
-			*ChPtr = 0;
-			MenuItem->strHotKey = MenuStr;
-			MenuItem->strLabel = ChPtr+1;
-			RemoveLeadingSpaces(MenuItem->strLabel);
-			MenuItem->Submenu = (GetStr.PeekString(&MenuStr, MenuCP, MenuStrLength) && *MenuStr==L'{');
-
-			if (MenuItem->Submenu)
-				MenuItem->Menu = new DList<UserMenuItem>();
+			*ChPtr=0;
+			string strHotKey=MenuStr;
+			string strLabel=ChPtr+1;
+			RemoveLeadingSpaces(strLabel);
+			bool SubMenu=(GetStr.PeekString(&MenuStr, MenuCP, MenuStrLength) && *MenuStr==L'{');
+			UseSameRegKey();
 
 			// Support for old 1.x separator format
-			if (MenuCP==CP_OEMCP && MenuItem->strHotKey==L"-" && MenuItem->strLabel.IsEmpty())
+			if(MenuCP==CP_OEMCP && strHotKey==L"-" && strLabel.IsEmpty())
 			{
-				MenuItem->strHotKey += L"-";
+				strHotKey+=L"-";
+			}
+
+			SetRegKey(strItemKey,L"HotKey",strHotKey);
+			SetRegKey(strItemKey,L"Label",strLabel);
+			SetRegKey(strItemKey,L"Submenu",SubMenu);
+			CloseSameRegKey();
+			CommandNumber=0;
+		}
+		else
+		{
+			if (KeyNumber>=0)
+			{
+				string strLineName;
+				strLineName.Format(L"Command%d",CommandNumber++);
+				RemoveLeadingSpaces(MenuStr);
+				SetRegKey(strItemKey,strLineName,MenuStr);
 			}
 		}
-		else if (MenuItem)
-		{
-			RemoveLeadingSpaces(MenuStr);
-			string *str = MenuItem->Commands.Push();
-			*str = MenuStr;
-		}
+
+		SingleItemMenu=false;
 	}
 }
 
@@ -210,8 +253,11 @@ void UserMenu::ProcessUserMenu(bool ChoiceMenuType)
 	string strMenuFilePath;
 	CtrlObject->CmdLine->GetCurDir(strMenuFilePath);
 	// по умолчанию меню - это FarMenu.ini
-	MenuMode = MM_LOCAL;
-	MenuModified = MenuNeedRefresh = false;
+	MenuMode=MM_LOCAL;
+	string strLocalMenuKey;
+	strLocalMenuKey.Format(L"UserMenu\\LocalMenu%u",clock());
+	DeleteKeyTree(strLocalMenuKey);
+	MenuModified=MenuNeedRefresh=false;
 
 	if (ChoiceMenuType)
 	{
@@ -222,8 +268,8 @@ void UserMenu::ProcessUserMenu(bool ChoiceMenuType)
 
 		if (!EditChoice)
 		{
-			MenuMode = MM_GLOBAL;
-			strMenuFilePath = Opt.GlobalUserMenuDir;
+			MenuMode=MM_FAR;
+			strMenuFilePath = g_strFarPath;
 		}
 	}
 
@@ -238,101 +284,112 @@ void UserMenu::ProcessUserMenu(bool ChoiceMenuType)
 		AddEndSlash(strMenuFileFullPath);
 		strMenuFileFullPath += LocalMenuFileName;
 
-		Menu.Clear();
-
-		// Пытаемся открыть файл на локальном диске
-		File MenuFile;
-		bool FileOpened = PathCanHoldRegularFile(strMenuFilePath) ? MenuFile.Open(strMenuFileFullPath,GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING) : false;
-		if (FileOpened)
+		if (MenuMode != MM_MAIN)
 		{
-			GetFileString GetStr(MenuFile);
-			MenuFileToList(&Menu, MenuFile, GetStr);
-			MenuFile.Close();
-		}
-		else if (MenuMode != MM_USER)
-		{
-			// Файл не открылся. Смотрим дальше.
-			if (MenuMode == MM_GLOBAL) // был в %FARHOME%?
+			// Пытаемся открыть файл на локальном диске
+			File MenuFile;
+			bool FileOpened = PathCanHoldRegularFile(strMenuFilePath) ? MenuFile.Open(strMenuFileFullPath,GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING) : false;
+			if (FileOpened)
 			{
-				MenuMode = MM_USER;
-				strMenuFilePath = Opt.ProfilePath;
-				continue;
+				// сливаем содержимое в реестр "на запасной путь" и оттуда будем пользовать
+				GetFileString GetStr(MenuFile);
+				MenuFileToReg(strLocalMenuKey, MenuFile, GetStr);
+				MenuFile.Close();
 			}
-			else if (!ChoiceMenuType)
+			else
 			{
-				if (!FirstRun)
+				// Файл не открылся. Смотрим дальше.
+				if (MenuMode == MM_FAR) // был в %FARHOME%?
 				{
-					// подымаемся выше...
-					size_t pos;
-
-					if (FindLastSlash(pos,strMenuFilePath))
+					MenuMode=MM_MAIN; // ...реестр
+				}
+				else
+				{
+					if (!ChoiceMenuType)
 					{
-						strMenuFilePath.SetLength(pos--);
+						if (!FirstRun)
+						{
+							// подымаемся выше...
+							size_t pos;
 
-						if (strMenuFilePath.At(pos) != L':')
-							continue;
+							if (FindLastSlash(pos,strMenuFilePath))
+							{
+								strMenuFilePath.SetLength(pos--);
+
+								if (strMenuFilePath.At(pos) != L':')
+									continue;
+							}
+						}
+
+						FirstRun=false;
+						strMenuFilePath = g_strFarPath;
+						MenuMode=MM_FAR;
+						continue;
 					}
 				}
-
-				FirstRun = false;
-				MenuMode = MM_GLOBAL;
-				strMenuFilePath = Opt.GlobalUserMenuDir;
-				continue;
 			}
 		}
 
+		string strMenuRootKey = (MenuMode==MM_MAIN) ? L"UserMenu\\MainMenu" : strLocalMenuKey;
 		int PrevMacroMode=CtrlObject->Macro.GetMode();
 		int _CurrentFrame=FrameManager->GetCurrentFrame()->GetType();
 		CtrlObject->Macro.SetMode(MACRO_USERMENU);
 		// вызываем меню
-		ExitCode=ProcessSingleMenu(&Menu, 0, &Menu);
+		ExitCode=ProcessSingleMenu(strMenuRootKey, 0,strMenuRootKey);
 
 		if (_CurrentFrame == FrameManager->GetCurrentFrame()->GetType()) //???
 			CtrlObject->Macro.SetMode(PrevMacroMode);
 
-		// ...запишем изменения обратно в файл
-		if (MenuModified)
+		// обработка локального меню...
+		if (MenuMode != MM_MAIN)
 		{
-			DWORD FileAttr=apiGetFileAttributes(strMenuFileFullPath);
-
-			if (FileAttr != INVALID_FILE_ATTRIBUTES)
+			// ...запишем изменения обратно в файл
+			if (MenuModified)
 			{
-				if (FileAttr & FILE_ATTRIBUTE_READONLY)
-				{
-					int AskOverwrite;
-					AskOverwrite=Message(MSG_WARNING,2,MSG(MUserMenuTitle),LocalMenuFileName,MSG(MEditRO),MSG(MEditOvr),MSG(MYes),MSG(MNo));
+				DWORD FileAttr=apiGetFileAttributes(strMenuFileFullPath);
 
-					if (!AskOverwrite)
-						apiSetFileAttributes(strMenuFileFullPath,FileAttr & ~FILE_ATTRIBUTE_READONLY);
+				if (FileAttr != INVALID_FILE_ATTRIBUTES)
+				{
+					if (FileAttr & FILE_ATTRIBUTE_READONLY)
+					{
+						int AskOverwrite;
+						AskOverwrite=Message(MSG_WARNING,2,MSG(MUserMenuTitle),LocalMenuFileName,MSG(MEditRO),MSG(MEditOvr),MSG(MYes),MSG(MNo));
+
+						if (!AskOverwrite)
+							apiSetFileAttributes(strMenuFileFullPath,FileAttr & ~FILE_ATTRIBUTE_READONLY);
+					}
+
+					if (FileAttr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM))
+						apiSetFileAttributes(strMenuFileFullPath,FILE_ATTRIBUTE_NORMAL);
 				}
 
-				if (FileAttr & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM))
-					apiSetFileAttributes(strMenuFileFullPath,FILE_ATTRIBUTE_NORMAL);
+				File MenuFile;
+				// Don't use CreationDisposition=CREATE_ALWAYS here - it's kills alternate streams
+				if (MenuFile.Open(strMenuFileFullPath,GENERIC_WRITE, FILE_SHARE_READ, nullptr, FileAttr==INVALID_FILE_ATTRIBUTES?CREATE_NEW:TRUNCATE_EXISTING))
+				{
+					CachedWrite CW(MenuFile);
+					WCHAR Data = SIGN_UNICODE;
+					CW.Write(&Data, 1*sizeof(WCHAR));
+					MenuRegToFile(strLocalMenuKey,MenuFile, CW);
+					CW.Flush();
+					UINT64 Size = 0;
+					MenuFile.GetSize(Size);
+					MenuFile.Close();
+
+					// если файл FarMenu.ini пуст, то удалим его
+					if (Size<3) // 2 for BOM
+					{
+						apiDeleteFile(strMenuFileFullPath);
+					}
+					else if (FileAttr!=INVALID_FILE_ATTRIBUTES)
+					{
+						apiSetFileAttributes(strMenuFileFullPath,FileAttr);
+					}
+				}
 			}
 
-			File MenuFile;
-			// Don't use CreationDisposition=CREATE_ALWAYS here - it kills alternate streams
-			if (MenuFile.Open(strMenuFileFullPath,GENERIC_WRITE, FILE_SHARE_READ, nullptr, FileAttr==INVALID_FILE_ATTRIBUTES?CREATE_NEW:TRUNCATE_EXISTING))
-			{
-				CachedWrite CW(MenuFile);
-				WCHAR Data = SIGN_UNICODE;
-				CW.Write(&Data, 1*sizeof(WCHAR));
-				MenuListToFile(&Menu, CW);
-				CW.Flush();
-				UINT64 Size = 0;
-				MenuFile.GetSize(Size);
-				MenuFile.Close();
-
-				// если файл FarMenu.ini пуст, то удалим его
-				if (Size<3) // 2 for BOM
-				{
-					apiDeleteFile(strMenuFileFullPath);
-				}
-				else if (FileAttr!=INVALID_FILE_ATTRIBUTES)
-				{
-					apiSetFileAttributes(strMenuFileFullPath,FileAttr);
-				}
-			}
+			// ...почистим реестр.
+			DeleteKeyTree(strLocalMenuKey);
 		}
 
 		// что было после вызова меню?
@@ -353,13 +410,12 @@ void UserMenu::ProcessUserMenu(bool ChoiceMenuType)
 							continue;
 					}
 
-					MenuMode = MM_GLOBAL;
-					strMenuFilePath = Opt.GlobalUserMenuDir;
+					strMenuFilePath = g_strFarPath;
+					MenuMode=MM_FAR;
 				}
 				else
 				{
-					MenuMode = MM_USER;
-					strMenuFilePath = Opt.ProfilePath;
+					MenuMode=MM_MAIN;
 				}
 
 				break;
@@ -371,18 +427,21 @@ void UserMenu::ProcessUserMenu(bool ChoiceMenuType)
 				switch (MenuMode)
 				{
 					case MM_LOCAL:
-						MenuMode = MM_GLOBAL;
-						strMenuFilePath = Opt.GlobalUserMenuDir;
+					{
+						strMenuFilePath = g_strFarPath;
+						MenuMode=MM_FAR;
 						break;
-
-					case MM_GLOBAL:
-						MenuMode = MM_USER;
-						strMenuFilePath = Opt.ProfilePath;
+					}
+					case MM_FAR:
+					{
+						MenuMode=MM_MAIN;
 						break;
-
-					default: // MM_USER
+					}
+					default: // MM_MAIN
+					{
 						CtrlObject->CmdLine->GetCurDir(strMenuFilePath);
 						MenuMode=MM_LOCAL;
+					}
 				}
 
 				break;
@@ -395,22 +454,35 @@ void UserMenu::ProcessUserMenu(bool ChoiceMenuType)
 }
 
 // заполнение меню
-int FillUserMenu(VMenu& FarUserMenu,DList<UserMenuItem> *Menu,int MenuPos,int *FuncPos,const wchar_t *Name,const wchar_t *ShortName)
+int FillUserMenu(VMenu& UserMenu,const wchar_t *MenuKey,int MenuPos,int *FuncPos,const wchar_t *Name,const wchar_t *ShortName)
 {
-	FarUserMenu.DeleteItems();
-	MenuItemEx FarUserMenuItem;
+	UserMenu.DeleteItems();
 	int NumLines=0;
 
-	for (UserMenuItem *MenuItem=Menu->First(); MenuItem; MenuItem=Menu->Next(MenuItem), NumLines++)
+	for (NumLines=0;; NumLines++)
 	{
-		FarUserMenuItem.Clear();
+		string strItemKey;
+		strItemKey.Format(L"%s\\Item%d",MenuKey,NumLines);
+
+		if (!CheckRegKey(strItemKey))
+		{
+			break;
+		}
+
+		MenuItemEx UserMenuItem;
+		UserMenuItem.Clear();
+		string strHotKey;
+		GetRegKey(strItemKey,L"HotKey",strHotKey,L"");
+		string strLabel;
+		GetRegKey(strItemKey,L"Label",strLabel,L"");
 		int FuncNum=0;
 
 		// сепаратором является случай, когда хоткей == "--"
-		if (!StrCmp(MenuItem->strHotKey,L"--"))
+		if (!StrCmp(strHotKey,L"--"))
 		{
-			FarUserMenuItem.Flags|=LIF_SEPARATOR;
-			FarUserMenuItem.strName=MenuItem->strLabel;
+			UserMenuItem.Flags|=LIF_SEPARATOR;
+			UserMenuItem.Flags&=~LIF_SELECTED;
+			UserMenuItem.strName=strLabel;
 
 			if (NumLines==MenuPos)
 			{
@@ -419,28 +491,25 @@ int FillUserMenu(VMenu& FarUserMenu,DList<UserMenuItem> *Menu,int MenuPos,int *F
 		}
 		else
 		{
-			string strLabel = MenuItem->strLabel;
 			SubstFileName(strLabel,Name,ShortName,nullptr,nullptr,nullptr,nullptr,TRUE);
 			apiExpandEnvironmentStrings(strLabel, strLabel);
-			string strHotKey = MenuItem->strHotKey;
-			FuncNum = PrepareHotKey(strHotKey);
-			int Offset = strHotKey.At(0)==L'&'?5:4;
+			FuncNum=PrepareHotKey(strHotKey);
+			int Offset=strHotKey.At(0)==L'&'?5:4;
 			FormatString FString;
 			FString<<((!strHotKey.IsEmpty() && !FuncNum)?L"&":L"")<<fmt::LeftAlign()<<fmt::Width(Offset)<<fmt::Precision(Offset)<<strHotKey;
-			FarUserMenuItem.strName=FString;
-			FarUserMenuItem.strName+=strLabel;
+			UserMenuItem.strName=FString.strValue();
+			UserMenuItem.strName+=strLabel;
 
-			if (MenuItem->Submenu)
+			if (GetRegKey(strItemKey,L"Submenu",0))
 			{
-				FarUserMenuItem.Flags|=MIF_SUBMENU;
+				UserMenuItem.Flags|=MIF_SUBMENU;
 			}
 
-			FarUserMenuItem.SetSelect(NumLines==MenuPos);
+			UserMenuItem.SetSelect(NumLines==MenuPos);
+			UserMenuItem.Flags &= ~LIF_SEPARATOR;
 		}
 
-		int ItemPos=FarUserMenu.AddItem(&FarUserMenuItem);
-
-		FarUserMenu.SetUserData(&MenuItem,sizeof(MenuItem),ItemPos);
+		int ItemPos=UserMenu.AddItem(&UserMenuItem);
 
 		if (FuncNum>0)
 		{
@@ -448,19 +517,22 @@ int FillUserMenu(VMenu& FarUserMenu,DList<UserMenuItem> *Menu,int MenuPos,int *F
 		}
 	}
 
-	FarUserMenuItem.Clear();
-	FarUserMenuItem.SetSelect(NumLines==MenuPos);
-	FarUserMenu.AddItem(&FarUserMenuItem);
+	MenuItemEx UserMenuItem;
+	UserMenuItem.Clear();
+	UserMenuItem.SetSelect(NumLines==MenuPos);
+	UserMenu.AddItem(&UserMenuItem);
 	return NumLines;
 }
 
 // обработка единичного меню
-int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<UserMenuItem> *MenuRoot, const wchar_t *Title)
+int UserMenu::ProcessSingleMenu(const wchar_t *MenuKey,int MenuPos,const wchar_t *MenuRootKey,const wchar_t *Title)
 {
+	MenuItemEx UserMenuItem;
+
 	for (;;)
 	{
-		int NumLine=0, ExitCode, FuncPos[24];
-		UserMenuItem *CurrentMenuItem = nullptr;
+		UserMenuItem.Clear();
+		int NumLine=0,ExitCode,FuncPos[24];
 
 		// очистка F-хоткеев
 		for (size_t I=0 ; I < ARRAYSIZE(FuncPos) ; I++)
@@ -472,9 +544,7 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 		string strMenuTitle;
 
 		if (Title && *Title)
-		{
 			strMenuTitle = Title;
-		}
 		else
 		{
 			switch (MenuMode)
@@ -482,19 +552,26 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 				case MM_LOCAL:
 					strMenuTitle = MSG(MLocalMenuTitle);
 					break;
-
-				case MM_GLOBAL:
-					strMenuTitle = MSG(MMainMenuTitle);
-					strMenuTitle += L" (";
-					strMenuTitle += MSG(MMainMenuGlobal);
-					strMenuTitle += L")";
-					break;
-
+				case MM_FAR:
+				{
+					strMenuTitle=MSG(MMainMenuTitle);
+					strMenuTitle+=L" (";
+					strMenuTitle+=MSG(MMainMenuFAR);
+					strMenuTitle+=L")";
+				}
+				break;
 				default:
-					strMenuTitle = MSG(MMainMenuTitle);
-					strMenuTitle += L" (";
-					strMenuTitle += MSG(MMainMenuUser);
-					strMenuTitle += L")";
+				{
+					strMenuTitle=MSG(MMainMenuTitle);
+					const wchar_t *Ptr=MSG(MMainMenuREG);
+
+					if (*Ptr)
+					{
+						strMenuTitle+=L" (";
+						strMenuTitle+=Ptr;
+						strMenuTitle+=L")";
+					}
+				}
 			}
 		}
 
@@ -504,6 +581,7 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 			UserMenu.SetHelp(L"UserMenu");
 			UserMenu.SetPosition(-1,-1,0,0);
 			UserMenu.SetBottomTitle(MSG(MMainMenuBottomTitle));
+			//NumLine=FillUserMenu(UserMenu,MenuKey,MenuPos,FuncPos,Name,ShortName);
 			MenuNeedRefresh=true;
 
 			while (!UserMenu.Done())
@@ -512,7 +590,7 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 				{
 					UserMenu.Hide(); // спрячем
 					// "изнасилуем" (перезаполним :-)
-					NumLine=FillUserMenu(UserMenu,Menu,MenuPos,FuncPos,strName,strShortName);
+					NumLine=FillUserMenu(UserMenu,MenuKey,MenuPos,FuncPos,strName,strShortName);
 					// заставим манагер менюхи корректно отрисовать ширину и
 					// высоту, а заодно и скорректировать вертикальные позиции
 					UserMenu.SetPosition(-1,-1,-1,-1);
@@ -536,70 +614,64 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 				else if (Key == L' ') // исключаем пробел из "хоткеев"!
 					continue;
 
-
-				CurrentMenuItem = (UserMenuItem *)UserMenu.GetUserData(nullptr,sizeof(UserMenuItem *),MenuPos);
-
 				switch (Key)
 				{
 						/* $ 24.08.2001 VVM + Стрелки вправо/влево открывают/закрывают подменю соответственно */
 					case KEY_RIGHT:
 					case KEY_NUMPAD6:
 					case KEY_MSWHEEL_RIGHT:
-						if (CurrentMenuItem && CurrentMenuItem->Submenu)
-							UserMenu.SetExitCode(MenuPos);
-						break;
+					{
+						string strCurrentKey;
+						int SubMenu;
+						strCurrentKey.Format(L"%s\\Item%d",MenuKey,MenuPos);
+						GetRegKey(strCurrentKey,L"Submenu",SubMenu,0);
 
+						if (SubMenu)
+							UserMenu.SetExitCode(MenuPos);
+
+						break;
+					}
 					case KEY_LEFT:
 					case KEY_NUMPAD4:
 					case KEY_MSWHEEL_LEFT:
+
 						if (Title && *Title)
 							UserMenu.SetExitCode(-1);
-						break;
 
+						break;
 					case KEY_NUMDEL:
 					case KEY_DEL:
-						if (CurrentMenuItem)
-							DeleteMenuRecord(Menu,CurrentMenuItem);
-						break;
 
+						if (MenuPos<NumLine)
+							DeleteMenuRecord(MenuKey,MenuPos);
+
+						break;
 					case KEY_INS:
 					case KEY_F4:
 					case KEY_SHIFTF4:
 					case KEY_NUMPAD0:
-					{
-						bool bNew = Key == KEY_INS || Key == KEY_NUMPAD0;
-						if (!bNew && !CurrentMenuItem)
+
+						if (Key != KEY_INS && Key != KEY_NUMPAD0 && MenuPos>=NumLine)
 							break;
 
-						EditMenu(Menu,CurrentMenuItem,bNew);
+						EditMenu(MenuKey,MenuPos,NumLine,Key == KEY_INS || Key == KEY_NUMPAD0);
 						break;
-					}
-
 					case KEY_CTRLUP:
 					case KEY_CTRLDOWN:
 					{
 						int Pos=UserMenu.GetSelectPos();
 
-						if (Pos!=UserMenu.GetItemCount()-1 && CurrentMenuItem)
+						if (Pos!=UserMenu.GetItemCount()-1)
 						{
 							if (!(Key==KEY_CTRLUP && !Pos) && !(Key==KEY_CTRLDOWN && Pos==UserMenu.GetItemCount()-2))
 							{
-								MenuModified = MenuNeedRefresh = true;
-								if (Key==KEY_CTRLUP)
-								{
-									Menu->MoveBefore(Menu->Prev(CurrentMenuItem),CurrentMenuItem);
-									MenuPos--;
-								}
-								else
-								{
-									Menu->MoveAfter(Menu->Next(CurrentMenuItem),CurrentMenuItem);
-									MenuPos++;
-								}
+								MenuPos=Pos+(Key==KEY_CTRLUP?-1:+1);
+								MoveMenuItem(MenuKey,Pos,MenuPos);
 							}
 						}
 					}
 					break;
-
+					//case KEY_ALTSHIFTF4:  // редактировать только текущий пункт (если субменю - то все субменю)
 					case KEY_ALTF4:       // редактировать все меню
 					{
 						(*FrameManager)[0]->Unlock();
@@ -610,13 +682,17 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 							break;
 						}
 
-						{
-							CachedWrite CW(MenuFile);
-							WCHAR Data = SIGN_UNICODE;
-							CW.Write(&Data, 1*sizeof(WCHAR));
-							MenuListToFile(MenuRoot, CW);
-							CW.Flush();
-						}
+						string strCurrentKey;
+
+						if (Key==KEY_ALTSHIFTF4)
+							strCurrentKey.Format(L"%s\\Item%d",MenuKey,MenuPos);
+						else
+							strCurrentKey=MenuRootKey;
+						CachedWrite CW(MenuFile);
+						WCHAR Data = SIGN_UNICODE;
+						CW.Write(&Data, 1*sizeof(WCHAR));
+						MenuRegToFile(strCurrentKey, MenuFile, CW, Key==KEY_ALTSHIFTF4);
+						CW.Flush();
 						MenuNeedRefresh=true;
 						MenuFile.Close();
 						{
@@ -632,35 +708,39 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 							if (!ShellEditor.IsFileChanged() || (!MenuFile.Open(strMenuFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING)))
 							{
 								apiDeleteFile(strMenuFileName);
+
+								if (Key == KEY_ALTSHIFTF4) // для тукущего пункта меню закрывать ненадо
+									break;
+
 								return 0;
 							}
 						}
-						MenuRoot->Clear();
+						DeleteKeyTree(strCurrentKey);
 						GetFileString GetStr(MenuFile);
-						MenuFileToList(MenuRoot, MenuFile, GetStr);
+						MenuFileToReg(strCurrentKey, MenuFile, GetStr, Key==KEY_ALTSHIFTF4);
 						MenuFile.Close();
 						apiDeleteFile(strMenuFileName);
 						MenuModified=true;
 						UserMenu.Hide();
 
+						if (Key == KEY_ALTSHIFTF4) // для тукущего пункта меню закрывать ненадо
+							break;
+
 						return 0; // Закрыть меню
 					}
-
 					/* $ 28.06.2000 tran
 					выход из пользовательского меню по ShiftF10 из любого уровня
 					вложенности просто задаем ExitCode -1, и возвращаем FALSE -
 					по FALSE оно и выйдет откуда угодно */
 					case KEY_SHIFTF10:
 						//UserMenu.SetExitCode(-1);
-						return EC_CLOSE_MENU;
-
+						return(EC_CLOSE_MENU);
 					case KEY_SHIFTF2: // Показать главное меню
 						return(EC_MAIN_MENU);
-
 					case KEY_BS: // Показать меню из родительского каталога только в MM_LOCAL режиме
 
-						if (MenuMode == MM_LOCAL)
-							return EC_PARENT_MENU;
+						if (MenuMode != MM_MAIN)
+							return(EC_PARENT_MENU);
 
 					default:
 						UserMenu.ProcessInput();
@@ -673,51 +753,54 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 			} // while (!UserMenu.Done())
 
 			ExitCode=UserMenu.Modal::GetExitCode();
-
-			if (ExitCode<0 || ExitCode>=NumLine || !CurrentMenuItem)
-				return EC_CLOSE_LEVEL; //  вверх на один уровень
-
-			CurrentMenuItem = (UserMenuItem *)UserMenu.GetUserData(nullptr,sizeof(UserMenuItem *),ExitCode);
-
-			if (!CurrentMenuItem)
-				return EC_CLOSE_LEVEL; //  вверх на один уровень
 		}
 
-		if (CurrentMenuItem->Submenu)
+		if (ExitCode<0 || ExitCode>=NumLine)
+			return(EC_CLOSE_LEVEL); //  вверх на один уровень
+
+		string strCurrentKey;
+		int SubMenu;
+		strCurrentKey.Format(L"%s\\Item%d",MenuKey,ExitCode);
+		GetRegKey(strCurrentKey,L"Submenu",SubMenu,0);
+
+		if (SubMenu)
 		{
 			/* $ 20.08.2001 VVM + При вложенных меню показывает заголовки предыдущих */
-			string strSubMenuLabel = CurrentMenuItem->strLabel;
-			SubstFileName(strSubMenuLabel,strName,strShortName,nullptr,nullptr,nullptr,nullptr,TRUE);
-			apiExpandEnvironmentStrings(strSubMenuLabel, strSubMenuLabel);
+			string strSubMenuKey, strSubMenuLabel, strSubMenuTitle;
+			strSubMenuKey.Format(L"%s\\Item%d",MenuKey,ExitCode);
 
-			size_t pos;
-			if (strSubMenuLabel.Pos(pos,L'&'))
-				strSubMenuLabel.LShift(1,pos);
+			if (GetRegKey(strSubMenuKey,L"Label",strSubMenuLabel,L""))
+			{
+				SubstFileName(strSubMenuLabel,strName,strShortName,nullptr,nullptr,nullptr,nullptr,TRUE);
+				apiExpandEnvironmentStrings(strSubMenuLabel, strSubMenuLabel);
+				size_t pos;
 
-			string strSubMenuTitle;
-			if (Title && *Title)
-			{
-				strSubMenuTitle = Title;
-				strSubMenuTitle += L" -> ";
-				strSubMenuTitle += strSubMenuLabel;
-			}
-			else
-			{
-				strSubMenuTitle = strSubMenuLabel;
+				if (strSubMenuLabel.Pos(pos,L'&'))
+					strSubMenuLabel.LShift(1,pos);
+
+				if (Title && *Title)
+				{
+					strSubMenuTitle=Title;
+					strSubMenuTitle+=L" -> ";
+					strSubMenuTitle+=strSubMenuLabel;
+				}
+				else
+					strSubMenuTitle = strSubMenuLabel;
 			}
 
 			/* $ 14.07.2000 VVM ! Если закрыли подменю, то остаться. Инече передать управление выше */
-			MenuPos = ProcessSingleMenu(CurrentMenuItem->Menu,0,MenuRoot,strSubMenuTitle);
+			MenuPos=ProcessSingleMenu(strSubMenuKey,0,MenuRootKey,strSubMenuTitle);
 
 			if (MenuPos!=EC_CLOSE_LEVEL)
-				return MenuPos;
+				return(MenuPos);
 
-			MenuPos = ExitCode;
+			MenuPos=ExitCode;
 			continue;
 		}
 
 		/* $ 01.05.2001 IS Отключим до лучших времен */
 		//int LeftVisible,RightVisible,PanelsHidden=0;
+		int CurLine=0;
 		string strCmdLineDir;
 		CtrlObject->CmdLine->GetCurDir(strCmdLineDir);
 		string strOldCmdLine;
@@ -729,9 +812,14 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 		CtrlObject->CmdLine->LockUpdatePanel(TRUE);
 
 		// Цикл исполнения команд меню (CommandX)
-		for (string *str=CurrentMenuItem->Commands.First(); str; str=CurrentMenuItem->Commands.Next(str))
+		for (;;)
 		{
-			string strCommand = *str;
+			FormatString strLineName;
+			string strCommand;
+			strLineName<<L"Command"<<CurLine;
+
+			if (!GetRegKey(strCurrentKey,strLineName,strCommand,L""))
+				break;
 
 			string strListName, strAnotherListName;
 			string strShortListName, strAnotherShortListName;
@@ -814,6 +902,7 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 			if (!strAnotherShortListName.IsEmpty())
 				apiDeleteFile(strAnotherShortListName);
 
+			CurLine++;
 		} // while (1)
 
 		CtrlObject->CmdLine->LockUpdatePanel(FALSE);
@@ -841,7 +930,7 @@ int UserMenu::ProcessSingleMenu(DList<UserMenuItem> *Menu, int MenuPos, DList<Us
 		*/
 		/* $ 14.07.2000 VVM ! Закрыть меню */
 		/* $ 25.04.2001 DJ - сообщаем, что была выполнена команда (нужно перерисовать панели) */
-		return EC_COMMAND_SELECTED;
+		return(EC_COMMAND_SELECTED);
 	}
 }
 
@@ -873,7 +962,7 @@ enum EditMenuItems
 	EM_BUTTON_CANCEL,
 };
 
-INT_PTR WINAPI EditMenuDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
+LONG_PTR WINAPI EditMenuDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2)
 {
 #if defined(PROJECT_DI_MEMOEDIT)
 	Dialog* Dlg=(Dialog*)hDlg;
@@ -930,20 +1019,19 @@ INT_PTR WINAPI EditMenuDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
 			}
 
 			break;
-		default:
-			break;
 	}
 
 	return DefDlgProc(hDlg,Msg,Param1,Param2);
 }
 
 
-bool UserMenu::EditMenu(DList<UserMenuItem> *Menu, UserMenuItem *MenuItem, bool Create)
+bool UserMenu::EditMenu(const wchar_t *MenuKey,int EditPos,int TotalRecords,bool Create)
 {
-	bool Result = false;
-	bool SubMenu = false;
-	bool Continue = true;
-	MenuNeedRefresh = true;
+	bool Result=false;
+	FormatString strItemKey;
+	strItemKey<<MenuKey<<L"\\Item"<<EditPos;
+	MenuNeedRefresh=true;
+	bool SubMenu=false,Continue=true;
 
 	if (Create)
 	{
@@ -951,48 +1039,50 @@ bool UserMenu::EditMenu(DList<UserMenuItem> *Menu, UserMenuItem *MenuItem, bool 
 		{
 			case -1:
 			case -2:
-				Continue = false;
+				Continue=false;
 			case 1:
-				SubMenu = true;
+				SubMenu=true;
 		}
 	}
 	else
 	{
-		SubMenu = MenuItem->Submenu;
+		int _SubMenu;
+		GetRegKey(strItemKey,L"Submenu",_SubMenu,0);
+		SubMenu=_SubMenu?true:false;
 	}
 
 	if (Continue)
 	{
 		const int DLG_X=76, DLG_Y=SubMenu?10:22;
-		FARDIALOGITEMFLAGS State=SubMenu?DIF_HIDDEN|DIF_DISABLE:DIF_NONE;
-		FarDialogItem EditDlgData[]=
+		DWORD State=SubMenu?DIF_HIDDEN|DIF_DISABLE:0;
+		DialogDataEx EditDlgData[]=
 		{
-			{DI_DOUBLEBOX,3,1,DLG_X-4,DLG_Y-2,0,nullptr,nullptr,0,MSG(SubMenu?MEditSubmenuTitle:MEditMenuTitle)},
-			{DI_TEXT,5,2,0,2,0,nullptr,nullptr,0,MSG(MEditMenuHotKey)},
-			{DI_FIXEDIT,5,3,7,3,0,nullptr,nullptr,DIF_FOCUS,L""},
-			{DI_TEXT,5,4,0,4,0,nullptr,nullptr,0,MSG(MEditMenuLabel)},
-			{DI_EDIT,5,5,DLG_X-6,5,0,nullptr,nullptr,0,L""},
+			DI_DOUBLEBOX,3,1,DLG_X-4,DLG_Y-2,0,0,MSG(SubMenu?MEditSubmenuTitle:MEditMenuTitle),
+			DI_TEXT,5,2,0,2,0,0,MSG(MEditMenuHotKey),
+			DI_FIXEDIT,5,3,7,3,0,DIF_FOCUS,L"",
+			DI_TEXT,5,4,0,4,0,0,MSG(MEditMenuLabel),
+			DI_EDIT,5,5,DLG_X-6,5,0,0,L"",
 
-			{DI_TEXT,3,6,0,6,0,nullptr,nullptr,DIF_SEPARATOR|State,L""},
-			{DI_TEXT,5,7,0,7,0,nullptr,nullptr,State,MSG(MEditMenuCommands)},
+			DI_TEXT,3,6,0,6,0,DIF_SEPARATOR|State,L"",
+			DI_TEXT,5,7,0,7,0,State,MSG(MEditMenuCommands),
 #ifdef PROJECT_DI_MEMOEDIT
-			{DI_MEMOEDIT,5, 8,DLG_X-6,17,0,nullptr,nullptr,DIF_EDITPATH,L""},
+			DI_MEMOEDIT,5, 8,DLG_X-6,17,0,DIF_EDITPATH,L"",
 #else
-			{DI_EDIT,5, 8,DLG_X-6,8,0,nullptr,nullptr,DIF_EDITPATH|DIF_EDITOR|State,L""},
-			{DI_EDIT,5, 9,DLG_X-6,9,0,nullptr,nullptr,DIF_EDITPATH|DIF_EDITOR|State,L""},
-			{DI_EDIT,5,10,DLG_X-6,10,0,nullptr,nullptr,DIF_EDITPATH|DIF_EDITOR|State,L""},
-			{DI_EDIT,5,11,DLG_X-6,11,0,nullptr,nullptr,DIF_EDITPATH|DIF_EDITOR|State,L""},
-			{DI_EDIT,5,12,DLG_X-6,12,0,nullptr,nullptr,DIF_EDITPATH|DIF_EDITOR|State,L""},
-			{DI_EDIT,5,13,DLG_X-6,13,0,nullptr,nullptr,DIF_EDITPATH|DIF_EDITOR|State,L""},
-			{DI_EDIT,5,14,DLG_X-6,14,0,nullptr,nullptr,DIF_EDITPATH|DIF_EDITOR|State,L""},
-			{DI_EDIT,5,15,DLG_X-6,15,0,nullptr,nullptr,DIF_EDITPATH|DIF_EDITOR|State,L""},
-			{DI_EDIT,5,16,DLG_X-6,16,0,nullptr,nullptr,DIF_EDITPATH|DIF_EDITOR|State,L""},
-			{DI_EDIT,5,17,DLG_X-6,17,0,nullptr,nullptr,DIF_EDITPATH|DIF_EDITOR|State,L""},
+			DI_EDIT,5, 8,DLG_X-6,8,0,DIF_EDITPATH|DIF_EDITOR|State,L"",
+			DI_EDIT,5, 9,DLG_X-6,9,0,DIF_EDITPATH|DIF_EDITOR|State,L"",
+			DI_EDIT,5,10,DLG_X-6,10,0,DIF_EDITPATH|DIF_EDITOR|State,L"",
+			DI_EDIT,5,11,DLG_X-6,11,0,DIF_EDITPATH|DIF_EDITOR|State,L"",
+			DI_EDIT,5,12,DLG_X-6,12,0,DIF_EDITPATH|DIF_EDITOR|State,L"",
+			DI_EDIT,5,13,DLG_X-6,13,0,DIF_EDITPATH|DIF_EDITOR|State,L"",
+			DI_EDIT,5,14,DLG_X-6,14,0,DIF_EDITPATH|DIF_EDITOR|State,L"",
+			DI_EDIT,5,15,DLG_X-6,15,0,DIF_EDITPATH|DIF_EDITOR|State,L"",
+			DI_EDIT,5,16,DLG_X-6,16,0,DIF_EDITPATH|DIF_EDITOR|State,L"",
+			DI_EDIT,5,17,DLG_X-6,17,0,DIF_EDITPATH|DIF_EDITOR|State,L"",
 #endif
 
-			{DI_TEXT,3,DLG_Y-4,0,DLG_Y-4,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-			{DI_BUTTON,0,DLG_Y-3,0,DLG_Y-3,0,nullptr,nullptr,DIF_DEFAULTBUTTON|DIF_CENTERGROUP,MSG(MOk)},
-			{DI_BUTTON,0,DLG_Y-3,0,DLG_Y-3,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MCancel)},
+			DI_TEXT,3,DLG_Y-4,0,DLG_Y-4,0,DIF_SEPARATOR,L"",
+			DI_BUTTON,0,DLG_Y-3,0,DLG_Y-3,0,DIF_DEFAULT|DIF_CENTERGROUP,MSG(MOk),
+			DI_BUTTON,0,DLG_Y-3,0,DLG_Y-3,0,DIF_CENTERGROUP,MSG(MCancel),
 		};
 		MakeDialogItemsEx(EditDlgData,EditDlg);
 #ifndef PROJECT_DI_MEMOEDIT
@@ -1001,8 +1091,8 @@ bool UserMenu::EditMenu(DList<UserMenuItem> *Menu, UserMenuItem *MenuItem, bool 
 
 		if (!Create)
 		{
-			EditDlg[EM_HOTKEY_EDIT].strData = MenuItem->strHotKey;
-			EditDlg[EM_LABEL_EDIT].strData = MenuItem->strLabel;
+			GetRegKey(strItemKey,L"HotKey",EditDlg[EM_HOTKEY_EDIT].strData,L"");
+			GetRegKey(strItemKey,L"Label",EditDlg[EM_LABEL_EDIT].strData,L"");
 #if defined(PROJECT_DI_MEMOEDIT)
 			/*
 				...
@@ -1010,20 +1100,37 @@ bool UserMenu::EditMenu(DList<UserMenuItem> *Menu, UserMenuItem *MenuItem, bool 
 				...
 			*/
 			string strBuffer;
-			for (string *str=MenuItem->Commands.First(); str < DI_EDIT_COUNT; str=MenuItem->Commands.Next(str))
+			int CommandNumber=0;
+
+			while (true)
 			{
-				strBuffer+=*str;
+				string strCommandName, strCommand;
+				strCommandName.Format(L"Command%d",CommandNumber);
+
+				if (!GetRegKey(strItemKey,strCommandName,strCommand,L""))
+					break;
+
+				strBuffer+=strCommand;
 				strBuffer+=L"\n";    //??? "\n\r"
+				CommandNumber++;
 			}
 
 			EditDlg[EM_MEMOEDIT].strData = strBuffer; //???
 #else
 			int CommandNumber=0;
-			for (string *str=MenuItem->Commands.First(); str && CommandNumber < DI_EDIT_COUNT; str=MenuItem->Commands.Next(str))
+
+			while (CommandNumber < DI_EDIT_COUNT)
 			{
-				EditDlg[EM_EDITLINE_0+CommandNumber].strData = *str;
+				string strCommandName, strCommand;
+				strCommandName.Format(L"Command%d",CommandNumber);
+
+				if (!GetRegKey(strItemKey,strCommandName,strCommand,L""))
+					break;
+
+				EditDlg[EM_EDITLINE_0+CommandNumber].strData = strCommand;
 				CommandNumber++;
 			}
+
 #endif
 		}
 
@@ -1038,17 +1145,18 @@ bool UserMenu::EditMenu(DList<UserMenuItem> *Menu, UserMenuItem *MenuItem, bool 
 
 			if (Create)
 			{
-				MenuItem = Menu->InsertBefore(MenuItem);
+				string strKeyMask;
+				strKeyMask.Format(L"%s\\Item%%d",MenuKey);
+				InsertKeyRecord(strKeyMask,EditPos,TotalRecords);
 			}
 
-			MenuItem->strHotKey = EditDlg[EM_HOTKEY_EDIT].strData;
-			MenuItem->strLabel = EditDlg[EM_LABEL_EDIT].strData;
-			MenuItem->Submenu = SubMenu;
+			SetRegKey(strItemKey,L"HotKey",EditDlg[EM_HOTKEY_EDIT].strData);
+			SetRegKey(strItemKey,L"Label",EditDlg[EM_LABEL_EDIT].strData);
+			SetRegKey(strItemKey,L"Submenu",(DWORD)0);
 
 			if (SubMenu)
 			{
-				if (Create)
-					MenuItem->Menu = new DList<UserMenuItem>();
+				SetRegKey(strItemKey,L"Submenu",(DWORD)1);
 			}
 			else
 			{
@@ -1065,14 +1173,17 @@ bool UserMenu::EditMenu(DList<UserMenuItem> *Menu, UserMenuItem *MenuItem, bool 
 					if (!EditDlg[i+EM_EDITLINE_0].strData.IsEmpty())
 						CommandNumber=i+1;
 
-				MenuItem->Commands.Clear();
 				for (int i=0 ; i < DI_EDIT_COUNT ; i++)
 				{
+					string strCommandName;
+					strCommandName.Format(L"Command%d",i);
+
 					if (i>=CommandNumber)
-						break;
+						DeleteRegValue(strItemKey,strCommandName);
 					else
-						MenuItem->Commands.Push(&EditDlg[i+EM_EDITLINE_0].strData);
+						SetRegKey(strItemKey,strCommandName,EditDlg[i+EM_EDITLINE_0].strData);
 				}
+
 #endif
 			}
 
@@ -1083,15 +1194,39 @@ bool UserMenu::EditMenu(DList<UserMenuItem> *Menu, UserMenuItem *MenuItem, bool 
 	return Result;
 }
 
-bool UserMenu::DeleteMenuRecord(DList<UserMenuItem> *Menu, UserMenuItem *MenuItem)
+int UserMenu::DeleteMenuRecord(const wchar_t *MenuKey,int DeletePos)
 {
-	string strItemName=MenuItem->strLabel;
+	string strRecText;
+	FormatString strRegKey;
+	strRegKey<<MenuKey<<L"\\Item"<<DeletePos;
+	GetRegKey(strRegKey,L"Label",strRecText,L"");
+	int SubMenu;
+	GetRegKey(strRegKey,L"Submenu",SubMenu,0);
+	string strItemName=strRecText;
 	InsertQuote(strItemName);
 
-	if (Message(MSG_WARNING,2,MSG(MUserMenuTitle),MSG(!MenuItem->Submenu?MAskDeleteMenuItem:MAskDeleteSubMenuItem),strItemName,MSG(MDelete),MSG(MCancel)))
-		return false;
+	if (Message(MSG_WARNING,2,MSG(MUserMenuTitle),MSG(!SubMenu?MAskDeleteMenuItem:MAskDeleteSubMenuItem),strItemName,MSG(MDelete),MSG(MCancel)))
+		return FALSE;
 
 	MenuModified=MenuNeedRefresh=true;
-	Menu->Delete(MenuItem);
+	strRegKey.Clear();
+	strRegKey<<MenuKey<<L"\\Item%d";
+	DeleteKeyRecord(strRegKey,DeletePos);
+	return TRUE;
+}
+
+bool UserMenu::MoveMenuItem(const wchar_t *MenuKey,int Pos,int NewPos)
+{
+	FormatString strSrc,strDst,strTmp;
+	strSrc<<MenuKey<<L"\\Item"<<Pos;
+	strDst<<MenuKey<<L"\\Item"<<NewPos;
+	strTmp<<MenuKey<<L"\\Item"<<GetTickCount();
+	CopyLocalKeyTree(strDst,strTmp);
+	DeleteKeyTree(strDst);
+	CopyLocalKeyTree(strSrc,strDst);
+	DeleteKeyTree(strSrc);
+	CopyLocalKeyTree(strTmp,strSrc);
+	DeleteKeyTree(strTmp);
+	MenuModified=MenuNeedRefresh=true;
 	return true;
 }

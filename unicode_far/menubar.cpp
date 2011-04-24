@@ -4,8 +4,8 @@ menubar.cpp
 Показ горизонтального меню при включенном "Always show menu bar"
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,9 @@ void MenuBar::DisplayObject()
 	string strMsg=strSpace+MSG(MMenuLeftTitle)+strSpace+MSG(MMenuFilesTitle)+strSpace+MSG(MMenuCommandsTitle)+strSpace+MSG(MMenuOptionsTitle)+strSpace+MSG(MMenuRightTitle);
 	RemoveHighlights(strMsg);
 	int Length=X2-X1+1;
+	string strFullMsg;
+	strFullMsg.Format(L"%-*.*s", Length,Length, strMsg.CPtr());
 	GotoXY(X1,Y1);
 	SetColor(COL_HMENUTEXT);
-	FS << fmt::LeftAlign() << fmt::Width(Length) << fmt::Precision(Length) << strMsg;
+	Text(strFullMsg);
 }

@@ -4,7 +4,7 @@ elevation.cpp
 Elevation
 */
 /*
-Copyright © 2010 Far Group
+Copyright (c) 2010 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -49,14 +49,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "synchro.hpp"
 #include "scrbuf.hpp"
 #include "event.hpp"
-#include "FarGuid.hpp"
-#include "strmix.hpp"
 
 const int CallbackMagic= 0xCA11BAC6;
 
 DWORD ParentPID;
 
-class AutoObject : private NonCopyable
+class AutoObject : private NonCopyable 
 {
 public:
 	AutoObject():
@@ -92,23 +90,33 @@ public:
 
 	LPCWSTR GetStr()
 	{
-		return static_cast<LPCWSTR>(Get());
+		return reinterpret_cast<wchar_t*>(Get());
 	}
 
 private:
 	LPVOID Data;
 };
 
-bool RawReadPipe(HANDLE Pipe, LPVOID Data, size_t DataSize)
+bool RawReadPipe(HANDLE Pipe, LPVOID Data, DWORD DataSize)
 {
+	bool Result=false;
 	DWORD n;
-	return ReadFile(Pipe, Data, static_cast<DWORD>(DataSize), &n, nullptr) && n==DataSize;
+	if(ReadFile(Pipe, Data, DataSize, &n, nullptr) && n==DataSize)
+	{
+		Result=true;
+	}
+	return Result;
 }
 
-bool RawWritePipe(HANDLE Pipe, LPCVOID Data, size_t DataSize)
+bool RawWritePipe(HANDLE Pipe, LPCVOID Data, DWORD DataSize)
 {
+	bool Result=false;
 	DWORD n;
-	return WriteFile(Pipe, Data, static_cast<DWORD>(DataSize), &n, nullptr) && n==DataSize;
+	if(WriteFile(Pipe, Data, DataSize, &n, nullptr) && n==DataSize)
+	{
+		Result=true;
+	}
+	return Result;
 }
 
 bool ReadPipeInt(HANDLE Pipe, int& Data)
@@ -156,10 +164,10 @@ bool ReadPipeData(HANDLE Pipe, AutoObject& Data)
 	return Result;
 }
 
-bool WritePipeData(HANDLE Pipe, LPCVOID Data, size_t DataSize)
+bool WritePipeData(HANDLE Pipe, LPCVOID Data, int DataSize)
 {
 	bool Result=false;
-	if(WritePipeInt(Pipe, static_cast<int>(DataSize)))
+	if(WritePipeInt(Pipe, DataSize))
 	{
 		if(!DataSize || RawWritePipe(Pipe, Data, DataSize))
 		{
@@ -222,7 +230,7 @@ bool elevation::ReadData(AutoObject& Data) const
 	return ReadPipeData(Pipe, Data);
 }
 
-bool elevation::WriteData(LPCVOID Data,size_t DataSize) const
+bool elevation::WriteData(LPCVOID Data,DWORD DataSize) const
 {
 	return WritePipeData(Pipe, Data, DataSize);
 }
@@ -268,25 +276,26 @@ bool elevation::Initialize()
 		GUID Id;
 		if(CoCreateGuid(&Id) == S_OK)
 		{
-			strPipeID = GuidToStr(Id);
+			strPipeID.Format(L"{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}", Id.Data1, Id.Data2, Id.Data3, Id.Data4[0], Id.Data4[1], Id.Data4[2], Id.Data4[3], Id.Data4[4], Id.Data4[5], Id.Data4[6], Id.Data4[7]);
+
 			SID_IDENTIFIER_AUTHORITY NtAuthority=SECURITY_NT_AUTHORITY;
 			PSID AdminSID;
 			if(AllocateAndInitializeSid(&NtAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &AdminSID))
 			{
-				PSECURITY_DESCRIPTOR pSD = static_cast<PSECURITY_DESCRIPTOR>(LocalAlloc(LPTR, SECURITY_DESCRIPTOR_MIN_LENGTH));
+				PSECURITY_DESCRIPTOR pSD = reinterpret_cast<PSECURITY_DESCRIPTOR>(LocalAlloc(LPTR, SECURITY_DESCRIPTOR_MIN_LENGTH));
 				if(pSD)
 				{
-					if (InitializeSecurityDescriptor(pSD, SECURITY_DESCRIPTOR_REVISION))
+					if (InitializeSecurityDescriptor(pSD, SECURITY_DESCRIPTOR_REVISION)) 
 					{
-						PACL pACL = nullptr;
+						PACL pACL = NULL;
 						EXPLICIT_ACCESS ea={};
 						ea.grfAccessPermissions = GENERIC_READ|GENERIC_WRITE;
 						ea.grfAccessMode = SET_ACCESS;
 						ea.grfInheritance= NO_INHERITANCE;
 						ea.Trustee.TrusteeForm = TRUSTEE_IS_SID;
 						ea.Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
-						ea.Trustee.ptstrName = static_cast<LPTSTR>(AdminSID);
-						if(SetEntriesInAcl(1, &ea, nullptr, &pACL) == ERROR_SUCCESS)
+						ea.Trustee.ptstrName  = (LPTSTR)AdminSID;
+						if(SetEntriesInAcl(1, &ea, NULL, &pACL) == ERROR_SUCCESS)
 						{
 							if(SetSecurityDescriptorDacl(pSD, TRUE, pACL, FALSE))
 							{
@@ -386,7 +395,7 @@ enum ADMINAPPROVEDLGITEM
 	AAD_BUTTON_SKIP,
 };
 
-INT_PTR WINAPI AdminApproveDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
+LONG_PTR WINAPI AdminApproveDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2)
 {
 	switch (Msg)
 	{
@@ -395,11 +404,9 @@ INT_PTR WINAPI AdminApproveDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
 			if(Param1==AAD_EDIT_OBJECT)
 			{
 				int Color=FarColorToReal(COL_DIALOGTEXT);
-				return ((reinterpret_cast<INT_PTR>(Param2)&0xFF00FF00)|(Color<<16)|Color);
+				return ((Param2&0xFF00FF00)|(Color<<16)|Color);
 			}
 		}
-		break;
-	default:
 		break;
 	}
 	return DefDlgProc(hDlg,Msg,Param1,Param2);
@@ -413,25 +420,23 @@ struct AAData
 	bool& AskApprove;
 	bool& Approve;
 	bool& DontAskAgain;
-	AAData(Event* pEvent, int Why, LPCWSTR Object, bool& AskApprove, bool& Approve, bool& DontAskAgain):
-		pEvent(pEvent), Why(Why), Object(Object), AskApprove(AskApprove), Approve(Approve), DontAskAgain(DontAskAgain){}
 };
 
 void AdminApproveDlgSync(LPVOID Param)
 {
-	AAData* Data=static_cast<AAData*>(Param);
+	AAData* Data=reinterpret_cast<AAData*>(Param);
 	enum {DlgX=64,DlgY=12};
-	FarDialogItem AdminApproveDlgData[]=
+	DialogDataEx AdminApproveDlgData[]=
 	{
-		{DI_DOUBLEBOX,3,1,DlgX-4,DlgY-2,0,nullptr,nullptr,0,MSG(MErrorAccessDenied)},
-		{DI_TEXT,5,2,0,2,0,nullptr,nullptr,0,MSG(Opt.IsUserAdmin?MAdminRequiredPrivileges:MAdminRequired)},
-		{DI_TEXT,5,3,0,3,0,nullptr,nullptr,0,MSG(Data->Why)},
-		{DI_EDIT,5,4,DlgX-6,4,0,nullptr,nullptr,DIF_READONLY|DIF_SETCOLOR|FarColorToReal(COL_DIALOGTEXT),Data->Object},
-		{DI_CHECKBOX,5,6,0,6,1,nullptr,nullptr,0,MSG(MAdminDoForAll)},
-		{DI_CHECKBOX,5,7,0,7,0,nullptr,nullptr,0,MSG(MAdminDoNotAskAgainInTheCurrentSession)},
-		{DI_TEXT,3,DlgY-4,0,DlgY-4,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-		{DI_BUTTON,0,DlgY-3,0,DlgY-3,0,nullptr,nullptr,DIF_DEFAULTBUTTON|DIF_FOCUS|DIF_SETSHIELD|DIF_CENTERGROUP,MSG(MOk)},
-		{DI_BUTTON,0,DlgY-3,0,DlgY-3,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MSkip)},
+		DI_DOUBLEBOX,3,1,DlgX-4,DlgY-2,0,0,MSG(MErrorAccessDenied),
+		DI_TEXT,5,2,0,2,0,0,MSG(Opt.IsUserAdmin?MAdminRequiredPrivileges:MAdminRequired),
+		DI_TEXT,5,3,0,3,0,0,MSG(Data->Why),
+		DI_EDIT,5,4,DlgX-6,4,0,DIF_READONLY|DIF_SETCOLOR|FarColorToReal(COL_DIALOGTEXT),Data->Object,
+		DI_CHECKBOX,5,6,0,6,1,0,MSG(MAdminDoForAll),
+		DI_CHECKBOX,5,7,0,7,0,0,MSG(MAdminDoNotAskAgainInTheCurrentSession),
+		DI_TEXT,3,DlgY-4,0,DlgY-4,0,DIF_SEPARATOR,L"",
+		DI_BUTTON,0,DlgY-3,0,DlgY-3,0,DIF_DEFAULT|DIF_FOCUS|DIF_SETSHIELD|DIF_CENTERGROUP,MSG(MOk),
+		DI_BUTTON,0,DlgY-3,0,DlgY-3,0,DIF_CENTERGROUP,MSG(MSkip),
 	};
 	MakeDialogItemsEx(AdminApproveDlgData,AdminApproveDlg);
 	Dialog Dlg(AdminApproveDlg,ARRAYSIZE(AdminApproveDlg),AdminApproveDlgProc);
@@ -457,13 +462,13 @@ bool elevation::AdminApproveDlg(int Why, LPCWSTR Object)
 		Recurse = true;
 		GuardLastError error;
 		TaskBarPause TBP;
-		AAData Data(nullptr, Why, Object, AskApprove, Approve, DontAskAgain);
+		AAData Data={nullptr, Why, Object, AskApprove, Approve, DontAskAgain};
 		if(GetCurrentThreadId()!=MainThreadID)
 		{
 			Data.pEvent=new Event();
 			if(Data.pEvent)
 			{
-				PluginSynchroManager.Synchro(false, FarGuid, &Data);
+				PluginSynchroManager.Synchro(false, 0, &Data);
 				Data.pEvent->Wait();
 				delete Data.pEvent;
 			}
@@ -612,7 +617,7 @@ void elevation::fCallbackRoutine(LPPROGRESS_ROUTINE ProgressRoutine) const
 								AutoObject Data;
 								if (ReadData(Data))
 								{
-									int Result=ProgressRoutine(*static_cast<PLARGE_INTEGER>(TotalFileSize.Get()), *static_cast<PLARGE_INTEGER>(TotalBytesTransferred.Get()), *static_cast<PLARGE_INTEGER>(StreamSize.Get()), *static_cast<PLARGE_INTEGER>(StreamBytesTransferred.Get()), StreamNumber, CallbackReason, INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, Data.Get());
+									int Result=ProgressRoutine(*reinterpret_cast<PLARGE_INTEGER>(TotalFileSize.Get()), *reinterpret_cast<PLARGE_INTEGER>(TotalBytesTransferred.Get()), *reinterpret_cast<PLARGE_INTEGER>(StreamSize.Get()), *reinterpret_cast<PLARGE_INTEGER>(StreamBytesTransferred.Get()), StreamNumber, CallbackReason, INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, Data.Get());
 									if(WriteInt(CallbackMagic))
 									{
 										WriteInt(Result);
@@ -993,7 +998,7 @@ HANDLE elevation::fCreateFile(LPCWSTR Object, DWORD DesiredAccess, DWORD ShareMo
 										{
 											if(ReceiveLastError())
 											{
-												Result = *static_cast<PHANDLE>(OpResult.Get());
+												Result = *reinterpret_cast<PHANDLE>(OpResult.Get());
 											}
 										}
 									}
@@ -1278,7 +1283,7 @@ void MoveToRecycleBinHandler()
 			AutoObject To;
 			if(ReadPipeData(Pipe, To))
 			{
-				SHFILEOPSTRUCT* FileOpStruct = static_cast<SHFILEOPSTRUCT*>(Struct.Get());
+				SHFILEOPSTRUCT* FileOpStruct = reinterpret_cast<SHFILEOPSTRUCT*>(Struct.Get());
 				FileOpStruct->pFrom = From.GetStr();
 				FileOpStruct->pTo = To.GetStr();
 				if(WritePipeInt(Pipe, SHFileOperation(FileOpStruct)))
@@ -1433,7 +1438,7 @@ int AdminMain(LPCWSTR guid, DWORD PID, bool UsePrivileges)
 	if (Pipe != INVALID_HANDLE_VALUE)
 	{
 		ULONG ServerProcessId;
-		if(!ifn.pfnGetNamedPipeServerProcessId || (ifn.pfnGetNamedPipeServerProcessId(Pipe, &ServerProcessId) && ServerProcessId == PID))
+		if(!ifn.pGetNamedPipeServerProcessId || (ifn.pGetNamedPipeServerProcessId(Pipe, &ServerProcessId) && ServerProcessId == PID))
 		{
 			HANDLE ParentProcess = OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, FALSE, PID);
 			if(ParentProcess)

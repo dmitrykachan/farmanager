@@ -1,6 +1,4 @@
-﻿.Language=English,English
-
-"HlfViewer"
+.Language=English,English
 
 "HlfViewer"
 "HlfViewer: show current help topic"
@@ -12,7 +10,7 @@
 "Show &modified file"
 "&Save and show modified file"
 
-"Save"
+"Ok"
 "Cancel"
 
 "Contents"

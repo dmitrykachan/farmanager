@@ -1,4 +1,4 @@
-Ôªø.Language=English,English (English)
+.Language=English,English (English)
 .PluginContents=FAR Commands
 .Options CtrlStartPosChar=^<wrap>
 
@@ -10,7 +10,7 @@ $^#FAR Commands#
 invoked via command line prefixes.
 
    Besides ~command line~@:CmdLineCmd@, prefixes may be used in ~User Menu~@:UserMenu@,
-in ~file associations~@:FileAssoc@, as well as in dialog¬†~Apply Command~@:ApplyCmd@¬†(#Ctrl-G#)
+in ~file associations~@:FileAssoc@, as well as in dialogˇ~Apply Command~@:ApplyCmd@ˇ(#Ctrl-G#)
 
 
   #Command Line Syntax#
@@ -26,8 +26,8 @@ in ~file associations~@:FileAssoc@, as well as in dialog¬†~Apply Command~@:Apply
              ~macro~@Macro@    - macros
              ~link~@Link@     - create links
              ~run~@Run@      - execute commands
-             ~load~@Load@     - load plugin
-             ~unload~@Unload@   - unload plugin
+             ~load~@Load@     - load plugin (FAR 2 only)
+             ~unload~@Unload@   - unload plugin (FAR 2 only)
 
    #options# - optional parameters, see corresponding commands descriptions.
 
@@ -46,6 +46,8 @@ $ #The Load command#
 
    #load:DLL_module_name#
 
+   Command is only available in Unicode-version (in FAR 2.x)
+
 
    See also: ~unload~@Unload@ | ~Notes~@Remark@ | ~Contents~@Contents@
 
@@ -54,6 +56,8 @@ $ #The Unload command#
    Command #unload# allows you to unload the plugin #DLL_module_name#.
 
    #unload:DLL_module_name#
+
+   Command is only available in Unicode-version (in FAR 2.x)
 
 
    See also: ~load~@Load@ | ~Notes~@Remark@ | ~Contents~@Contents@
@@ -64,8 +68,8 @@ $^#The Clip command#
 The data can be the contents of a file or the output of a program.
 The clipboard will contain all the data up to the character with the
 code #0x00#.
-–†–∞–∑–º–µ—Ä –ø–æ–º–µ—â–∞–µ–º—ã—Ö –¥–∞–Ω–Ω—ã—Ö –º–æ–∂–Ω–æ –∑–∞–¥–∞–≤–∞—Ç—å –≤ –¥–∏–∞–ª–æ–≥–µ –∫–æ–Ω—Ñ–∏–≥—É—Ä–∞—Ü–∏–∏ –ø–ª–∞–≥–∏–Ω–∞. –ü–æ
-—É–º–æ–ª—á–∞–Ω–∏—é - 1 Mb.
+ê†ß¨•‡ ØÆ¨•È†•¨ÎÂ §†≠≠ÎÂ ¨Æ¶≠Æ ß†§†¢†‚Ï ¢ §®†´Æ£• ™Æ≠‰®£„‡†Ê®® Ø´†£®≠†. èÆ
+„¨Æ´Á†≠®Ó - 1 Mb.
 
    #clip:filename#
 
@@ -192,9 +196,9 @@ successful.
 
    #whereis:object#
 
-   –í—Ç–æ—Ä–æ–π —Å–ø–æ—Å–æ–± - –∏–º—è –æ–±—ä–µ–∫—Ç–∞ –ø–æ–∏—Å–∫–∞ –±–µ—Ä—ë—Ç—Å—è –∏–∑ –∑–∞–¥–∞–Ω–Ω–æ–≥–æ —Ñ–∞–π–ª–∞ "#–∏–º—è—Ñ–∞–π–ª–∞#"
+   Ç‚Æ‡Æ© ·ØÆ·Æ° - ®¨Ô Æ°Í•™‚† ØÆ®·™† °•‡Ò‚·Ô ®ß ß†§†≠≠Æ£Æ ‰†©´† "#®¨Ô‰†©´†#"
 
-      #whereis: <–∏–º—è—Ñ–∞–π–ª–∞#
+      #whereis: <®¨Ô‰†©´†#
 
    The search is performed in the following order:
 
@@ -248,10 +252,10 @@ typed from the keyboard.
       In case of error in the "sequence" you receive a message
       indicating the error type and its position in the sequence.
 
-   –ö–æ–º–∞–Ω–¥—ã #post# –∏ #check# —Ç–∞–∫ –∂–µ –º–æ–≥—É—Ç –±—Ä–∞—Ç—å –ø–æ—Å–ª–µ–¥–æ–≤–∞—Ç–µ–ª—å–Ω–æ—Å—Ç—å –∏–∑ #–∏–º—è—Ñ–∞–π–ª–∞#:
+   äÆ¨†≠§Î #post# ® #check# ‚†™ ¶• ¨Æ£„‚ °‡†‚Ï ØÆ·´•§Æ¢†‚•´Ï≠Æ·‚Ï ®ß #®¨Ô‰†©´†#:
 
-      #macro:post <–∏–º—è—Ñ–∞–π–ª–∞#
-      #macro:check <–∏–º—è—Ñ–∞–π–ª–∞#
+      #macro:post <®¨Ô‰†©´†#
+      #macro:check <®¨Ô‰†©´†#
 
    Command #check# is only available in Unicode-version (in FAR 2.x)
 
@@ -413,10 +417,10 @@ $^#Configuring FAR Commands#
  #Edit new files#                Allows to open the editor with non
                                existing files.
 
- #The size of read data#         ^<wrap>–ü–æ–∑–≤–æ–ª—è–µ—Ç –∑–∞–¥–∞–≤–∞—Ç—å –º–∞–∫—Å–∏–º–∞–ª—å–Ω—ã–π —Ä–∞–∑–º–µ—Ä
-—Å—á–∏—Ç—ã–≤–∞–µ–º—ã—Ö –∏–∑ —Ñ–∞–π–ª–∞ –¥–∞–Ω–Ω—ã—Ö –≤ –∫–æ–º–∞–Ω–¥–∞—Ö ~clip~@clip@, ~goto~@goto@, ~whereis~@whereis@,
-~macro:post~@macro@ –∏ ~macro:check~@macro@.
-                               –ü–æ —É–º–æ–ª—á–∞–Ω–∏—é - 1 Mb.
-                               –ú–∞–∫—Å–∏–º–∞–ª—å–Ω–æ–µ –∑–Ω–∞—á–µ–Ω–∏–µ - 4Gb.
+ #The size of read data#         ^<wrap>èÆß¢Æ´Ô•‚ ß†§†¢†‚Ï ¨†™·®¨†´Ï≠Î© ‡†ß¨•‡
+·Á®‚Î¢†•¨ÎÂ ®ß ‰†©´† §†≠≠ÎÂ ¢ ™Æ¨†≠§†Â ~clip~@clip@, ~goto~@goto@, ~whereis~@whereis@,
+~macro:post~@macro@ ® ~macro:check~@macro@.
+                               èÆ „¨Æ´Á†≠®Ó - 1 Mb.
+                               å†™·®¨†´Ï≠Æ• ß≠†Á•≠®• - 4Gb.
 
    See also: ~Contents~@Contents@

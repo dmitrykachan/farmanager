@@ -5,12 +5,12 @@
 /*
   plugin.hpp
 
-  Plugin API for Far Manager 3.0 build 1988
+  Plugin API for FAR Manager 2.0 build 1761
 */
 
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -40,71 +40,123 @@ Far Manager plugins that use this header file can be distributed under any
 other possible license with no implications from the above license on them.
 */
 
-#define FARMANAGERVERSION_MAJOR 3
+#define FARMANAGERVERSION_MAJOR 2
 #define FARMANAGERVERSION_MINOR 0
-#define FARMANAGERVERSION_REVISION 0
-#define FARMANAGERVERSION_BUILD 1988
+#define FARMANAGERVERSION_BUILD 1761
 
 #ifndef RC_INVOKED
 
-#include <windows.h>
+#define MAKEFARVERSION(major,minor,build) ( ((major)<<8) | (minor) | ((build)<<16))
+
+#define FARMANAGERVERSION MAKEFARVERSION(FARMANAGERVERSION_MAJOR,FARMANAGERVERSION_MINOR,FARMANAGERVERSION_BUILD)
+
+#if !defined(_INC_WINDOWS) && !defined(_WINDOWS_)
+#if (defined(__GNUC__) || defined(_MSC_VER)) && !defined(_WIN64)
+#if !defined(_WINCON_H) && !defined(_WINCON_)
+#define _WINCON_H
+#define _WINCON_ // to prevent including wincon.h
+#if defined(_MSC_VER)
+#pragma pack(push,2)
+#else
+#pragma pack(2)
+#endif
+#include<windows.h>
+#if defined(_MSC_VER)
+#pragma pack(pop)
+#else
+#pragma pack()
+#endif
+#undef _WINCON_
+#undef  _WINCON_H
+
+#if defined(_MSC_VER)
+#pragma pack(push,8)
+#else
+#pragma pack(8)
+#endif
+#include<wincon.h>
+#if defined(_MSC_VER)
+#pragma pack(pop)
+#else
+#pragma pack()
+#endif
+#endif
+#define _WINCON_
+#else
+#include<windows.h>
+#endif
+#endif
+
+#if defined(__BORLANDC__)
+#ifndef _WIN64
+#pragma option -a2
+#endif
+#elif defined(__GNUC__) || (defined(__WATCOMC__) && (__WATCOMC__ < 1100)) || defined(__LCC__)
+#ifndef _WIN64
+#pragma pack(2)
+#endif
+#if defined(__LCC__)
+#define _export __declspec(dllexport)
+#endif
+#else
+#ifndef _WIN64
+#pragma pack(push,2)
+#endif
+#if _MSC_VER
+#ifdef _export
+#undef _export
+#endif
+#define _export
+#endif
+#endif
 
 #undef DefDlgProc
 
 #define FARMACRO_KEY_EVENT  (KEY_EVENT|0x8000)
 
+// To ensure compatibility of plugin.hpp with compilers not supporting C++,
+// you can #define _FAR_NO_NAMELESS_UNIONS. In this case, to access,
+// for example, the Data field of the FarDialogItem structure
+// you will need to use Data.Data, and the Selected field - Param.Selected
+//#define _FAR_NO_NAMELESS_UNIONS
+
+#ifndef _WINCON_
+typedef struct _INPUT_RECORD INPUT_RECORD;
+typedef struct _CHAR_INFO    CHAR_INFO;
+#endif
+
 #define CP_UNICODE 1200
 #define CP_REVERSEBOM 1201
 #define CP_AUTODETECT ((UINT)-1)
 
-typedef unsigned __int64 FARCOLORFLAGS;
-static const FARCOLORFLAGS
-	FMSG_FG_4BIT  = 0x0000000000000001ULL,
-	FMSG_BG_4BIT  = 0x0000000000000002ULL;
-
-struct FarColor
+enum FARMESSAGEFLAGS
 {
-	unsigned __int64 Flags;
-	unsigned int ForegroundColor;
-	unsigned int BackgroundColor;
-	void* Reserved;
+	FMSG_WARNING             = 0x00000001,
+	FMSG_ERRORTYPE           = 0x00000002,
+	FMSG_KEEPBACKGROUND      = 0x00000004,
+	FMSG_LEFTALIGN           = 0x00000010,
+
+	FMSG_ALLINONE            = 0x00000020,
+
+	FMSG_MB_OK               = 0x00010000,
+	FMSG_MB_OKCANCEL         = 0x00020000,
+	FMSG_MB_ABORTRETRYIGNORE = 0x00030000,
+	FMSG_MB_YESNO            = 0x00040000,
+	FMSG_MB_YESNOCANCEL      = 0x00050000,
+	FMSG_MB_RETRYCANCEL      = 0x00060000,
 };
 
-typedef unsigned __int64 COLORDIALOGFLAGS;
-static const COLORDIALOGFLAGS
-    CDF_NONE = 0;
-
-typedef BOOL (WINAPI *FARAPICOLORDIALOG)(
-    const GUID* PluginId,
-    COLORDIALOGFLAGS Flags,
-    struct FarColor *Color
-);
-
-typedef unsigned __int64 FARMESSAGEFLAGS;
-static const FARMESSAGEFLAGS
-	FMSG_NONE                = 0,
-	FMSG_WARNING             = 0x0000000000000001ULL,
-	FMSG_ERRORTYPE           = 0x0000000000000002ULL,
-	FMSG_KEEPBACKGROUND      = 0x0000000000000004ULL,
-	FMSG_LEFTALIGN           = 0x0000000000000008ULL,
-	FMSG_ALLINONE            = 0x0000000000000010ULL,
-	FMSG_MB_OK               = 0x0000000000010000ULL,
-	FMSG_MB_OKCANCEL         = 0x0000000000020000ULL,
-	FMSG_MB_ABORTRETRYIGNORE = 0x0000000000030000ULL,
-	FMSG_MB_YESNO            = 0x0000000000040000ULL,
-	FMSG_MB_YESNOCANCEL      = 0x0000000000050000ULL,
-	FMSG_MB_RETRYCANCEL      = 0x0000000000060000ULL;
-
 typedef int (WINAPI *FARAPIMESSAGE)(
-    const GUID* PluginId,
-    FARMESSAGEFLAGS Flags,
+    INT_PTR PluginNumber,
+    DWORD Flags,
     const wchar_t *HelpTopic,
     const wchar_t * const *Items,
-    size_t ItemsNumber,
+    int ItemsNumber,
     int ButtonsNumber
 );
 
-enum FARDIALOGITEMTYPES
+
+enum DialogItemTypes
 {
 	DI_TEXT,
 	DI_VTEXT,
@@ -126,7 +178,7 @@ enum FARDIALOGITEMTYPES
    Check diagol element type has inputstring?
    (DI_EDIT, DI_FIXEDIT, DI_PSWEDIT, etc)
 */
-static __inline BOOL IsEdit(enum FARDIALOGITEMTYPES Type)
+static __inline BOOL IsEdit(int Type)
 {
 	switch (Type)
 	{
@@ -140,47 +192,47 @@ static __inline BOOL IsEdit(enum FARDIALOGITEMTYPES Type)
 	}
 }
 
-typedef unsigned __int64 FARDIALOGITEMFLAGS;
-static const FARDIALOGITEMFLAGS
-	DIF_NONE                  = 0,
-	DIF_COLORMASK             = 0x00000000000000ffULL,
-	DIF_SETCOLOR              = 0x0000000000000100ULL,
-	DIF_BOXCOLOR              = 0x0000000000000200ULL,
-	DIF_GROUP                 = 0x0000000000000400ULL,
-	DIF_LEFTTEXT              = 0x0000000000000800ULL,
-	DIF_MOVESELECT            = 0x0000000000001000ULL,
-	DIF_SHOWAMPERSAND         = 0x0000000000002000ULL,
-	DIF_CENTERGROUP           = 0x0000000000004000ULL,
-	DIF_NOBRACKETS            = 0x0000000000008000ULL,
-	DIF_MANUALADDHISTORY      = 0x0000000000008000ULL,
-	DIF_SEPARATOR             = 0x0000000000010000ULL,
-	DIF_SEPARATOR2            = 0x0000000000020000ULL,
-	DIF_EDITOR                = 0x0000000000020000ULL,
-	DIF_LISTNOAMPERSAND       = 0x0000000000020000ULL,
-	DIF_LISTNOBOX             = 0x0000000000040000ULL,
-	DIF_HISTORY               = 0x0000000000040000ULL,
-	DIF_BTNNOCLOSE            = 0x0000000000040000ULL,
-	DIF_CENTERTEXT            = 0x0000000000040000ULL,
-	DIF_SETSHIELD             = 0x0000000000080000ULL,
-	DIF_EDITEXPAND            = 0x0000000000080000ULL,
-	DIF_DROPDOWNLIST          = 0x0000000000100000ULL,
-	DIF_USELASTHISTORY        = 0x0000000000200000ULL,
-	DIF_MASKEDIT              = 0x0000000000400000ULL,
-	DIF_SELECTONENTRY         = 0x0000000000800000ULL,
-	DIF_3STATE                = 0x0000000000800000ULL,
-	DIF_EDITPATH              = 0x0000000001000000ULL,
-	DIF_LISTWRAPMODE          = 0x0000000001000000ULL,
-	DIF_NOAUTOCOMPLETE        = 0x0000000002000000ULL,
-	DIF_LISTAUTOHIGHLIGHT     = 0x0000000002000000ULL,
-	DIF_LISTNOCLOSE           = 0x0000000004000000ULL,
-	DIF_HIDDEN                = 0x0000000010000000ULL,
-	DIF_READONLY              = 0x0000000020000000ULL,
-	DIF_NOFOCUS               = 0x0000000040000000ULL,
-	DIF_DISABLE               = 0x0000000080000000ULL,
-	DIF_DEFAULTBUTTON         = 0x0000000100000000ULL,
-	DIF_FOCUS                 = 0x0000000200000000ULL;
 
-enum FARMESSAGE
+enum FarDialogItemFlags
+{
+	DIF_NONE                  = 0,
+	DIF_COLORMASK             = 0x000000ffUL,
+	DIF_SETCOLOR              = 0x00000100UL,
+	DIF_BOXCOLOR              = 0x00000200UL,
+	DIF_GROUP                 = 0x00000400UL,
+	DIF_LEFTTEXT              = 0x00000800UL,
+	DIF_MOVESELECT            = 0x00001000UL,
+	DIF_SHOWAMPERSAND         = 0x00002000UL,
+	DIF_CENTERGROUP           = 0x00004000UL,
+	DIF_NOBRACKETS            = 0x00008000UL,
+	DIF_MANUALADDHISTORY      = 0x00008000UL,
+	DIF_SEPARATOR             = 0x00010000UL,
+	DIF_SEPARATOR2            = 0x00020000UL,
+	DIF_EDITOR                = 0x00020000UL,
+	DIF_LISTNOAMPERSAND       = 0x00020000UL,
+	DIF_LISTNOBOX             = 0x00040000UL,
+	DIF_HISTORY               = 0x00040000UL,
+	DIF_BTNNOCLOSE            = 0x00040000UL,
+	DIF_CENTERTEXT            = 0x00040000UL,
+	DIF_SETSHIELD             = 0x00080000UL,
+	DIF_EDITEXPAND            = 0x00080000UL,
+	DIF_DROPDOWNLIST          = 0x00100000UL,
+	DIF_USELASTHISTORY        = 0x00200000UL,
+	DIF_MASKEDIT              = 0x00400000UL,
+	DIF_SELECTONENTRY         = 0x00800000UL,
+	DIF_3STATE                = 0x00800000UL,
+	DIF_EDITPATH              = 0x01000000UL,
+	DIF_LISTWRAPMODE          = 0x01000000UL,
+	DIF_NOAUTOCOMPLETE        = 0x02000000UL,
+	DIF_LISTAUTOHIGHLIGHT     = 0x02000000UL,
+	DIF_LISTNOCLOSE           = 0x04000000UL,
+	DIF_HIDDEN                = 0x10000000UL,
+	DIF_READONLY              = 0x20000000UL,
+	DIF_NOFOCUS               = 0x40000000UL,
+	DIF_DISABLE               = 0x80000000UL,
+};
+
+enum FarMessagesProc
 {
 	DM_FIRST=0,
 	DM_CLOSE,
@@ -197,8 +249,10 @@ enum FARMESSAGE
 	DM_SETDLGITEM,
 	DM_SETFOCUS,
 	DM_REDRAW,
+	DM_SETREDRAW=DM_REDRAW,
 	DM_SETTEXT,
 	DM_SETMAXTEXTLENGTH,
+	DM_SETTEXTLENGTH=DM_SETMAXTEXTLENGTH,
 	DM_SHOWDIALOG,
 	DM_GETFOCUS,
 	DM_GETCURSORPOS,
@@ -282,13 +336,18 @@ enum FARMESSAGE
 	DN_INITDIALOG,
 	DN_KILLFOCUS,
 	DN_LISTCHANGE,
+	DN_MOUSECLICK,
 	DN_DRAGGED,
 	DN_RESIZECONSOLE,
+	DN_MOUSEEVENT,
 	DN_DRAWDIALOGDONE,
 	DN_LISTHOTKEY,
-	DN_INPUT,
-	DN_CONTROLINPUT,
-	DN_CLOSE,
+
+	DN_GETDIALOGINFO=DM_GETDIALOGINFO,
+
+	DN_CLOSE=DM_CLOSE,
+	DN_KEY=DM_KEY,
+
 
 	DM_USER=0x4000,
 
@@ -315,20 +374,20 @@ enum FARCOMBOBOXEVENTTYPE
 	CBET_MOUSE       = 0x00000002,
 };
 
-typedef unsigned __int64 LISTITEMFLAGS;
-static const LISTITEMFLAGS
-	LIF_NONE               = 0,
-	LIF_SELECTED           = 0x0000000000010000ULL,
-	LIF_CHECKED            = 0x0000000000020000ULL,
-	LIF_SEPARATOR          = 0x0000000000040000ULL,
-	LIF_DISABLE            = 0x0000000000080000ULL,
-	LIF_GRAYED             = 0x0000000000100000ULL,
-	LIF_HIDDEN             = 0x0000000000200000ULL,
-	LIF_DELETEUSERDATA     = 0x0000000080000000ULL;
+enum LISTITEMFLAGS
+{
+	LIF_SELECTED           = 0x00010000UL,
+	LIF_CHECKED            = 0x00020000UL,
+	LIF_SEPARATOR          = 0x00040000UL,
+	LIF_DISABLE            = 0x00080000UL,
+	LIF_GRAYED             = 0x00100000UL,
+	LIF_HIDDEN             = 0x00200000UL,
+	LIF_DELETEUSERDATA     = 0x80000000UL,
+};
 
 struct FarListItem
 {
-	LISTITEMFLAGS Flags;
+	DWORD Flags;
 	const wchar_t *Text;
 	DWORD Reserved[3];
 };
@@ -357,17 +416,16 @@ struct FarListPos
 	int TopPos;
 };
 
-typedef unsigned __int64 FARLISTFINDFLAGS;
-static const FARLISTFINDFLAGS
-	LIFIND_NONE       = 0,
-	LIFIND_EXACTMATCH = 0x0000000000000001ULL;
-
+enum FARLISTFINDFLAGS
+{
+	LIFIND_EXACTMATCH = 0x00000001,
+};
 
 struct FarListFind
 {
 	int StartIndex;
 	const wchar_t *Pattern;
-	FARLISTFINDFLAGS Flags;
+	DWORD Flags;
 	DWORD Reserved;
 };
 
@@ -377,18 +435,18 @@ struct FarListDelete
 	int Count;
 };
 
-typedef unsigned __int64 FARLISTINFOFLAGS;
-static const FARLISTINFOFLAGS
-	LINFO_NONE                  = 0,
-	LINFO_SHOWNOBOX             = 0x0000000000000400ULL,
-	LINFO_AUTOHIGHLIGHT         = 0x0000000000000800ULL,
-	LINFO_REVERSEHIGHLIGHT      = 0x0000000000001000ULL,
-	LINFO_WRAPMODE              = 0x0000000000008000ULL,
-	LINFO_SHOWAMPERSAND         = 0x0000000000010000ULL;
+enum FARLISTINFOFLAGS
+{
+	LINFO_SHOWNOBOX             = 0x00000400,
+	LINFO_AUTOHIGHLIGHT         = 0x00000800,
+	LINFO_REVERSEHIGHLIGHT      = 0x00001000,
+	LINFO_WRAPMODE              = 0x00008000,
+	LINFO_SHOWAMPERSAND         = 0x00010000,
+};
 
 struct FarListInfo
 {
-	FARLISTINFOFLAGS Flags;
+	DWORD Flags;
 	int ItemsNumber;
 	int SelectPos;
 	int TopPos;
@@ -407,7 +465,7 @@ struct FarListItemData
 
 struct FarList
 {
-	size_t ItemsNumber;
+	int ItemsNumber;
 	struct FarListItem *Items;
 };
 
@@ -421,7 +479,7 @@ struct FarListTitles
 
 struct FarListColors
 {
-	unsigned __int64 Flags;
+	DWORD  Flags;
 	DWORD  Reserved;
 	int    ColorCount;
 	LPBYTE Colors;
@@ -429,25 +487,28 @@ struct FarListColors
 
 struct FarDialogItem
 {
-	enum FARDIALOGITEMTYPES Type;
+	int Type;
 	int X1,Y1,X2,Y2;
+	int Focus;
 	union
 	{
 		DWORD_PTR Reserved;
 		int Selected;
+		const wchar_t *History;
+		const wchar_t *Mask;
 		struct FarList *ListItems;
+		int  ListPos;
 		CHAR_INFO *VBuf;
 	}
-#ifndef __cplusplus
+#ifdef _FAR_NO_NAMELESS_UNIONS
 	Param
 #endif
 	;
-	const wchar_t *History;
-	const wchar_t *Mask;
-	FARDIALOGITEMFLAGS Flags;
-	const wchar_t *Data;
-	size_t MaxLength; // terminate 0 not included (if == 0 string size is unlimited)
-	void* UserData;
+	DWORD Flags;
+	int DefaultButton;
+
+	const wchar_t *PtrData;
+	size_t MaxLen; // terminate 0 not included (if == 0 string size is unlimited)
 };
 
 struct FarDialogItemData
@@ -461,85 +522,83 @@ struct FarDialogEvent
 	HANDLE hDlg;
 	int Msg;
 	int Param1;
-	void* Param2;
-	INT_PTR Result;
+	LONG_PTR Param2;
+	LONG_PTR Result;
 };
 
 struct OpenDlgPluginData
 {
+	int ItemNumber;
 	HANDLE hDlg;
 };
 
 struct DialogInfo
 {
-	size_t StructSize;
+	int StructSize;
 	GUID Id;
-	GUID Owner;
 };
 
 #define Dlg_RedrawDialog(Info,hDlg)            Info.SendDlgMessage(hDlg,DM_REDRAW,0,0)
 
 #define Dlg_GetDlgData(Info,hDlg)              Info.SendDlgMessage(hDlg,DM_GETDLGDATA,0,0)
-#define Dlg_SetDlgData(Info,hDlg,Data)         Info.SendDlgMessage(hDlg,DM_SETDLGDATA,0,(INT_PTR)Data)
+#define Dlg_SetDlgData(Info,hDlg,Data)         Info.SendDlgMessage(hDlg,DM_SETDLGDATA,0,(LONG_PTR)Data)
 
 #define Dlg_GetDlgItemData(Info,hDlg,ID)       Info.SendDlgMessage(hDlg,DM_GETITEMDATA,0,0)
-#define Dlg_SetDlgItemData(Info,hDlg,ID,Data)  Info.SendDlgMessage(hDlg,DM_SETITEMDATA,0,(INT_PTR)Data)
+#define Dlg_SetDlgItemData(Info,hDlg,ID,Data)  Info.SendDlgMessage(hDlg,DM_SETITEMDATA,0,(LONG_PTR)Data)
 
 #define DlgItem_GetFocus(Info,hDlg)            Info.SendDlgMessage(hDlg,DM_GETFOCUS,0,0)
 #define DlgItem_SetFocus(Info,hDlg,ID)         Info.SendDlgMessage(hDlg,DM_SETFOCUS,ID,0)
 #define DlgItem_Enable(Info,hDlg,ID)           Info.SendDlgMessage(hDlg,DM_ENABLE,ID,TRUE)
 #define DlgItem_Disable(Info,hDlg,ID)          Info.SendDlgMessage(hDlg,DM_ENABLE,ID,FALSE)
 #define DlgItem_IsEnable(Info,hDlg,ID)         Info.SendDlgMessage(hDlg,DM_ENABLE,ID,-1)
-#define DlgItem_SetText(Info,hDlg,ID,Str)      Info.SendDlgMessage(hDlg,DM_SETTEXTPTR,ID,(INT_PTR)Str)
+#define DlgItem_SetText(Info,hDlg,ID,Str)      Info.SendDlgMessage(hDlg,DM_SETTEXTPTR,ID,(LONG_PTR)Str)
 
 #define DlgItem_GetCheck(Info,hDlg,ID)         Info.SendDlgMessage(hDlg,DM_GETCHECK,ID,0)
 #define DlgItem_SetCheck(Info,hDlg,ID,State)   Info.SendDlgMessage(hDlg,DM_SETCHECK,ID,State)
 
-#define DlgEdit_AddHistory(Info,hDlg,ID,Str)   Info.SendDlgMessage(hDlg,DM_ADDHISTORY,ID,(INT_PTR)Str)
+#define DlgEdit_AddHistory(Info,hDlg,ID,Str)   Info.SendDlgMessage(hDlg,DM_ADDHISTORY,ID,(LONG_PTR)Str)
 
-#define DlgList_AddString(Info,hDlg,ID,Str)    Info.SendDlgMessage(hDlg,DM_LISTADDSTR,ID,(INT_PTR)Str)
+#define DlgList_AddString(Info,hDlg,ID,Str)    Info.SendDlgMessage(hDlg,DM_LISTADDSTR,ID,(LONG_PTR)Str)
 #define DlgList_GetCurPos(Info,hDlg,ID)        Info.SendDlgMessage(hDlg,DM_LISTGETCURPOS,ID,0)
-#define DlgList_SetCurPos(Info,hDlg,ID,NewPos) {struct FarListPos LPos={NewPos,-1};Info.SendDlgMessage(hDlg,DM_LISTSETCURPOS,ID,(INT_PTR)&LPos);}
+#define DlgList_SetCurPos(Info,hDlg,ID,NewPos) {struct FarListPos LPos={NewPos,-1};Info.SendDlgMessage(hDlg,DM_LISTSETCURPOS,ID,(LONG_PTR)&LPos);}
 #define DlgList_ClearList(Info,hDlg,ID)        Info.SendDlgMessage(hDlg,DM_LISTDELETE,ID,0)
-#define DlgList_DeleteItem(Info,hDlg,ID,Index) {struct FarListDelete FLDItem={Index,1}; Info.SendDlgMessage(hDlg,DM_LISTDELETE,ID,(INT_PTR)&FLDItem);}
+#define DlgList_DeleteItem(Info,hDlg,ID,Index) {struct FarListDelete FLDItem={Index,1}; Info.SendDlgMessage(hDlg,DM_LISTDELETE,ID,(LONG_PTR)&FLDItem);}
 #define DlgList_SortUp(Info,hDlg,ID)           Info.SendDlgMessage(hDlg,DM_LISTSORT,ID,0)
 #define DlgList_SortDown(Info,hDlg,ID)         Info.SendDlgMessage(hDlg,DM_LISTSORT,ID,1)
 #define DlgList_GetItemData(Info,hDlg,ID,Index)          Info.SendDlgMessage(hDlg,DM_LISTGETDATA,ID,Index)
-#define DlgList_SetItemStrAsData(Info,hDlg,ID,Index,Str) {struct FarListItemData FLID{Index,0,Str,0}; Info.SendDlgMessage(hDlg,DM_LISTSETDATA,ID,(INT_PTR)&FLID);}
+#define DlgList_SetItemStrAsData(Info,hDlg,ID,Index,Str) {struct FarListItemData FLID{Index,0,Str,0}; Info.SendDlgMessage(hDlg,DM_LISTSETDATA,ID,(LONG_PTR)&FLID);}
 
-typedef unsigned __int64 FARDIALOGFLAGS;
-static const FARDIALOGFLAGS
-	FDLG_WARNING             = 0x0000000000000001ULL,
-	FDLG_SMALLDIALOG         = 0x0000000000000002ULL,
-	FDLG_NODRAWSHADOW        = 0x0000000000000004ULL,
-	FDLG_NODRAWPANEL         = 0x0000000000000008ULL,
-	FDLG_KEEPCONSOLETITLE    = 0x0000000000000010ULL,
-	FDLG_NONE                = 0;
+enum FARDIALOGFLAGS
+{
+	FDLG_WARNING             = 0x00000001,
+	FDLG_SMALLDIALOG         = 0x00000002,
+	FDLG_NODRAWSHADOW        = 0x00000004,
+	FDLG_NODRAWPANEL         = 0x00000008,
+};
 
-typedef INT_PTR(WINAPI *FARWINDOWPROC)(
+typedef LONG_PTR(WINAPI *FARWINDOWPROC)(
     HANDLE   hDlg,
-    int Msg,
+    int      Msg,
     int      Param1,
-    void* Param2
+    LONG_PTR Param2
 );
 
-typedef INT_PTR(WINAPI *FARAPISENDDLGMESSAGE)(
+typedef LONG_PTR(WINAPI *FARAPISENDDLGMESSAGE)(
     HANDLE   hDlg,
-    int Msg,
+    int      Msg,
     int      Param1,
-    void* Param2
+    LONG_PTR Param2
 );
 
-typedef INT_PTR(WINAPI *FARAPIDEFDLGPROC)(
+typedef LONG_PTR(WINAPI *FARAPIDEFDLGPROC)(
     HANDLE   hDlg,
-    int Msg,
+    int      Msg,
     int      Param1,
-    void* Param2
+    LONG_PTR Param2
 );
 
 typedef HANDLE(WINAPI *FARAPIDIALOGINIT)(
-    const GUID*           PluginId,
-    const GUID*           Id,
+    INT_PTR               PluginNumber,
     int                   X1,
     int                   Y1,
     int                   X2,
@@ -548,9 +607,9 @@ typedef HANDLE(WINAPI *FARAPIDIALOGINIT)(
     struct FarDialogItem *Item,
     unsigned int          ItemsNumber,
     DWORD                 Reserved,
-    FARDIALOGFLAGS        Flags,
+    DWORD                 Flags,
     FARWINDOWPROC         DlgProc,
-    void*                 Param
+    LONG_PTR              Param
 );
 
 typedef int (WINAPI *FARAPIDIALOGRUN)(
@@ -561,103 +620,106 @@ typedef void (WINAPI *FARAPIDIALOGFREE)(
     HANDLE hDlg
 );
 
-struct FarKey
-{
-    WORD VirtualKeyCode;
-    DWORD ControlKeyState;
-};
-
-typedef unsigned __int64 MENUITEMFLAGS;
-static const MENUITEMFLAGS
-	MIF_SELECTED   = 0x000000000010000ULL,
-	MIF_CHECKED    = 0x000000000020000ULL,
-	MIF_SEPARATOR  = 0x000000000040000ULL,
-	MIF_DISABLE    = 0x000000000080000ULL,
-	MIF_GRAYED     = 0x000000000100000ULL,
-	MIF_HIDDEN     = 0x000000000200000ULL,
-	MIF_NONE       = 0;
-
 struct FarMenuItem
 {
-	MENUITEMFLAGS Flags;
+	const wchar_t *Text;
+	int  Selected;
+	int  Checked;
+	int  Separator;
+};
+
+enum MENUITEMFLAGS
+{
+	MIF_SELECTED   = 0x00010000UL,
+	MIF_CHECKED    = 0x00020000UL,
+	MIF_SEPARATOR  = 0x00040000UL,
+	MIF_DISABLE    = 0x00080000UL,
+	MIF_GRAYED     = 0x00100000UL,
+	MIF_HIDDEN     = 0x00200000UL,
+};
+
+struct FarMenuItemEx
+{
+	DWORD Flags;
 	const wchar_t *Text;
 	DWORD AccelKey;
 	DWORD Reserved;
 	DWORD_PTR UserData;
 };
 
-typedef unsigned __int64 FARMENUFLAGS;
-static const FARMENUFLAGS
-	FMENU_SHOWAMPERSAND        = 0x0000000000000001ULL,
-	FMENU_WRAPMODE             = 0x0000000000000002ULL,
-	FMENU_AUTOHIGHLIGHT        = 0x0000000000000004ULL,
-	FMENU_REVERSEAUTOHIGHLIGHT = 0x0000000000000008ULL,
-	FMENU_CHANGECONSOLETITLE   = 0x0000000000000010ULL,
-	FMENU_NONE                 = 0;
+enum FARMENUFLAGS
+{
+	FMENU_SHOWAMPERSAND        = 0x00000001,
+	FMENU_WRAPMODE             = 0x00000002,
+	FMENU_AUTOHIGHLIGHT        = 0x00000004,
+	FMENU_REVERSEAUTOHIGHLIGHT = 0x00000008,
+	FMENU_USEEXT               = 0x00000020,
+	FMENU_CHANGECONSOLETITLE   = 0x00000040,
+};
 
 typedef int (WINAPI *FARAPIMENU)(
-	const GUID*         PluginId,
+    INT_PTR             PluginNumber,
     int                 X,
     int                 Y,
     int                 MaxHeight,
-    FARMENUFLAGS        Flags,
+    DWORD               Flags,
     const wchar_t      *Title,
     const wchar_t      *Bottom,
     const wchar_t      *HelpTopic,
-    const struct FarKey *BreakKeys,
+    const int          *BreakKeys,
     int                *BreakCode,
     const struct FarMenuItem *Item,
-    size_t              ItemsNumber
+    int                 ItemsNumber
 );
 
 
-typedef unsigned __int64 PLUGINPANELITEMFLAGS;
-static const PLUGINPANELITEMFLAGS
-	PPIF_NONE                   = 0,
-	PPIF_USERDATA               = 0x0000000020000000ULL,
-	PPIF_SELECTED               = 0x0000000040000000ULL,
-	PPIF_PROCESSDESCR           = 0x0000000080000000ULL;
+enum PLUGINPANELITEMFLAGS
+{
+	PPIF_PROCESSDESCR           = 0x80000000,
+	PPIF_SELECTED               = 0x40000000,
+	PPIF_USERDATA               = 0x20000000,
+};
+
+struct FAR_FIND_DATA
+{
+	DWORD    dwFileAttributes;
+	FILETIME ftCreationTime;
+	FILETIME ftLastAccessTime;
+	FILETIME ftLastWriteTime;
+	unsigned __int64 nFileSize;
+	unsigned __int64 nPackSize;
+	const wchar_t *lpwszFileName;
+	const wchar_t *lpwszAlternateFileName;
+};
 
 struct PluginPanelItem
 {
-	DWORD    FileAttributes;
-	FILETIME CreationTime;
-	FILETIME LastAccessTime;
-	FILETIME LastWriteTime;
-	FILETIME ChangeTime;
-	unsigned __int64 FileSize;
-	unsigned __int64 PackSize;
-	const wchar_t *FileName;
-	const wchar_t *AlternateFileName;
-	PLUGINPANELITEMFLAGS Flags;
+	struct FAR_FIND_DATA FindData;
+	DWORD         Flags;
 	DWORD         NumberOfLinks;
 	const wchar_t *Description;
 	const wchar_t *Owner;
 	const wchar_t * const *CustomColumnData;
-	size_t           CustomColumnNumber;
+	int           CustomColumnNumber;
 	DWORD_PTR     UserData;
 	DWORD         CRC32;
 	DWORD_PTR     Reserved[2];
 };
 
-typedef unsigned __int64 PANELINFOFLAGS;
-static const PANELINFOFLAGS
-	PFLAGS_NONE               = 0,
-	PFLAGS_SHOWHIDDEN         = 0x0000000000000001ULL,
-	PFLAGS_HIGHLIGHT          = 0x0000000000000002ULL,
-	PFLAGS_REVERSESORTORDER   = 0x0000000000000004ULL,
-	PFLAGS_USESORTGROUPS      = 0x0000000000000008ULL,
-	PFLAGS_SELECTEDFIRST      = 0x0000000000000010ULL,
-	PFLAGS_REALNAMES          = 0x0000000000000020ULL,
-	PFLAGS_NUMERICSORT        = 0x0000000000000040ULL,
-	PFLAGS_PANELLEFT          = 0x0000000000000080ULL,
-	PFLAGS_DIRECTORIESFIRST   = 0x0000000000000100ULL,
-	PFLAGS_USECRC32           = 0x0000000000000200ULL,
-	PFLAGS_CASESENSITIVESORT  = 0x0000000000000400ULL,
-	PFLAGS_PLUGIN             = 0x0000000000000800ULL,
-	PFLAGS_VISIBLE            = 0x0000000000001000ULL,
-	PFLAGS_FOCUS              = 0x0000000000002000ULL,
-	PFLAGS_ALTERNATIVENAMES   = 0x0000000000004000ULL;
+enum PANELINFOFLAGS
+{
+	PFLAGS_SHOWHIDDEN         = 0x00000001,
+	PFLAGS_HIGHLIGHT          = 0x00000002,
+	PFLAGS_REVERSESORTORDER   = 0x00000004,
+	PFLAGS_USESORTGROUPS      = 0x00000008,
+	PFLAGS_SELECTEDFIRST      = 0x00000010,
+	PFLAGS_REALNAMES          = 0x00000020,
+	PFLAGS_NUMERICSORT        = 0x00000040,
+	PFLAGS_PANELLEFT          = 0x00000080,
+	PFLAGS_DIRECTORIESFIRST   = 0x00000100,
+	PFLAGS_USECRC32           = 0x00000200,
+	PFLAGS_CASESENSITIVESORT  = 0x00000400,
+};
 
 enum PANELINFOTYPE
 {
@@ -667,40 +729,21 @@ enum PANELINFOTYPE
 	PTYPE_INFOPANEL
 };
 
-enum OPENPANELINFO_SORTMODES
-{
-	SM_DEFAULT                   =  0,
-	SM_UNSORTED                  =  1,
-	SM_NAME                      =  2,
-	SM_EXT                       =  3,
-	SM_MTIME                     =  4,
-	SM_CTIME                     =  5,
-	SM_ATIME                     =  6,
-	SM_SIZE                      =  7,
-	SM_DESCR                     =  8,
-	SM_OWNER                     =  9,
-	SM_COMPRESSEDSIZE            = 10,
-	SM_NUMLINKS                  = 11,
-	SM_NUMSTREAMS                = 12,
-	SM_STREAMSSIZE               = 13,
-	SM_FULLNAME                  = 14,
-	SM_CHTIME                    = 15,
-};
-
 struct PanelInfo
 {
-	size_t StructSize;
-	GUID OwnerGuid;
-	HANDLE PluginHandle;
-	enum PANELINFOTYPE PanelType;
+	int PanelType;
+	int Plugin;
 	RECT PanelRect;
 	int ItemsNumber;
 	int SelectedItemsNumber;
 	int CurrentItem;
 	int TopPanelItem;
+	int Visible;
+	int Focus;
 	int ViewMode;
-	enum OPENPANELINFO_SORTMODES SortMode;
-	PANELINFOFLAGS Flags;
+	int ShortNames;
+	int SortMode;
+	DWORD Flags;
 	DWORD Reserved;
 };
 
@@ -717,13 +760,13 @@ struct CmdLineSelect
 	int SelEnd;
 };
 
-#define PANEL_NONE    ((HANDLE)(-1))
-#define PANEL_ACTIVE  ((HANDLE)(-1))
-#define PANEL_PASSIVE ((HANDLE)(-2))
+#define PANEL_NONE		((HANDLE)(-1))
+#define PANEL_ACTIVE	((HANDLE)(-1))
+#define PANEL_PASSIVE	((HANDLE)(-2))
 
 enum FILE_CONTROL_COMMANDS
 {
-	FCTL_CLOSEPANEL,
+	FCTL_CLOSEPLUGIN,
 	FCTL_GETPANELINFO,
 	FCTL_UPDATEPANEL,
 	FCTL_REDRAWPANEL,
@@ -738,6 +781,7 @@ enum FILE_CONTROL_COMMANDS
 	FCTL_GETCMDLINEPOS,
 	FCTL_SETSORTMODE,
 	FCTL_SETSORTORDER,
+	FCTL_GETCMDLINESELECTEDTEXT,
 	FCTL_SETCMDLINESELECTION,
 	FCTL_GETCMDLINESELECTION,
 	FCTL_CHECKPANELSEXIST,
@@ -759,6 +803,13 @@ enum FILE_CONTROL_COMMANDS
 	FCTL_SETCASESENSITIVESORT,
 };
 
+typedef int (WINAPI *FARAPICONTROL)(
+    HANDLE hPlugin,
+    int Command,
+    int Param1,
+    LONG_PTR Param2
+);
+
 typedef void (WINAPI *FARAPITEXT)(
     int X,
     int Y,
@@ -773,30 +824,30 @@ typedef void (WINAPI *FARAPIRESTORESCREEN)(HANDLE hScreen);
 
 typedef int (WINAPI *FARAPIGETDIRLIST)(
     const wchar_t *Dir,
-    struct PluginPanelItem **pPanelItem,
+    struct FAR_FIND_DATA **pPanelItem,
     int *pItemsNumber
 );
 
 typedef int (WINAPI *FARAPIGETPLUGINDIRLIST)(
-    const GUID* PluginId,
-    HANDLE hPanel,
+    INT_PTR PluginNumber,
+    HANDLE hPlugin,
     const wchar_t *Dir,
     struct PluginPanelItem **pPanelItem,
     int *pItemsNumber
 );
 
-typedef void (WINAPI *FARAPIFREEDIRLIST)(struct PluginPanelItem *PanelItem, int nItemsNumber);
+typedef void (WINAPI *FARAPIFREEDIRLIST)(struct FAR_FIND_DATA *PanelItem, int nItemsNumber);
 typedef void (WINAPI *FARAPIFREEPLUGINDIRLIST)(struct PluginPanelItem *PanelItem, int nItemsNumber);
 
-typedef unsigned __int64 VIEWER_FLAGS;
-static const VIEWER_FLAGS
-	VF_NONE                  = 0,
-	VF_NONMODAL              = 0x0000000000000001ULL,
-	VF_DELETEONCLOSE         = 0x0000000000000002ULL,
-	VF_ENABLE_F6             = 0x0000000000000004ULL,
-	VF_DISABLEHISTORY        = 0x0000000000000008ULL,
-	VF_IMMEDIATERETURN       = 0x0000000000000100ULL,
-	VF_DELETEONLYFILEONCLOSE = 0x0000000000000200ULL;
+enum VIEWER_FLAGS
+{
+	VF_NONMODAL              = 0x00000001,
+	VF_DELETEONCLOSE         = 0x00000002,
+	VF_ENABLE_F6             = 0x00000004,
+	VF_DISABLEHISTORY        = 0x00000008,
+	VF_IMMEDIATERETURN       = 0x00000100,
+	VF_DELETEONLYFILEONCLOSE = 0x00000200,
+};
 
 typedef int (WINAPI *FARAPIVIEWER)(
     const wchar_t *FileName,
@@ -805,20 +856,20 @@ typedef int (WINAPI *FARAPIVIEWER)(
     int Y1,
     int X2,
     int Y2,
-    VIEWER_FLAGS Flags,
+    DWORD Flags,
     UINT CodePage
 );
 
-typedef unsigned __int64 EDITOR_FLAGS;
-static const EDITOR_FLAGS
-	EF_NONMODAL              = 0x0000000000000001ULL,
-	EF_CREATENEW             = 0x0000000000000002ULL,
-	EF_ENABLE_F6             = 0x0000000000000004ULL,
-	EF_DISABLEHISTORY        = 0x0000000000000008ULL,
-	EF_DELETEONCLOSE         = 0x0000000000000010ULL,
-	EF_IMMEDIATERETURN       = 0x0000000000000100ULL,
-	EF_DELETEONLYFILEONCLOSE = 0x0000000000000200ULL,
-	EN_NONE                  = 0;
+enum EDITOR_FLAGS
+{
+	EF_NONMODAL              = 0x00000001,
+	EF_CREATENEW             = 0x00000002,
+	EF_ENABLE_F6             = 0x00000004,
+	EF_DISABLEHISTORY        = 0x00000008,
+	EF_DELETEONCLOSE         = 0x00000010,
+	EF_IMMEDIATERETURN       = 0x00000100,
+	EF_DELETEONLYFILEONCLOSE = 0x00000200,
+};
 
 enum EDITOR_EXITCODE
 {
@@ -835,67 +886,76 @@ typedef int (WINAPI *FARAPIEDITOR)(
     int Y1,
     int X2,
     int Y2,
-    EDITOR_FLAGS Flags,
+    DWORD Flags,
     int StartLine,
     int StartChar,
     UINT CodePage
 );
 
+typedef int (WINAPI *FARAPICMPNAME)(
+    const wchar_t *Pattern,
+    const wchar_t *String,
+    int SkipPath
+);
+
+
 typedef const wchar_t*(WINAPI *FARAPIGETMSG)(
-    const GUID* PluginId,
+    INT_PTR PluginNumber,
     int MsgId
 );
 
-typedef unsigned __int64 FARHELPFLAGS;
-static const FARHELPFLAGS
-	FHELP_NONE        = 0,
-	FHELP_NOSHOWERROR = 0x0000000080000000ULL,
-	FHELP_SELFHELP    = 0x0000000000000000ULL,
-	FHELP_FARHELP     = 0x0000000000000001ULL,
-	FHELP_CUSTOMFILE  = 0x0000000000000002ULL,
-	FHELP_CUSTOMPATH  = 0x0000000000000004ULL,
-	FHELP_USECONTENTS = 0x0000000040000000ULL;
+
+enum FarHelpFlags
+{
+	FHELP_NOSHOWERROR = 0x80000000,
+	FHELP_SELFHELP    = 0x00000000,
+	FHELP_FARHELP     = 0x00000001,
+	FHELP_CUSTOMFILE  = 0x00000002,
+	FHELP_CUSTOMPATH  = 0x00000004,
+	FHELP_USECONTENTS = 0x40000000,
+};
 
 typedef BOOL (WINAPI *FARAPISHOWHELP)(
     const wchar_t *ModuleName,
     const wchar_t *Topic,
-    FARHELPFLAGS Flags
+    DWORD Flags
 );
 
 enum ADVANCED_CONTROL_COMMANDS
 {
-	ACTL_GETFARMANAGERVERSION,
-	ACTL_GETSYSWORDDIV,
-	ACTL_WAITKEY,
-	ACTL_GETCOLOR,
-	ACTL_GETARRAYCOLOR,
-	ACTL_EJECTMEDIA,
-	ACTL_GETWINDOWINFO,
-	ACTL_GETWINDOWCOUNT,
-	ACTL_SETCURRENTWINDOW,
-	ACTL_COMMIT,
-	ACTL_GETFARHWND,
-	ACTL_GETSYSTEMSETTINGS,
-	ACTL_GETPANELSETTINGS,
-	ACTL_GETINTERFACESETTINGS,
-	ACTL_GETCONFIRMATIONS,
-	ACTL_GETDESCSETTINGS,
-	ACTL_SETARRAYCOLOR,
-	ACTL_GETPLUGINMAXREADDATA,
-	ACTL_GETDIALOGSETTINGS,
-	ACTL_REDRAWALL,
-	ACTL_SYNCHRO,
-	ACTL_SETPROGRESSSTATE,
-	ACTL_SETPROGRESSVALUE,
-	ACTL_QUIT,
-	ACTL_GETFARRECT,
-	ACTL_GETCURSORPOS,
-	ACTL_SETCURSORPOS,
-	ACTL_PROGRESSNOTIFY,
-	ACTL_GETWINDOWTYPE,
-
-
+	ACTL_GETFARVERSION        = 0,
+	ACTL_GETSYSWORDDIV        = 2,
+	ACTL_WAITKEY              = 3,
+	ACTL_GETCOLOR             = 4,
+	ACTL_GETARRAYCOLOR        = 5,
+	ACTL_EJECTMEDIA           = 6,
+	ACTL_KEYMACRO             = 7,
+	ACTL_POSTKEYSEQUENCE      = 8,
+	ACTL_GETWINDOWINFO        = 9,
+	ACTL_GETWINDOWCOUNT       = 10,
+	ACTL_SETCURRENTWINDOW     = 11,
+	ACTL_COMMIT               = 12,
+	ACTL_GETFARHWND           = 13,
+	ACTL_GETSYSTEMSETTINGS    = 14,
+	ACTL_GETPANELSETTINGS     = 15,
+	ACTL_GETINTERFACESETTINGS = 16,
+	ACTL_GETCONFIRMATIONS     = 17,
+	ACTL_GETDESCSETTINGS      = 18,
+	ACTL_SETARRAYCOLOR        = 19,
+	ACTL_GETPLUGINMAXREADDATA = 21,
+	ACTL_GETDIALOGSETTINGS    = 22,
+	ACTL_GETSHORTWINDOWINFO   = 23,
+	ACTL_REDRAWALL            = 27,
+	ACTL_SYNCHRO              = 28,
+	ACTL_SETPROGRESSSTATE     = 29,
+	ACTL_SETPROGRESSVALUE     = 30,
+	ACTL_QUIT                 = 31,
+	ACTL_GETFARRECT           = 32,
+	ACTL_GETCURSORPOS         = 33,
+	ACTL_SETCURSORPOS         = 34,
+	ACTL_PROGRESSNOTIFY       = 35,
 };
+
 
 enum FarSystemSettings
 {
@@ -974,70 +1034,50 @@ enum FarDescriptionSettings
 	FDS_UPDATEREADONLY                 = 0x00000008,
 };
 
-typedef unsigned __int64 FAREJECTMEDIAFLAGS;
-static const FAREJECTMEDIAFLAGS
-	EJECT_NO_MESSAGE                    = 0x0000000000000001ULL,
-	EJECT_LOAD_MEDIA                    = 0x0000000000000002ULL,
-	EJECT_NONE                          = 0;
+enum FAREJECTMEDIAFLAGS
+{
+	EJECT_NO_MESSAGE                    = 0x00000001,
+	EJECT_LOAD_MEDIA                    = 0x00000002,
+};
 
 struct ActlEjectMedia
 {
 	DWORD Letter;
-	FAREJECTMEDIAFLAGS Flags;
+	DWORD Flags;
 };
 
 
-
-enum FAR_MACRO_CONTROL_COMMANDS
+enum FARKEYSEQUENCEFLAGS
 {
-	MCTL_LOADALL           = 0,
-	MCTL_SAVEALL           = 1,
-	MCTL_SENDSTRING        = 2,
-	MCTL_GETSTATE          = 5,
-	MCTL_GETAREA           = 6,
+	KSFLAGS_DISABLEOUTPUT       = 0x00000001,
+	KSFLAGS_NOSENDKEYSTOPLUGINS = 0x00000002,
+	KSFLAGS_REG_MULTI_SZ        = 0x00100000,
+	KSFLAGS_SILENTCHECK         = 0x00000001,
 };
 
-typedef unsigned __int64 FARKEYMACROFLAGS;
-static const FARKEYMACROFLAGS
-	KMFLAGS_NONE                = 0,
-	KMFLAGS_DISABLEOUTPUT       = 0x0000000000000001,
-	KMFLAGS_NOSENDKEYSTOPLUGINS = 0x0000000000000002,
-	KMFLAGS_REG_MULTI_SZ        = 0x0000000000100000,
-	KMFLAGS_SILENTCHECK         = 0x0000000000000001;
-
-enum FARMACROSENDSTRINGCOMMAND
+struct KeySequence
 {
-	MSSC_POST              =0,
-	MSSC_CHECK             =2,
+	DWORD Flags;
+	int Count;
+	const DWORD *Sequence;
 };
 
-enum FARMACROAREA
+enum FARMACROCOMMAND
 {
-	MACROAREA_OTHER             = 0,
-	MACROAREA_SHELL             = 1,
-	MACROAREA_VIEWER            = 2,
-	MACROAREA_EDITOR            = 3,
-	MACROAREA_DIALOG            = 4,
-	MACROAREA_SEARCH            = 5,
-	MACROAREA_DISKS             = 6,
-	MACROAREA_MAINMENU          = 7,
-	MACROAREA_MENU              = 8,
-	MACROAREA_HELP              = 9,
-	MACROAREA_INFOPANEL         =10,
-	MACROAREA_QVIEWPANEL        =11,
-	MACROAREA_TREEPANEL         =12,
-	MACROAREA_FINDFOLDER        =13,
-	MACROAREA_USERMENU          =14,
-	MACROAREA_AUTOCOMPLETION    =15,
+	MCMD_LOADALL           = 0,
+	MCMD_SAVEALL           = 1,
+	MCMD_POSTMACROSTRING   = 2,
+	MCMD_CHECKMACRO        = 4,
+	MCMD_GETSTATE          = 5,
 };
 
 enum FARMACROSTATE
 {
-	MACROSTATE_NOMACRO          = 0,
-	MACROSTATE_EXECUTING        = 1,
-	MACROSTATE_EXECUTING_COMMON = 2,
-	MACROSTATE_RECORDING        = 3,
-	MACROSTATE_RECORDING_COMMON = 4,
+	MACROSTATE_NOMACRO          =0,
+	MACROSTATE_EXECUTING        =1,
+	MACROSTATE_EXECUTING_COMMON =2,
+	MACROSTATE_RECORDING        =3,
+	MACROSTATE_RECORDING_COMMON =4,
 };
 
 enum FARMACROPARSEERRORCODE
@@ -1061,44 +1101,35 @@ enum FARMACROPARSEERRORCODE
 
 struct MacroParseResult
 {
-	size_t StructSize;
 	DWORD ErrCode;
 	COORD ErrPos;
 	const wchar_t *ErrSrc;
 };
 
-
-struct MacroSendMacroText
+struct ActlKeyMacro
 {
-	size_t StructSize;
-	FARKEYMACROFLAGS Flags;
-	DWORD AKey;
-	const wchar_t *SequenceText;
-};
-
-struct MacroCheckMacroText
-{
+	int Command;
 	union
 	{
-		struct MacroSendMacroText Text;
-		struct MacroParseResult   Result;
-	}
-#ifndef __cplusplus
-	Check
-#endif
-	;
+		struct
+		{
+			const wchar_t *SequenceText;
+			DWORD Flags;
+		} PlainText;
+		struct MacroParseResult MacroResult;
+		DWORD_PTR Reserved[3];
+	} Param;
 };
 
 
-typedef unsigned __int64 FARSETCOLORFLAGS;
-static const FARSETCOLORFLAGS
-
-	FSETCLR_NONE                   = 0,
-	FSETCLR_REDRAW                 = 0x0000000000000001ULL;
+enum FARCOLORFLAGS
+{
+	FCLR_REDRAW                 = 0x00000001,
+};
 
 struct FarSetColors
 {
-	FARSETCOLORFLAGS Flags;
+	DWORD Flags;
 	int StartIndex;
 	int ColorCount;
 	LPBYTE Colors;
@@ -1114,28 +1145,16 @@ enum WINDOWINFO_TYPE
 	WTYPE_HELP,
 };
 
-typedef unsigned __int64 WINDOWINFO_FLAGS;
-static const WINDOWINFO_FLAGS
-	WIF_MODIFIED = 0x0000000000000001ULL,
-	WIF_CURRENT  = 0x0000000000000002ULL;
-
 struct WindowInfo
 {
-	size_t StructSize;
-	INT_PTR Id;
 	int  Pos;
-	enum WINDOWINFO_TYPE Type;
-	WINDOWINFO_FLAGS Flags;
+	int  Type;
+	int  Modified;
+	int  Current;
 	wchar_t *TypeName;
 	int TypeNameSize;
 	wchar_t *Name;
 	int NameSize;
-};
-
-struct WindowType
-{
-	size_t StructSize;
-	int Type;
 };
 
 enum PROGRESSTATE
@@ -1147,11 +1166,18 @@ enum PROGRESSTATE
 	PS_PAUSED       =0x8,
 };
 
-struct ProgressValue
+struct PROGRESSVALUE
 {
 	unsigned __int64 Completed;
 	unsigned __int64 Total;
 };
+
+typedef INT_PTR(WINAPI *FARAPIADVCONTROL)(
+    INT_PTR ModuleNumber,
+    int Command,
+    void *Param
+);
+
 
 enum VIEWER_CONTROL_COMMANDS
 {
@@ -1164,11 +1190,11 @@ enum VIEWER_CONTROL_COMMANDS
 	VCTL_SETMODE,
 };
 
-typedef unsigned __int64 VIEWER_OPTIONS;
-static const VIEWER_OPTIONS
-	VOPT_NONE               = 0x0000000000000000ULL,
-	VOPT_SAVEFILEPOSITION   = 0x0000000000000001ULL,
-	VOPT_AUTODETECTCODEPAGE = 0x0000000000000002ULL;
+enum VIEWER_OPTIONS
+{
+	VOPT_SAVEFILEPOSITION=1,
+	VOPT_AUTODETECTCODEPAGE=2,
+};
 
 enum VIEWER_SETMODE_TYPES
 {
@@ -1177,23 +1203,20 @@ enum VIEWER_SETMODE_TYPES
 	VSMT_WORDWRAP,
 };
 
-typedef unsigned __int64 VIEWER_SETMODEFLAGS_TYPES;
-static const VIEWER_SETMODEFLAGS_TYPES
-	VSMFL_REDRAW    = 0x0000000000000001ULL;
+enum VIEWER_SETMODEFLAGS_TYPES
+{
+	VSMFL_REDRAW    = 0x00000001,
+};
 
 struct ViewerSetMode
 {
-	enum VIEWER_SETMODE_TYPES Type;
+	int Type;
 	union
 	{
 		int iParam;
 		wchar_t *wszParam;
-	}
-#ifndef __cplusplus
-	Param
-#endif
-	;
-	VIEWER_SETMODEFLAGS_TYPES Flags;
+	} Param;
+	DWORD Flags;
 	DWORD Reserved;
 };
 
@@ -1203,16 +1226,17 @@ struct ViewerSelect
 	int     BlockLen;
 };
 
-typedef unsigned __int64 VIEWER_SETPOS_FLAGS;
-static const VIEWER_SETPOS_FLAGS
-	VSP_NOREDRAW    = 0x0000000000000001ULL,
-	VSP_PERCENT     = 0x0000000000000002ULL,
-	VSP_RELATIVE    = 0x0000000000000004ULL,
-	VSP_NORETNEWPOS = 0x0000000000000008ULL;
+enum VIEWER_SETPOS_FLAGS
+{
+	VSP_NOREDRAW    = 0x0001,
+	VSP_PERCENT     = 0x0002,
+	VSP_RELATIVE    = 0x0004,
+	VSP_NORETNEWPOS = 0x0008,
+};
 
 struct ViewerSetPosition
 {
-	VIEWER_SETPOS_FLAGS Flags;
+	DWORD Flags;
 	__int64 StartPos;
 	__int64 LeftPos;
 };
@@ -1228,18 +1252,23 @@ struct ViewerMode
 
 struct ViewerInfo
 {
-	size_t StructSize;
+	int    StructSize;
 	int    ViewerID;
 	const wchar_t *FileName;
 	__int64 FileSize;
 	__int64 FilePos;
 	int    WindowSizeX;
 	int    WindowSizeY;
-	VIEWER_OPTIONS  Options;
+	DWORD  Options;
 	int    TabSize;
 	struct ViewerMode CurMode;
 	__int64 LeftPos;
 };
+
+typedef int (WINAPI *FARAPIVIEWERCONTROL)(
+    int Command,
+    void *Param
+);
 
 enum VIEWER_EVENTS
 {
@@ -1336,18 +1365,14 @@ enum EDITOR_SETPARAMETER_TYPES
 
 struct EditorSetParameter
 {
-	enum EDITOR_SETPARAMETER_TYPES Type;
+	int Type;
 	union
 	{
 		int iParam;
 		wchar_t *wszParam;
 		DWORD Reserved1;
-	}
-#ifndef __cplusplus
-	Param
-#endif
-	;
-	unsigned __int64 Flags;
+	} Param;
+	DWORD Flags;
 	DWORD Size;
 };
 
@@ -1363,7 +1388,7 @@ enum EDITOR_UNDOREDO_COMMANDS
 
 struct EditorUndoRedo
 {
-	enum EDITOR_UNDOREDO_COMMANDS Command;
+	int Command;
 	DWORD_PTR Reserved[3];
 };
 
@@ -1448,10 +1473,10 @@ struct EditorInfo
 
 struct EditorBookMarks
 {
-	int *Line;
-	int *Cursor;
-	int *ScreenLine;
-	int *LeftPos;
+	long *Line;
+	long *Cursor;
+	long *ScreenLine;
+	long *LeftPos;
 	DWORD Reserved[4];
 };
 
@@ -1484,19 +1509,18 @@ struct EditorConvertPos
 };
 
 
-typedef unsigned __int64 EDITORCOLORFLAGS;
-static const EDITORCOLORFLAGS
-	ECF_TAB1 = 0x0000000000000001ULL;
+enum EDITORCOLORFLAGS
+{
+	ECF_TAB1 = 0x10000,
+};
 
 struct EditorColor
 {
-	size_t StructSize;
 	int StringNumber;
 	int ColorItem;
 	int StartPos;
 	int EndPos;
-	EDITORCOLORFLAGS Flags;
-	struct FarColor Color;
+	int Color;
 };
 
 struct EditorSaveFile
@@ -1506,19 +1530,23 @@ struct EditorSaveFile
 	UINT CodePage;
 };
 
-typedef unsigned __int64 INPUTBOXFLAGS;
-static const INPUTBOXFLAGS
-	FIB_ENABLEEMPTY      = 0x0000000000000001ULL,
-	FIB_PASSWORD         = 0x0000000000000002ULL,
-	FIB_EXPANDENV        = 0x0000000000000004ULL,
-	FIB_NOUSELASTHISTORY = 0x0000000000000008ULL,
-	FIB_BUTTONS          = 0x0000000000000010ULL,
-	FIB_NOAMPERSAND      = 0x0000000000000020ULL,
-	FIB_EDITPATH         = 0x0000000000000040ULL,
-	FIB_NONE             = 0;
+typedef int (WINAPI *FARAPIEDITORCONTROL)(
+    int Command,
+    void *Param
+);
+
+enum INPUTBOXFLAGS
+{
+	FIB_ENABLEEMPTY      = 0x00000001,
+	FIB_PASSWORD         = 0x00000002,
+	FIB_EXPANDENV        = 0x00000004,
+	FIB_NOUSELASTHISTORY = 0x00000008,
+	FIB_BUTTONS          = 0x00000010,
+	FIB_NOAMPERSAND      = 0x00000020,
+	FIB_EDITPATH         = 0x01000000,
+};
 
 typedef int (WINAPI *FARAPIINPUTBOX)(
-    const GUID* PluginId,
     const wchar_t *Title,
     const wchar_t *SubTitle,
     const wchar_t *HistoryName,
@@ -1526,14 +1554,416 @@ typedef int (WINAPI *FARAPIINPUTBOX)(
     wchar_t *DestText,
     int   DestLength,
     const wchar_t *HelpTopic,
-    INPUTBOXFLAGS Flags
+    DWORD Flags
 );
+
+typedef int (WINAPI *FARAPIPLUGINSCONTROL)(
+    HANDLE hHandle,
+    int Command,
+    int Param1,
+    LONG_PTR Param2
+);
+
+typedef int (WINAPI *FARAPIFILEFILTERCONTROL)(
+    HANDLE hHandle,
+    int Command,
+    int Param1,
+    LONG_PTR Param2
+);
+
+typedef int (WINAPI *FARAPIREGEXPCONTROL)(
+    HANDLE hHandle,
+    int Command,
+    LONG_PTR Param
+);
+
+// <C&C++>
+typedef int (WINAPIV *FARSTDSPRINTF)(wchar_t *Buffer,const wchar_t *Format,...);
+typedef int (WINAPIV *FARSTDSNPRINTF)(wchar_t *Buffer,size_t Sizebuf,const wchar_t *Format,...);
+typedef int (WINAPIV *FARSTDSSCANF)(const wchar_t *Buffer, const wchar_t *Format,...);
+// </C&C++>
+typedef void (WINAPI *FARSTDQSORT)(void *base, size_t nelem, size_t width, int (__cdecl *fcmp)(const void *, const void *));
+typedef void (WINAPI *FARSTDQSORTEX)(void *base, size_t nelem, size_t width, int (__cdecl *fcmp)(const void *, const void *,void *userparam),void *userparam);
+typedef void   *(WINAPI *FARSTDBSEARCH)(const void *key, const void *base, size_t nelem, size_t width, int (__cdecl *fcmp)(const void *, const void *));
+typedef int (WINAPI *FARSTDGETFILEOWNER)(const wchar_t *Computer,const wchar_t *Name,wchar_t *Owner,int Size);
+typedef int (WINAPI *FARSTDGETNUMBEROFLINKS)(const wchar_t *Name);
+typedef int (WINAPI *FARSTDATOI)(const wchar_t *s);
+typedef __int64(WINAPI *FARSTDATOI64)(const wchar_t *s);
+typedef wchar_t   *(WINAPI *FARSTDITOA64)(__int64 value, wchar_t *string, int radix);
+typedef wchar_t   *(WINAPI *FARSTDITOA)(int value, wchar_t *string, int radix);
+typedef wchar_t   *(WINAPI *FARSTDLTRIM)(wchar_t *Str);
+typedef wchar_t   *(WINAPI *FARSTDRTRIM)(wchar_t *Str);
+typedef wchar_t   *(WINAPI *FARSTDTRIM)(wchar_t *Str);
+typedef wchar_t   *(WINAPI *FARSTDTRUNCSTR)(wchar_t *Str,int MaxLength);
+typedef wchar_t   *(WINAPI *FARSTDTRUNCPATHSTR)(wchar_t *Str,int MaxLength);
+typedef wchar_t   *(WINAPI *FARSTDQUOTESPACEONLY)(wchar_t *Str);
+typedef const wchar_t*(WINAPI *FARSTDPOINTTONAME)(const wchar_t *Path);
+typedef int (WINAPI *FARSTDGETPATHROOT)(const wchar_t *Path,wchar_t *Root, int DestSize);
+typedef BOOL (WINAPI *FARSTDADDENDSLASH)(wchar_t *Path);
+typedef int (WINAPI *FARSTDCOPYTOCLIPBOARD)(const wchar_t *Data);
+typedef wchar_t *(WINAPI *FARSTDPASTEFROMCLIPBOARD)(void);
+typedef int (WINAPI *FARSTDINPUTRECORDTOKEY)(const INPUT_RECORD *r);
+typedef int (WINAPI *FARSTDLOCALISLOWER)(wchar_t Ch);
+typedef int (WINAPI *FARSTDLOCALISUPPER)(wchar_t Ch);
+typedef int (WINAPI *FARSTDLOCALISALPHA)(wchar_t Ch);
+typedef int (WINAPI *FARSTDLOCALISALPHANUM)(wchar_t Ch);
+typedef wchar_t (WINAPI *FARSTDLOCALUPPER)(wchar_t LowerChar);
+typedef wchar_t (WINAPI *FARSTDLOCALLOWER)(wchar_t UpperChar);
+typedef void (WINAPI *FARSTDLOCALUPPERBUF)(wchar_t *Buf,int Length);
+typedef void (WINAPI *FARSTDLOCALLOWERBUF)(wchar_t *Buf,int Length);
+typedef void (WINAPI *FARSTDLOCALSTRUPR)(wchar_t *s1);
+typedef void (WINAPI *FARSTDLOCALSTRLWR)(wchar_t *s1);
+typedef int (WINAPI *FARSTDLOCALSTRICMP)(const wchar_t *s1,const wchar_t *s2);
+typedef int (WINAPI *FARSTDLOCALSTRNICMP)(const wchar_t *s1,const wchar_t *s2,int n);
+
+enum PROCESSNAME_FLAGS
+{
+	PN_CMPNAME      = 0x00000000UL,
+	PN_CMPNAMELIST  = 0x00010000UL,
+	PN_GENERATENAME = 0x00020000UL,
+	PN_SKIPPATH     = 0x01000000UL,
+};
+
+typedef int (WINAPI *FARSTDPROCESSNAME)(const wchar_t *param1, wchar_t *param2, DWORD size, DWORD flags);
+
+typedef void (WINAPI *FARSTDUNQUOTE)(wchar_t *Str);
+
+enum XLATMODE
+{
+	XLAT_SWITCHKEYBLAYOUT  = 0x00000001UL,
+	XLAT_SWITCHKEYBBEEP    = 0x00000002UL,
+	XLAT_USEKEYBLAYOUTNAME = 0x00000004UL,
+	XLAT_CONVERTALLCMDLINE = 0x00010000UL,
+};
+
+typedef size_t (WINAPI *FARSTDKEYTOKEYNAME)(int Key,wchar_t *KeyText,size_t Size);
+
+typedef wchar_t*(WINAPI *FARSTDXLAT)(wchar_t *Line,int StartPos,int EndPos,DWORD Flags);
+
+typedef int (WINAPI *FARSTDKEYNAMETOKEY)(const wchar_t *Name);
+
+typedef int (WINAPI *FRSUSERFUNC)(
+    const struct FAR_FIND_DATA *FData,
+    const wchar_t *FullName,
+    void *Param
+);
+
+enum FRSMODE
+{
+	FRS_RETUPDIR             = 0x01,
+	FRS_RECUR                = 0x02,
+	FRS_SCANSYMLINK          = 0x04,
+};
+
+typedef void (WINAPI *FARSTDRECURSIVESEARCH)(const wchar_t *InitDir,const wchar_t *Mask,FRSUSERFUNC Func,DWORD Flags,void *Param);
+typedef int (WINAPI *FARSTDMKTEMP)(wchar_t *Dest, DWORD size, const wchar_t *Prefix);
+typedef void (WINAPI *FARSTDDELETEBUFFER)(void *Buffer);
+
+enum MKLINKOP
+{
+	FLINK_HARDLINK         = 1,
+	FLINK_JUNCTION         = 2,
+	FLINK_VOLMOUNT         = 3,
+	FLINK_SYMLINKFILE      = 4,
+	FLINK_SYMLINKDIR       = 5,
+	FLINK_SYMLINK          = 6,
+
+	FLINK_SHOWERRMSG       = 0x10000,
+	FLINK_DONOTUPDATEPANEL = 0x20000,
+};
+typedef int (WINAPI *FARSTDMKLINK)(const wchar_t *Src,const wchar_t *Dest,DWORD Flags);
+typedef int (WINAPI *FARGETREPARSEPOINTINFO)(const wchar_t *Src, wchar_t *Dest,int DestSize);
+
+enum CONVERTPATHMODES
+{
+	CPM_FULL,
+	CPM_REAL,
+	CPM_NATIVE,
+};
+
+typedef int (WINAPI *FARCONVERTPATH)(enum CONVERTPATHMODES Mode, const wchar_t *Src, wchar_t *Dest, int DestSize);
+
+typedef DWORD (WINAPI *FARGETCURRENTDIRECTORY)(DWORD Size,wchar_t* Buffer);
+
+typedef struct FarStandardFunctions
+{
+	int StructSize;
+
+	FARSTDATOI                 atoi;
+	FARSTDATOI64               atoi64;
+	FARSTDITOA                 itoa;
+	FARSTDITOA64               itoa64;
+	// <C&C++>
+	FARSTDSPRINTF              sprintf;
+	FARSTDSSCANF               sscanf;
+	// </C&C++>
+	FARSTDQSORT                qsort;
+	FARSTDBSEARCH              bsearch;
+	FARSTDQSORTEX              qsortex;
+	// <C&C++>
+	FARSTDSNPRINTF             snprintf;
+	// </C&C++>
+
+	DWORD_PTR                  Reserved[8];
+
+	FARSTDLOCALISLOWER         LIsLower;
+	FARSTDLOCALISUPPER         LIsUpper;
+	FARSTDLOCALISALPHA         LIsAlpha;
+	FARSTDLOCALISALPHANUM      LIsAlphanum;
+	FARSTDLOCALUPPER           LUpper;
+	FARSTDLOCALLOWER           LLower;
+	FARSTDLOCALUPPERBUF        LUpperBuf;
+	FARSTDLOCALLOWERBUF        LLowerBuf;
+	FARSTDLOCALSTRUPR          LStrupr;
+	FARSTDLOCALSTRLWR          LStrlwr;
+	FARSTDLOCALSTRICMP         LStricmp;
+	FARSTDLOCALSTRNICMP        LStrnicmp;
+
+	FARSTDUNQUOTE              Unquote;
+	FARSTDLTRIM                LTrim;
+	FARSTDRTRIM                RTrim;
+	FARSTDTRIM                 Trim;
+	FARSTDTRUNCSTR             TruncStr;
+	FARSTDTRUNCPATHSTR         TruncPathStr;
+	FARSTDQUOTESPACEONLY       QuoteSpaceOnly;
+	FARSTDPOINTTONAME          PointToName;
+	FARSTDGETPATHROOT          GetPathRoot;
+	FARSTDADDENDSLASH          AddEndSlash;
+	FARSTDCOPYTOCLIPBOARD      CopyToClipboard;
+	FARSTDPASTEFROMCLIPBOARD   PasteFromClipboard;
+	FARSTDKEYTOKEYNAME         FarKeyToName;
+	FARSTDKEYNAMETOKEY         FarNameToKey;
+	FARSTDINPUTRECORDTOKEY     FarInputRecordToKey;
+	FARSTDXLAT                 XLat;
+	FARSTDGETFILEOWNER         GetFileOwner;
+	FARSTDGETNUMBEROFLINKS     GetNumberOfLinks;
+	FARSTDRECURSIVESEARCH      FarRecursiveSearch;
+	FARSTDMKTEMP               MkTemp;
+	FARSTDDELETEBUFFER         DeleteBuffer;
+	FARSTDPROCESSNAME          ProcessName;
+	FARSTDMKLINK               MkLink;
+	FARCONVERTPATH             ConvertPath;
+	FARGETREPARSEPOINTINFO     GetReparsePointInfo;
+	FARGETCURRENTDIRECTORY     GetCurrentDirectory;
+} FARSTANDARDFUNCTIONS;
+
+struct PluginStartupInfo
+{
+	int StructSize;
+	const wchar_t *ModuleName;
+	INT_PTR ModuleNumber;
+	const wchar_t *RootKey;
+	FARAPIMENU             Menu;
+	FARAPIMESSAGE          Message;
+	FARAPIGETMSG           GetMsg;
+	FARAPICONTROL          Control;
+	FARAPISAVESCREEN       SaveScreen;
+	FARAPIRESTORESCREEN    RestoreScreen;
+	FARAPIGETDIRLIST       GetDirList;
+	FARAPIGETPLUGINDIRLIST GetPluginDirList;
+	FARAPIFREEDIRLIST      FreeDirList;
+	FARAPIFREEPLUGINDIRLIST FreePluginDirList;
+	FARAPIVIEWER           Viewer;
+	FARAPIEDITOR           Editor;
+	FARAPICMPNAME          CmpName;
+	FARAPITEXT             Text;
+	FARAPIEDITORCONTROL    EditorControl;
+
+	FARSTANDARDFUNCTIONS  *FSF;
+
+	FARAPISHOWHELP         ShowHelp;
+	FARAPIADVCONTROL       AdvControl;
+	FARAPIINPUTBOX         InputBox;
+	FARAPIDIALOGINIT       DialogInit;
+	FARAPIDIALOGRUN        DialogRun;
+	FARAPIDIALOGFREE       DialogFree;
+
+	FARAPISENDDLGMESSAGE   SendDlgMessage;
+	FARAPIDEFDLGPROC       DefDlgProc;
+	DWORD_PTR              Reserved;
+	FARAPIVIEWERCONTROL    ViewerControl;
+	FARAPIPLUGINSCONTROL   PluginsControl;
+	FARAPIFILEFILTERCONTROL FileFilterControl;
+	FARAPIREGEXPCONTROL    RegExpControl;
+};
+
+
+enum PLUGIN_FLAGS
+{
+	PF_PRELOAD        = 0x0001,
+	PF_DISABLEPANELS  = 0x0002,
+	PF_EDITOR         = 0x0004,
+	PF_VIEWER         = 0x0008,
+	PF_FULLCMDLINE    = 0x0010,
+	PF_DIALOG         = 0x0020,
+};
+
+struct PluginInfo
+{
+	int StructSize;
+	DWORD Flags;
+	const wchar_t * const *DiskMenuStrings;
+	int *Reserved0;
+	int DiskMenuStringsNumber;
+	const wchar_t * const *PluginMenuStrings;
+	int PluginMenuStringsNumber;
+	const wchar_t * const *PluginConfigStrings;
+	int PluginConfigStringsNumber;
+	const wchar_t *CommandPrefix;
+	DWORD Reserved;
+};
+
+
+
+struct InfoPanelLine
+{
+	const wchar_t *Text;
+	const wchar_t *Data;
+	int  Separator;
+};
+
+struct PanelMode
+{
+	const wchar_t *ColumnTypes;
+	const wchar_t *ColumnWidths;
+	const wchar_t * const *ColumnTitles;
+	int    FullScreen;
+	int    DetailedStatus;
+	int    AlignExtensions;
+	int    CaseConversion;
+	const wchar_t *StatusColumnTypes;
+	const wchar_t *StatusColumnWidths;
+	DWORD  Reserved[2];
+};
+
+
+enum OPENPLUGININFO_FLAGS
+{
+	OPIF_USEFILTER               = 0x00000001,
+	OPIF_USESORTGROUPS           = 0x00000002,
+	OPIF_USEHIGHLIGHTING         = 0x00000004,
+	OPIF_ADDDOTS                 = 0x00000008,
+	OPIF_RAWSELECTION            = 0x00000010,
+	OPIF_REALNAMES               = 0x00000020,
+	OPIF_SHOWNAMESONLY           = 0x00000040,
+	OPIF_SHOWRIGHTALIGNNAMES     = 0x00000080,
+	OPIF_SHOWPRESERVECASE        = 0x00000100,
+	OPIF_COMPAREFATTIME          = 0x00000400,
+	OPIF_EXTERNALGET             = 0x00000800,
+	OPIF_EXTERNALPUT             = 0x00001000,
+	OPIF_EXTERNALDELETE          = 0x00002000,
+	OPIF_EXTERNALMKDIR           = 0x00004000,
+	OPIF_USEATTRHIGHLIGHTING     = 0x00008000,
+	OPIF_USECRC32                = 0x00010000,
+};
+
+
+enum OPENPLUGININFO_SORTMODES
+{
+	SM_DEFAULT,
+	SM_UNSORTED,
+	SM_NAME,
+	SM_EXT,
+	SM_MTIME,
+	SM_CTIME,
+	SM_ATIME,
+	SM_SIZE,
+	SM_DESCR,
+	SM_OWNER,
+	SM_COMPRESSEDSIZE,
+	SM_NUMLINKS,
+	SM_NUMSTREAMS,
+	SM_STREAMSSIZE,
+	SM_FULLNAME,
+};
+
+
+struct KeyBarTitles
+{
+	wchar_t *Titles[12];
+	wchar_t *CtrlTitles[12];
+	wchar_t *AltTitles[12];
+	wchar_t *ShiftTitles[12];
+
+	wchar_t *CtrlShiftTitles[12];
+	wchar_t *AltShiftTitles[12];
+	wchar_t *CtrlAltTitles[12];
+};
+
+
+enum OPERATION_MODES
+{
+	OPM_SILENT     =0x0001,
+	OPM_FIND       =0x0002,
+	OPM_VIEW       =0x0004,
+	OPM_EDIT       =0x0008,
+	OPM_TOPLEVEL   =0x0010,
+	OPM_DESCR      =0x0020,
+	OPM_QUICKVIEW  =0x0040,
+};
+
+struct OpenPluginInfo
+{
+	int                   StructSize;
+	DWORD                 Flags;
+	const wchar_t           *HostFile;
+	const wchar_t           *CurDir;
+	const wchar_t           *Format;
+	const wchar_t           *PanelTitle;
+	const struct InfoPanelLine *InfoLines;
+	int                   InfoLinesNumber;
+	const wchar_t * const   *DescrFiles;
+	int                   DescrFilesNumber;
+	const struct PanelMode *PanelModesArray;
+	int                   PanelModesNumber;
+	int                   StartPanelMode;
+	int                   StartSortMode;
+	int                   StartSortOrder;
+	const struct KeyBarTitles *KeyBar;
+	const wchar_t           *ShortcutData;
+	long                  Reserved;
+};
+
+enum OPENPLUGIN_OPENFROM
+{
+	OPEN_DISKMENU     = 0,
+	OPEN_PLUGINSMENU  = 1,
+	OPEN_FINDLIST     = 2,
+	OPEN_SHORTCUT     = 3,
+	OPEN_COMMANDLINE  = 4,
+	OPEN_EDITOR       = 5,
+	OPEN_VIEWER       = 6,
+	OPEN_FILEPANEL    = 7,
+	OPEN_DIALOG       = 8,
+	OPEN_ANALYSE      = 9,
+	OPEN_FROMMACRO    = 0x10000,
+};
+
+enum FAR_PKF_FLAGS
+{
+	PKF_CONTROL     = 0x00000001,
+	PKF_ALT         = 0x00000002,
+	PKF_SHIFT       = 0x00000004,
+	PKF_PREPROCESS  = 0x00080000, // for "Key", function ProcessKey()
+};
+
+enum FAR_EVENTS
+{
+	FE_CHANGEVIEWMODE =0,
+	FE_REDRAW         =1,
+	FE_IDLE           =2,
+	FE_CLOSE          =3,
+	FE_BREAK          =4,
+	FE_COMMAND        =5,
+
+	FE_GOTFOCUS       =6,
+	FE_KILLFOCUS      =7,
+};
 
 enum FAR_PLUGINS_CONTROL_COMMANDS
 {
-	PCTL_LOADPLUGIN         = 0,
-	PCTL_UNLOADPLUGIN       = 1,
-	PCTL_FORCEDLOADPLUGIN   = 2,
+	PCTL_LOADPLUGIN = 0,
+	PCTL_UNLOADPLUGIN,
 };
 
 enum FAR_PLUGIN_LOAD_TYPE
@@ -1585,706 +2015,56 @@ struct RegExpSearch
 	void* Reserved;
 };
 
-enum FAR_SETTINGS_CONTROL_COMMANDS
-{
-	SCTL_CREATE=0,
-	SCTL_FREE,
-	SCTL_SET,
-	SCTL_GET,
-	SCTL_ENUM,
-	SCTL_DELETE,
-	SCTL_SUBKEY
-};
 
-enum FARSETTINGSTYPES
-{
-	FST_UNKNOWN,
-	FST_SUBKEY,
-	FST_QWORD,
-	FST_STRING,
-	FST_DATA
-};
-
-struct FarSettingsCreate
-{
-	size_t StructSize;
-	GUID Guid;
-	HANDLE Handle;
-};
-
-struct FarSettingsItem
-{
-	size_t Root;
-	const wchar_t* Name;
-	enum FARSETTINGSTYPES Type;
-	union
-	{
-		unsigned __int64 Number;
-		const wchar_t* String;
-		struct
-		{
-			size_t Size;
-			const void* Data;
-		} Data;
-	}
-#ifndef __cplusplus
-	Value
-#endif
-	;
-};
-
-struct FarSettingsName
-{
-	const wchar_t* Name;
-	enum FARSETTINGSTYPES Type;
-};
-
-struct FarSettingsEnum
-{
-	size_t Root;
-	size_t Count;
-	const struct FarSettingsName* Items;
-};
-
-struct FarSettingsValue
-{
-	size_t Root;
-	const wchar_t* Value;
-};
-
-typedef INT_PTR (WINAPI *FARAPIPANELCONTROL)(
-    HANDLE hPanel,
-    enum FILE_CONTROL_COMMANDS Command,
-    int Param1,
-    void* Param2
-);
-
-typedef INT_PTR(WINAPI *FARAPIADVCONTROL)(
-    const GUID* PluginId,
-    enum ADVANCED_CONTROL_COMMANDS Command,
-    int Param1,
-    void* Param2
-);
-
-typedef INT_PTR (WINAPI *FARAPIVIEWERCONTROL)(
-    int ViewerID,
-    enum VIEWER_CONTROL_COMMANDS Command,
-    int Param1,
-    void* Param2
-);
-
-typedef INT_PTR (WINAPI *FARAPIEDITORCONTROL)(
-    int EditorID,
-    enum EDITOR_CONTROL_COMMANDS Command,
-    int Param1,
-    void* Param2
-);
-
-typedef INT_PTR (WINAPI *FARAPIMACROCONTROL)(
-    HANDLE hHandle,
-    enum FAR_MACRO_CONTROL_COMMANDS Command,
-    int Param1,
-    void* Param2
-);
-
-typedef INT_PTR (WINAPI *FARAPIPLUGINSCONTROL)(
-    HANDLE hHandle,
-    enum FAR_PLUGINS_CONTROL_COMMANDS Command,
-    int Param1,
-    void* Param2
-);
-
-typedef INT_PTR (WINAPI *FARAPIFILEFILTERCONTROL)(
-    HANDLE hHandle,
-    enum FAR_FILE_FILTER_CONTROL_COMMANDS Command,
-    int Param1,
-    void* Param2
-);
-
-typedef INT_PTR (WINAPI *FARAPIREGEXPCONTROL)(
-    HANDLE hHandle,
-    enum FAR_REGEXP_CONTROL_COMMANDS Command,
-    int Param1,
-    void* Param2
-);
-
-typedef INT_PTR (WINAPI *FARAPISETTINGSCONTROL)(
-    HANDLE hHandle,
-    enum FAR_SETTINGS_CONTROL_COMMANDS Command,
-    int Param1,
-    void* Param2
-);
-
-// <C&C++>
-typedef int (WINAPIV *FARSTDSPRINTF)(wchar_t *Buffer,const wchar_t *Format,...);
-typedef int (WINAPIV *FARSTDSNPRINTF)(wchar_t *Buffer,size_t Sizebuf,const wchar_t *Format,...);
-typedef int (WINAPIV *FARSTDSSCANF)(const wchar_t *Buffer, const wchar_t *Format,...);
-// </C&C++>
-typedef void (WINAPI *FARSTDQSORT)(void *base, size_t nelem, size_t width, int (__cdecl *fcmp)(const void *, const void *));
-typedef void (WINAPI *FARSTDQSORTEX)(void *base, size_t nelem, size_t width, int (__cdecl *fcmp)(const void *, const void *,void *userparam),void *userparam);
-typedef void   *(WINAPI *FARSTDBSEARCH)(const void *key, const void *base, size_t nelem, size_t width, int (__cdecl *fcmp)(const void *, const void *));
-typedef size_t (WINAPI *FARSTDGETFILEOWNER)(const wchar_t *Computer,const wchar_t *Name,wchar_t *Owner,size_t Size);
-typedef int (WINAPI *FARSTDGETNUMBEROFLINKS)(const wchar_t *Name);
-typedef int (WINAPI *FARSTDATOI)(const wchar_t *s);
-typedef __int64(WINAPI *FARSTDATOI64)(const wchar_t *s);
-typedef wchar_t   *(WINAPI *FARSTDITOA64)(__int64 value, wchar_t *string, int radix);
-typedef wchar_t   *(WINAPI *FARSTDITOA)(int value, wchar_t *string, int radix);
-typedef wchar_t   *(WINAPI *FARSTDLTRIM)(wchar_t *Str);
-typedef wchar_t   *(WINAPI *FARSTDRTRIM)(wchar_t *Str);
-typedef wchar_t   *(WINAPI *FARSTDTRIM)(wchar_t *Str);
-typedef wchar_t   *(WINAPI *FARSTDTRUNCSTR)(wchar_t *Str,int MaxLength);
-typedef wchar_t   *(WINAPI *FARSTDTRUNCPATHSTR)(wchar_t *Str,int MaxLength);
-typedef wchar_t   *(WINAPI *FARSTDQUOTESPACEONLY)(wchar_t *Str);
-typedef const wchar_t*(WINAPI *FARSTDPOINTTONAME)(const wchar_t *Path);
-typedef BOOL (WINAPI *FARSTDADDENDSLASH)(wchar_t *Path);
-typedef int (WINAPI *FARSTDCOPYTOCLIPBOARD)(const wchar_t *Data);
-typedef wchar_t *(WINAPI *FARSTDPASTEFROMCLIPBOARD)(void);
-typedef int (WINAPI *FARSTDINPUTRECORDTOKEY)(const INPUT_RECORD *r);
-typedef int (WINAPI *FARSTDKEYTOINPUTRECORD)(int Key,INPUT_RECORD *r);
-typedef int (WINAPI *FARSTDLOCALISLOWER)(wchar_t Ch);
-typedef int (WINAPI *FARSTDLOCALISUPPER)(wchar_t Ch);
-typedef int (WINAPI *FARSTDLOCALISALPHA)(wchar_t Ch);
-typedef int (WINAPI *FARSTDLOCALISALPHANUM)(wchar_t Ch);
-typedef wchar_t (WINAPI *FARSTDLOCALUPPER)(wchar_t LowerChar);
-typedef wchar_t (WINAPI *FARSTDLOCALLOWER)(wchar_t UpperChar);
-typedef void (WINAPI *FARSTDLOCALUPPERBUF)(wchar_t *Buf,int Length);
-typedef void (WINAPI *FARSTDLOCALLOWERBUF)(wchar_t *Buf,int Length);
-typedef void (WINAPI *FARSTDLOCALSTRUPR)(wchar_t *s1);
-typedef void (WINAPI *FARSTDLOCALSTRLWR)(wchar_t *s1);
-typedef int (WINAPI *FARSTDLOCALSTRICMP)(const wchar_t *s1,const wchar_t *s2);
-typedef int (WINAPI *FARSTDLOCALSTRNICMP)(const wchar_t *s1,const wchar_t *s2,int n);
-
-typedef unsigned __int64 PROCESSNAME_FLAGS;
-static const PROCESSNAME_FLAGS
-	PN_CMPNAME      = 0x0000000000000000ULL,
-	PN_CMPNAMELIST  = 0x0000000000010000ULL,
-	PN_GENERATENAME = 0x0000000000020000ULL,
-	PN_SKIPPATH     = 0x0000000001000000ULL;
-
-typedef size_t (WINAPI *FARSTDPROCESSNAME)(const wchar_t *param1, wchar_t *param2, size_t size, PROCESSNAME_FLAGS flags);
-
-typedef void (WINAPI *FARSTDUNQUOTE)(wchar_t *Str);
-
-typedef unsigned __int64 XLAT_FLAGS;
-static const XLAT_FLAGS
-	XLAT_SWITCHKEYBLAYOUT  = 0x0000000000000001ULL,
-	XLAT_SWITCHKEYBBEEP    = 0x0000000000000002ULL,
-	XLAT_USEKEYBLAYOUTNAME = 0x0000000000000004ULL,
-	XLAT_CONVERTALLCMDLINE = 0x0000000000010000ULL;
-
-
-typedef size_t (WINAPI *FARSTDKEYTOKEYNAME)(int Key, wchar_t *KeyText, size_t Size);
-
-typedef wchar_t*(WINAPI *FARSTDXLAT)(wchar_t *Line,int StartPos,int EndPos,XLAT_FLAGS Flags);
-
-typedef int (WINAPI *FARSTDKEYNAMETOKEY)(const wchar_t *Name);
-
-typedef int (WINAPI *FRSUSERFUNC)(
-    const struct PluginPanelItem *FData,
-    const wchar_t *FullName,
-    void *Param
-);
-
-typedef unsigned __int64 FRSMODE;
-static const FRSMODE
-	FRS_RETUPDIR             = 0x0000000000000001ULL,
-	FRS_RECUR                = 0x0000000000000002ULL,
-	FRS_SCANSYMLINK          = 0x0000000000000004ULL;
-
-typedef void (WINAPI *FARSTDRECURSIVESEARCH)(const wchar_t *InitDir,const wchar_t *Mask,FRSUSERFUNC Func,FRSMODE Flags,void *Param);
-typedef size_t (WINAPI *FARSTDMKTEMP)(wchar_t *Dest, size_t DestSize, const wchar_t *Prefix);
-typedef void (WINAPI *FARSTDDELETEBUFFER)(void *Buffer);
-typedef size_t (WINAPI *FARSTDGETPATHROOT)(const wchar_t *Path,wchar_t *Root, size_t DestSize);
-
-enum LINK_TYPE
-{
-	LINK_HARDLINK         = 1,
-	LINK_JUNCTION         = 2,
-	LINK_VOLMOUNT         = 3,
-	LINK_SYMLINKFILE      = 4,
-	LINK_SYMLINKDIR       = 5,
-	LINK_SYMLINK          = 6,
-};
-
-typedef unsigned __int64 MKLINK_FLAGS;
-static const MKLINK_FLAGS
-	MLF_NONE             = 0,
-	MLF_SHOWERRMSG       = 0x0000000000010000ULL,
-	MLF_DONOTUPDATEPANEL = 0x0000000000020000ULL;
-
-typedef BOOL (WINAPI *FARSTDMKLINK)(const wchar_t *Src,const wchar_t *Dest,enum LINK_TYPE Type, MKLINK_FLAGS Flags);
-typedef size_t (WINAPI *FARGETREPARSEPOINTINFO)(const wchar_t *Src, wchar_t *Dest, size_t DestSize);
-
-enum CONVERTPATHMODES
-{
-	CPM_FULL,
-	CPM_REAL,
-	CPM_NATIVE,
-};
-
-typedef size_t (WINAPI *FARCONVERTPATH)(enum CONVERTPATHMODES Mode, const wchar_t *Src, wchar_t *Dest, size_t DestSize);
-
-typedef size_t (WINAPI *FARGETCURRENTDIRECTORY)(size_t Size, wchar_t* Buffer);
-
-typedef struct FarStandardFunctions
-{
-	size_t StructSize;
-
-	FARSTDATOI                 atoi;
-	FARSTDATOI64               atoi64;
-	FARSTDITOA                 itoa;
-	FARSTDITOA64               itoa64;
-	// <C&C++>
-	FARSTDSPRINTF              sprintf;
-	FARSTDSSCANF               sscanf;
-	// </C&C++>
-	FARSTDQSORT                qsort;
-	FARSTDBSEARCH              bsearch;
-	FARSTDQSORTEX              qsortex;
-	// <C&C++>
-	FARSTDSNPRINTF             snprintf;
-	// </C&C++>
-
-	DWORD_PTR                  Reserved[8];
-
-	FARSTDLOCALISLOWER         LIsLower;
-	FARSTDLOCALISUPPER         LIsUpper;
-	FARSTDLOCALISALPHA         LIsAlpha;
-	FARSTDLOCALISALPHANUM      LIsAlphanum;
-	FARSTDLOCALUPPER           LUpper;
-	FARSTDLOCALLOWER           LLower;
-	FARSTDLOCALUPPERBUF        LUpperBuf;
-	FARSTDLOCALLOWERBUF        LLowerBuf;
-	FARSTDLOCALSTRUPR          LStrupr;
-	FARSTDLOCALSTRLWR          LStrlwr;
-	FARSTDLOCALSTRICMP         LStricmp;
-	FARSTDLOCALSTRNICMP        LStrnicmp;
-
-	FARSTDUNQUOTE              Unquote;
-	FARSTDLTRIM                LTrim;
-	FARSTDRTRIM                RTrim;
-	FARSTDTRIM                 Trim;
-	FARSTDTRUNCSTR             TruncStr;
-	FARSTDTRUNCPATHSTR         TruncPathStr;
-	FARSTDQUOTESPACEONLY       QuoteSpaceOnly;
-	FARSTDPOINTTONAME          PointToName;
-	FARSTDGETPATHROOT          GetPathRoot;
-	FARSTDADDENDSLASH          AddEndSlash;
-	FARSTDCOPYTOCLIPBOARD      CopyToClipboard;
-	FARSTDPASTEFROMCLIPBOARD   PasteFromClipboard;
-	FARSTDKEYTOKEYNAME         FarKeyToName;
-	FARSTDKEYNAMETOKEY         FarNameToKey;
-	FARSTDINPUTRECORDTOKEY     FarInputRecordToKey;
-	FARSTDKEYTOINPUTRECORD     FarKeyToInputRecord;
-	FARSTDXLAT                 XLat;
-	FARSTDGETFILEOWNER         GetFileOwner;
-	FARSTDGETNUMBEROFLINKS     GetNumberOfLinks;
-	FARSTDRECURSIVESEARCH      FarRecursiveSearch;
-	FARSTDMKTEMP               MkTemp;
-	FARSTDDELETEBUFFER         DeleteBuffer;
-	FARSTDPROCESSNAME          ProcessName;
-	FARSTDMKLINK               MkLink;
-	FARCONVERTPATH             ConvertPath;
-	FARGETREPARSEPOINTINFO     GetReparsePointInfo;
-	FARGETCURRENTDIRECTORY     GetCurrentDirectory;
-} FARSTANDARDFUNCTIONS;
-
-struct PluginStartupInfo
-{
-	size_t StructSize;
-	const wchar_t *ModuleName;
-	FARAPIMENU             Menu;
-	FARAPIMESSAGE          Message;
-	FARAPIGETMSG           GetMsg;
-	FARAPIPANELCONTROL     PanelControl;
-	FARAPISAVESCREEN       SaveScreen;
-	FARAPIRESTORESCREEN    RestoreScreen;
-	FARAPIGETDIRLIST       GetDirList;
-	FARAPIGETPLUGINDIRLIST GetPluginDirList;
-	FARAPIFREEDIRLIST      FreeDirList;
-	FARAPIFREEPLUGINDIRLIST FreePluginDirList;
-	FARAPIVIEWER           Viewer;
-	FARAPIEDITOR           Editor;
-	FARAPITEXT             Text;
-	FARAPIEDITORCONTROL    EditorControl;
-
-	FARSTANDARDFUNCTIONS  *FSF;
-
-	FARAPISHOWHELP         ShowHelp;
-	FARAPIADVCONTROL       AdvControl;
-	FARAPIINPUTBOX         InputBox;
-	FARAPICOLORDIALOG      ColorDialog;
-	FARAPIDIALOGINIT       DialogInit;
-	FARAPIDIALOGRUN        DialogRun;
-	FARAPIDIALOGFREE       DialogFree;
-
-	FARAPISENDDLGMESSAGE   SendDlgMessage;
-	FARAPIDEFDLGPROC       DefDlgProc;
-	DWORD_PTR              Reserved;
-	FARAPIVIEWERCONTROL    ViewerControl;
-	FARAPIPLUGINSCONTROL   PluginsControl;
-	FARAPIFILEFILTERCONTROL FileFilterControl;
-	FARAPIREGEXPCONTROL    RegExpControl;
-	FARAPIMACROCONTROL     MacroControl;
-	FARAPISETTINGSCONTROL  SettingsControl;
-};
-
-
-typedef unsigned __int64 PLUGIN_FLAGS;
-static const PLUGIN_FLAGS
-	PF_NONE           = 0,
-	PF_PRELOAD        = 0x0000000000000001ULL,
-	PF_DISABLEPANELS  = 0x0000000000000002ULL,
-	PF_EDITOR         = 0x0000000000000004ULL,
-	PF_VIEWER         = 0x0000000000000008ULL,
-	PF_FULLCMDLINE    = 0x0000000000000010ULL,
-	PF_DIALOG         = 0x0000000000000020ULL;
-
-struct PluginMenuItem
-{
-	const GUID *Guids;
-	const wchar_t * const *Strings;
-	int Count;
-};
-
-enum VERSION_STAGE
-{
-	VS_RELEASE,
-	VS_ALPHA,
-	VS_BETA,
-	VS_RC,
-};
-
-struct VersionInfo
-{
-	DWORD Major;
-	DWORD Minor;
-	DWORD Revision;
-	DWORD Build;
-	enum VERSION_STAGE Stage;
-};
-
-static __inline BOOL CheckVersion(const struct VersionInfo* Current, const struct VersionInfo* Required)
-{
-	return (Current->Major > Required->Major) || (Current->Major == Required->Major && Current->Minor > Required->Minor) || (Current->Major == Required->Major && Current->Minor == Required->Minor && Current->Revision > Required->Revision) || (Current->Major == Required->Major && Current->Minor == Required->Minor && Current->Revision == Required->Revision && Current->Build >= Required->Build);
-}
-
-static __inline struct VersionInfo MAKEFARVERSION(int Major, int Minor, int Revision, int Build)
-{
-	struct VersionInfo Info = {Major,Minor,Revision,Build};
-	return Info;
-}
-
-#define FARMANAGERVERSION MAKEFARVERSION(FARMANAGERVERSION_MAJOR,FARMANAGERVERSION_MINOR, FARMANAGERVERSION_REVISION, FARMANAGERVERSION_BUILD)
-
-struct GlobalInfo
-{
-	size_t StructSize;
-	struct VersionInfo MinFarVersion;
-	struct VersionInfo Version;
-	GUID Guid;
-	const wchar_t *Title;
-	const wchar_t *Description;
-	const wchar_t *Author;
-};
-
-struct PluginInfo
-{
-	size_t StructSize;
-	PLUGIN_FLAGS Flags;
-	struct PluginMenuItem DiskMenu;
-	struct PluginMenuItem PluginMenu;
-	struct PluginMenuItem PluginConfig;
-	const wchar_t *CommandPrefix;
-};
-
-
-
-struct InfoPanelLine
-{
-	const wchar_t *Text;
-	const wchar_t *Data;
-	int  Separator;
-};
-
-typedef unsigned __int64 PANELMODE_FLAGS;
-static const PANELMODE_FLAGS
-	PMFLAGS_FULLSCREEN      = 0x0000000000000001ULL,
-	PMFLAGS_DETAILEDSTATUS  = 0x0000000000000002ULL,
-	PMFLAGS_ALIGNEXTENSIONS = 0x0000000000000004ULL,
-	PMFLAGS_CASECONVERSION  = 0x0000000000000008ULL;
-
-struct PanelMode
-{
-	size_t StructSize;
-	const wchar_t *ColumnTypes;
-	const wchar_t *ColumnWidths;
-	const wchar_t * const *ColumnTitles;
-	const wchar_t *StatusColumnTypes;
-	const wchar_t *StatusColumnWidths;
-	PANELMODE_FLAGS Flags;
-};
-
-typedef unsigned __int64 OPENPANELINFO_FLAGS;
-static const OPENPANELINFO_FLAGS
-	OPIF_NONE                    = 0,
-	OPIF_DISABLEFILTER           = 0x0000000000000001ULL,
-	OPIF_DISABLESORTGROUPS       = 0x0000000000000002ULL,
-	OPIF_DISABLEHIGHLIGHTING     = 0x0000000000000004ULL,
-	OPIF_ADDDOTS                 = 0x0000000000000008ULL,
-	OPIF_RAWSELECTION            = 0x0000000000000010ULL,
-	OPIF_REALNAMES               = 0x0000000000000020ULL,
-	OPIF_SHOWNAMESONLY           = 0x0000000000000040ULL,
-	OPIF_SHOWRIGHTALIGNNAMES     = 0x0000000000000080ULL,
-	OPIF_SHOWPRESERVECASE        = 0x0000000000000100ULL,
-	OPIF_COMPAREFATTIME          = 0x0000000000000400ULL,
-	OPIF_EXTERNALGET             = 0x0000000000000800ULL,
-	OPIF_EXTERNALPUT             = 0x0000000000001000ULL,
-	OPIF_EXTERNALDELETE          = 0x0000000000002000ULL,
-	OPIF_EXTERNALMKDIR           = 0x0000000000004000ULL,
-	OPIF_USEATTRHIGHLIGHTING     = 0x0000000000008000ULL,
-	OPIF_USECRC32                = 0x0000000000010000ULL,
-	OPIF_USEFREESIZE             = 0x0000000000020000ULL;
-
-struct KeyBarLabel
-{
-	struct FarKey Key;
-	const wchar_t *Text;
-	const wchar_t *LongText;
-};
-
-struct KeyBarTitles
-{
-	size_t CountLabels;
-	struct KeyBarLabel *Labels;
-};
-
-typedef unsigned __int64 OPERATION_MODES;
-static const OPERATION_MODES
-	OPM_NONE       =0,
-	OPM_SILENT     =0x0000000000000001ULL,
-	OPM_FIND       =0x0000000000000002ULL,
-	OPM_VIEW       =0x0000000000000004ULL,
-	OPM_EDIT       =0x0000000000000008ULL,
-	OPM_TOPLEVEL   =0x0000000000000010ULL,
-	OPM_DESCR      =0x0000000000000020ULL,
-	OPM_QUICKVIEW  =0x0000000000000040ULL,
-	OPM_PGDN       =0x0000000000000080ULL;
-
-struct OpenPanelInfo
-{
-	size_t                       StructSize;
-	HANDLE                       hPanel;
-	OPENPANELINFO_FLAGS          Flags;
-	const wchar_t               *HostFile;
-	const wchar_t               *CurDir;
-	const wchar_t               *Format;
-	const wchar_t               *PanelTitle;
-	const struct InfoPanelLine  *InfoLines;
-	size_t                       InfoLinesNumber;
-	const wchar_t * const       *DescrFiles;
-	size_t                       DescrFilesNumber;
-	const struct PanelMode      *PanelModesArray;
-	size_t                       PanelModesNumber;
-	int                          StartPanelMode;
-	enum OPENPANELINFO_SORTMODES StartSortMode;
-	int                          StartSortOrder;
-	const struct KeyBarTitles   *KeyBar;
-	const wchar_t               *ShortcutData;
-	unsigned __int64             FreeSize;
-};
-
-struct AnalyseInfo
-{
-	size_t          StructSize;
-	const wchar_t  *FileName;
-	void           *Buffer;
-	size_t          BufferSize;
-	OPERATION_MODES OpMode;
-};
-
-enum OPENFROM
-{
-	OPEN_FROM_MASK          = 0x000000FF,
-
-	OPEN_LEFTDISKMENU       = 0,
-	OPEN_PLUGINSMENU        = 1,
-	OPEN_FINDLIST           = 2,
-	OPEN_SHORTCUT           = 3,
-	OPEN_COMMANDLINE        = 4,
-	OPEN_EDITOR             = 5,
-	OPEN_VIEWER             = 6,
-	OPEN_FILEPANEL          = 7,
-	OPEN_DIALOG             = 8,
-	OPEN_ANALYSE            = 9,
-	OPEN_RIGHTDISKMENU      = 10,
-
-	OPEN_FROMMACRO_MASK     = 0x000F0000,
-
-	OPEN_FROMMACRO          = 0x00010000,
-	OPEN_FROMMACROSTRING    = 0x00020000,
-};
-
-
-enum FAR_EVENTS
-{
-	FE_CHANGEVIEWMODE =0,
-	FE_REDRAW         =1,
-	FE_IDLE           =2,
-	FE_CLOSE          =3,
-	FE_BREAK          =4,
-	FE_COMMAND        =5,
-
-	FE_GOTFOCUS       =6,
-	FE_KILLFOCUS      =7,
-};
-
-struct OpenInfo
-{
-	size_t StructSize;
-	enum OPENFROM OpenFrom;
-	const GUID* Guid;
-	INT_PTR Data;
-};
-
-struct SetDirectoryInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	const wchar_t *Dir;
-	OPERATION_MODES OpMode;
-	INT_PTR UserData;
-};
-
-struct SetFindListInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	const struct PluginPanelItem *PanelItem;
-	size_t ItemsNumber;
-};
-
-struct PutFilesInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	struct PluginPanelItem *PanelItem;
-	size_t ItemsNumber;
-	int Move;
-	const wchar_t *SrcPath;
-	OPERATION_MODES OpMode;
-};
-
-struct ProcessHostFileInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	struct PluginPanelItem *PanelItem;
-	size_t ItemsNumber;
-	OPERATION_MODES OpMode;
-};
-
-struct MakeDirectoryInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	const wchar_t *Name;
-	OPERATION_MODES OpMode;
-};
-
-struct CompareInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	const struct PluginPanelItem *Item1;
-	const struct PluginPanelItem *Item2;
-	enum OPENPANELINFO_SORTMODES Mode;
-};
-
-struct GetFindDataInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	struct PluginPanelItem *PanelItem;
-	int ItemsNumber;
-	OPERATION_MODES OpMode;
-};
-
-struct GetVirtualFindDataInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	struct PluginPanelItem *PanelItem;
-	int ItemsNumber;
-	const wchar_t *Path;
-};
-
-struct FreeFindDataInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	struct PluginPanelItem *PanelItem;
-	int ItemsNumber;
-};
-
-struct GetFilesInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	struct PluginPanelItem *PanelItem;
-	int ItemsNumber;
-	int Move;
-	const wchar_t *DestPath;
-	OPERATION_MODES OpMode;
-};
-
-struct DeleteFilesInfo
-{
-	size_t StructSize;
-	HANDLE hPanel;
-	struct PluginPanelItem *PanelItem;
-	int ItemsNumber;
-	OPERATION_MODES OpMode;
-};
-
-
+#if defined(__BORLANDC__) || defined(_MSC_VER) || defined(__GNUC__) || defined(__WATCOMC__)
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 // Exported Functions
 
-	int    WINAPI AnalyseW(const struct AnalyseInfo *Info);
-	void   WINAPI ClosePanelW(HANDLE hPanel);
-	int    WINAPI CompareW(const struct CompareInfo *Info);
-	int    WINAPI ConfigureW(const GUID* Guid);
-	int    WINAPI DeleteFilesW(const struct DeleteFilesInfo *Info);
-	void   WINAPI ExitFARW(void);
-	void   WINAPI FreeFindDataW(const struct FreeFindDataInfo *Info);
-	void   WINAPI FreeVirtualFindDataW(const struct FreeFindDataInfo *Info);
-	int    WINAPI GetFilesW(struct GetFilesInfo *Info);
-	int    WINAPI GetFindDataW(struct GetFindDataInfo *Info);
-	void   WINAPI GetGlobalInfoW(struct GlobalInfo *Info);
-	void   WINAPI GetOpenPanelInfoW(struct OpenPanelInfo *Info);
-	void   WINAPI GetPluginInfoW(struct PluginInfo *Info);
-	int    WINAPI GetVirtualFindDataW(struct GetVirtualFindDataInfo *Info);
-	int    WINAPI MakeDirectoryW(struct MakeDirectoryInfo *Info);
-	HANDLE WINAPI OpenW(const struct OpenInfo *Info);
-	int    WINAPI ProcessDialogEventW(int Event,void *Param);
-	int    WINAPI ProcessEditorEventW(int Event,void *Param);
-	int    WINAPI ProcessEditorInputW(const INPUT_RECORD *Rec);
-	int    WINAPI ProcessEventW(HANDLE hPanel,int Event,void *Param);
-	int    WINAPI ProcessHostFileW(const struct ProcessHostFileInfo *Info);
-	int    WINAPI ProcessKeyW(HANDLE hPanel,const INPUT_RECORD *Rec);
-	int    WINAPI ProcessSynchroEventW(int Event,void *Param);
-	int    WINAPI ProcessViewerEventW(int Event,void *Param);
-	int    WINAPI PutFilesW(const struct PutFilesInfo *Info);
-	int    WINAPI SetDirectoryW(const struct SetDirectoryInfo *Info);
-	int    WINAPI SetFindListW(const struct SetFindListInfo *Info);
-	void   WINAPI SetStartupInfoW(const struct PluginStartupInfo *Info);
+	void   WINAPI _export ClosePluginW(HANDLE hPlugin);
+	int    WINAPI _export CompareW(HANDLE hPlugin,const struct PluginPanelItem *Item1,const struct PluginPanelItem *Item2,unsigned int Mode);
+	int    WINAPI _export ConfigureW(int ItemNumber);
+	int    WINAPI _export DeleteFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int OpMode);
+	void   WINAPI _export ExitFARW(void);
+	void   WINAPI _export FreeFindDataW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber);
+	void   WINAPI _export FreeVirtualFindDataW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber);
+	int    WINAPI _export GetFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,const wchar_t **DestPath,int OpMode);
+	int    WINAPI _export GetFindDataW(HANDLE hPlugin,struct PluginPanelItem **pPanelItem,int *pItemsNumber,int OpMode);
+	int    WINAPI _export GetMinFarVersionW(void);
+	void   WINAPI _export GetOpenPluginInfoW(HANDLE hPlugin,struct OpenPluginInfo *Info);
+	void   WINAPI _export GetPluginInfoW(struct PluginInfo *Info);
+	int    WINAPI _export GetVirtualFindDataW(HANDLE hPlugin,struct PluginPanelItem **pPanelItem,int *pItemsNumber,const wchar_t *Path);
+	int    WINAPI _export MakeDirectoryW(HANDLE hPlugin,const wchar_t **Name,int OpMode);
+	HANDLE WINAPI _export OpenFilePluginW(const wchar_t *Name,const unsigned char *Data,int DataSize,int OpMode);
+	HANDLE WINAPI _export OpenPluginW(int OpenFrom,INT_PTR Item);
+	int    WINAPI _export ProcessDialogEventW(int Event,void *Param);
+	int    WINAPI _export ProcessEditorEventW(int Event,void *Param);
+	int    WINAPI _export ProcessEditorInputW(const INPUT_RECORD *Rec);
+	int    WINAPI _export ProcessEventW(HANDLE hPlugin,int Event,void *Param);
+	int    WINAPI _export ProcessHostFileW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int OpMode);
+	int    WINAPI _export ProcessKeyW(HANDLE hPlugin,int Key,unsigned int ControlState);
+	int    WINAPI _export ProcessSynchroEventW(int Event,void *Param);
+	int    WINAPI _export ProcessViewerEventW(int Event,void *Param);
+	int    WINAPI _export PutFilesW(HANDLE hPlugin,struct PluginPanelItem *PanelItem,int ItemsNumber,int Move,const wchar_t *SrcPath,int OpMode);
+	int    WINAPI _export SetDirectoryW(HANDLE hPlugin,const wchar_t *Dir,int OpMode);
+	int    WINAPI _export SetFindListW(HANDLE hPlugin,const struct PluginPanelItem *PanelItem,int ItemsNumber);
+	void   WINAPI _export SetStartupInfoW(const struct PluginStartupInfo *Info);
 
 #ifdef __cplusplus
 };
+#endif
+#endif
+
+#ifndef _WIN64
+#if defined(__BORLANDC__)
+#pragma option -a.
+#elif defined(__GNUC__) || (defined(__WATCOMC__) && (__WATCOMC__ < 1100)) || defined(__LCC__)
+#pragma pack()
+#else
+#pragma pack(pop)
+#endif
 #endif
 
 #endif /* RC_INVOKED */

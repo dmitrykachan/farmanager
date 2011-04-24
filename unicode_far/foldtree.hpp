@@ -6,8 +6,8 @@ foldtree.hpp
 Поиск каталога по Alt-F10
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@ class FolderTree:public Frame
 
 		KeyBar TreeKeyBar;     // кейбар
 		int ModalMode;
-		bool IsFullScreen;
+		int IsFullScreen;
 		int IsStandalone;
 		int  PrevMacroMode;        // предыдущий режим макроса
 
@@ -61,7 +61,7 @@ class FolderTree:public Frame
 		void SetCoords();
 
 	public:
-		FolderTree(string &strResultFolder,int ModalMode,int IsStandalone=TRUE,bool IsFullScreen=true);
+		FolderTree(string &strResultFolder,int ModalMode,int IsStandalone=TRUE,int IsFullScreen=TRUE);
 		virtual ~FolderTree();
 
 	public:

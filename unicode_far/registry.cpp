@@ -4,8 +4,8 @@ registry.cpp
 Работа с registry
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -93,7 +93,7 @@ LONG SetRegKey(const wchar_t *Key,const wchar_t *ValueName,const wchar_t * const
 	LONG Ret=ERROR_SUCCESS;
 
 	if ((hKey=CreateRegKey(Key)) )
-		Ret=RegSetValueEx(hKey,ValueName,0,REG_SZ,(unsigned char *)ValueData,static_cast<DWORD>((StrLength(ValueData)+1)*sizeof(wchar_t)));
+		Ret=RegSetValueEx(hKey,ValueName,0,REG_SZ,(unsigned char *)ValueData,(int)(StrLength(ValueData)+1)*sizeof(wchar_t));
 
 	CloseRegKey(hKey);
 	return Ret;
@@ -597,20 +597,13 @@ int CopyKeyTree(const wchar_t *Src,const wchar_t *Dest,const wchar_t *Skip)
 			const wchar_t *SkipName=Skip;
 
 			while (!Found && *SkipName)
-			{
 				if (!StrCmpI(strSrcKeyName,SkipName))
-				{
 					Found=true;
-				}
 				else
-				{
 					SkipName+=StrLength(SkipName)+1;
-				}
-			}
+
 			if (Found)
-			{
 				continue;
-			}
 		}
 
 		strDestKeyName = Dest;

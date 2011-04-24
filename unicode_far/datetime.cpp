@@ -4,8 +4,8 @@ datetime.cpp
 Функции для работы с датой и временем
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -538,6 +538,18 @@ size_t MkStrFTime(string &strDest, const wchar_t *Fmt)
 	return StrFTime(strDest,Fmt,time_now);
 }
 
+__int64 FileTimeDifference(const FILETIME *a, const FILETIME* b)
+{
+	LARGE_INTEGER A={a->dwLowDateTime,a->dwHighDateTime},B={b->dwLowDateTime,b->dwHighDateTime};
+	return A.QuadPart - B.QuadPart;
+}
+
+unsigned __int64 FileTimeToUI64(const FILETIME *ft)
+{
+	ULARGE_INTEGER A={ft->dwLowDateTime,ft->dwHighDateTime};
+	return A.QuadPart;
+}
+
 void GetFileDateAndTime(const wchar_t *Src,LPWORD Dst,size_t Count,int Separator)
 {
 	for (size_t i=0; i<Count; i++)
@@ -724,18 +736,18 @@ void ConvertDate(const FILETIME &ft,string &strDateText, string &strTimeText,int
 
 		if (TextMonth)
 		{
-			const wchar_t *Mnth=MSG(MMonthJan+st.wMonth-1);
+			const wchar_t *Month=MSG(MMonthJan+st.wMonth-1);
 
 			switch (CurDateFormat)
 			{
 				case 0:
-					strDateText.Format(L"%3.3s %2d %02d",Mnth,st.wDay,Year);
+					strDateText.Format(L"%3.3s %2d %02d",Month,st.wDay,Year);
 					break;
 				case 1:
-					strDateText.Format(L"%2d %3.3s %02d",st.wDay,Mnth,Year);
+					strDateText.Format(L"%2d %3.3s %02d",st.wDay,Month,Year);
 					break;
 				default:
-					strDateText.Format(L"%02d %3.3s %2d",Year,Mnth,st.wDay);
+					strDateText.Format(L"%02d %3.3s %2d",Year,Month,st.wDay);
 					break;
 			}
 		}
@@ -765,7 +777,7 @@ void ConvertDate(const FILETIME &ft,string &strDateText, string &strTimeText,int
 			}
 			FormatString Fmt;
 			Fmt<<fmt::FillChar(f1)<<fmt::Width(w1)<<p1<<DateSeparator<<fmt::FillChar(f2)<<fmt::Width(w2)<<p2<<DateSeparator<<fmt::FillChar(f3)<<fmt::Width(w3)<<p3;
-			strDateText=Fmt;
+			strDateText=Fmt.strValue();
 		}
 	}
 
@@ -781,7 +793,7 @@ void ConvertDate(const FILETIME &ft,string &strDateText, string &strTimeText,int
 void ConvertRelativeDate(const FILETIME &ft,string &strDaysText,string &strTimeText)
 {
 	ULARGE_INTEGER time={ft.dwLowDateTime,ft.dwHighDateTime};
-
+	
 	UINT64 ms = (time.QuadPart/=10000)%1000;
 	UINT64 s = (time.QuadPart/=1000)%60;
 	UINT64 m = (time.QuadPart/=60)%60;
@@ -790,9 +802,9 @@ void ConvertRelativeDate(const FILETIME &ft,string &strDaysText,string &strTimeT
 
 	FormatString DaysText;
 	DaysText<<d;
-	strDaysText=DaysText;
+	strDaysText=DaysText.strValue();
 
 	FormatString TimeText;
 	TimeText<<fmt::Width(2)<<fmt::FillChar(L'0')<<h<<GetTimeSeparator()<<fmt::Width(2)<<fmt::FillChar(L'0')<<m<<GetTimeSeparator()<<fmt::Width(2)<<fmt::FillChar(L'0')<<s<<GetDecimalSeparator()<<fmt::Width(3)<<fmt::FillChar(L'0')<<ms;
-	strTimeText=TimeText;
+	strTimeText=TimeText.strValue();
 }

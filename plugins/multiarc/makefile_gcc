@@ -1,4 +1,3 @@
-ANSI = 1
 NAME = MultiArc
 SRCS = MultiArc.cpp \
 arccfg.cpp \

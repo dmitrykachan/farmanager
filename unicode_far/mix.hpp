@@ -6,8 +6,8 @@ mix.hpp
 Mix
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -33,8 +33,6 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "plugin.hpp"
-
 int ToPercent(unsigned long N1,unsigned long N2);
 int ToPercent64(unsigned __int64 N1,unsigned __int64 N2);
 
@@ -43,27 +41,13 @@ extern "C"
 {
 #endif
 
-	typedef int (WINAPI *FRSUSERFUNC)(const PluginPanelItem *FData,const wchar_t *FullName,void *param);
-	void WINAPI FarRecursiveSearch(const wchar_t *initdir,const wchar_t *mask,FRSUSERFUNC func,unsigned __int64 flags,void *param);
+	typedef int (WINAPI *FRSUSERFUNC)(const FAR_FIND_DATA *FData,const wchar_t *FullName,void *param);
+	void WINAPI FarRecursiveSearch(const wchar_t *initdir,const wchar_t *mask,FRSUSERFUNC func,DWORD flags,void *param);
 
-	size_t WINAPI FarMkTemp(wchar_t *Dest, size_t size, const wchar_t *Prefix);
+	int WINAPI FarMkTemp(wchar_t *Dest, DWORD size, const wchar_t *Prefix);
 
 #ifdef __cplusplus
 };
 #endif
 
 string& FarMkTempEx(string &strDest, const wchar_t *Prefix=nullptr, BOOL WithTempPath=TRUE, const wchar_t *UserTempPath=nullptr);
-
-void PluginPanelItemToFindDataEx(
-    const PluginPanelItem *pSrc,
-    FAR_FIND_DATA_EX *pDest
-);
-
-void FindDataExToPluginPanelItem(
-    const FAR_FIND_DATA_EX *pSrc,
-    PluginPanelItem *pDest
-);
-
-void FreePluginPanelItem(
-    PluginPanelItem *pData
-);

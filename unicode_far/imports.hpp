@@ -6,8 +6,8 @@ imports.hpp
 импортируемые функции
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -217,7 +217,7 @@ public:
 	GETPHYSICALLYINSTALLEDSYSTEMMEMORY pfnGetPhysicallyInstalledSystemMemory;
 	HEAPSETINFORMATION pfnHeapSetInformation;
 	ISWOW64PROCESS pfnIsWow64Process;
-	GETNAMEDPIPESERVERPROCESSID pfnGetNamedPipeServerProcessId;
+	GETNAMEDPIPESERVERPROCESSID pGetNamedPipeServerProcessId;
 
 	NTQUERYDIRECTORYFILE pfnNtQueryDirectoryFile;
 	NTQUERYINFORMATIONFILE pfnNtQueryInformationFile;

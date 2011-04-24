@@ -6,8 +6,8 @@ eject.hpp
 Eject סתולםûץ םמסטעוכוי
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,5 +35,5 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "drivemix.hpp"
 
-BOOL EjectVolume(wchar_t Letter,UINT64 Flags);
+BOOL EjectVolume(wchar_t Letter,DWORD Flags);
 bool IsEjectableMedia(wchar_t Letter,UINT DriveType=DRIVE_NOT_INIT,BOOL ForceCDROM=FALSE);

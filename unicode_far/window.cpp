@@ -4,7 +4,7 @@ window.cpp
 Обработка оконных сообщений
 */
 /*
-Copyright © 2010 Far Group
+Copyright (c) 2010 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -101,12 +101,12 @@ DWORD WINAPI WindowThreadRoutine(LPVOID Param)
 	UnregisterClass(wc.lpszClassName, 0);
 	if(RegisterClassEx(&wc))
 	{
-		HWND* pHwnd=static_cast<HWND*>(Param);
+		HWND* pHwnd=reinterpret_cast<HWND*>(Param);
 		*pHwnd=CreateWindowEx(0, wc.lpszClassName, nullptr, 0, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr, nullptr, nullptr, nullptr);
 		if(*pHwnd)
 		{
 			MSG Msg;
-			while(GetMessage(&Msg, nullptr, 0, 0)>0)
+			while(GetMessage(&Msg, NULL, 0, 0)>0)
 			{
 				TranslateMessage(&Msg);
 				DispatchMessage(&Msg);

@@ -2,7 +2,6 @@ ifndef FLL
 $(error An invalid FLL-target)
 endif
 
-ANSI = 1
 NAME = ftp$(FLL)
 EXT = fll
 ADDOUTDIR = /lib

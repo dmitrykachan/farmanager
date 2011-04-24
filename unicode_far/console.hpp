@@ -6,7 +6,7 @@ console.hpp
 Console functions
 */
 /*
-Copyright © 2010 Far Group
+Copyright (c) 2010 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,77 +35,77 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 class console
 {
 public:
-	bool Allocate() const;
-	bool Free() const;
+	bool Allocate();
+	bool Free();
 
-	HANDLE GetInputHandle() const;
-	HANDLE GetOutputHandle() const;
-	HANDLE GetErrorHandle() const;
+	HANDLE GetInputHandle();
+	HANDLE GetOutputHandle();
+	HANDLE GetErrorHandle();
 
-	HWND GetWindow() const;
+	HWND GetWindow();
 
-	bool GetSize(COORD& Size) const;
-	bool SetSize(COORD Size) const;
+	bool GetSize(COORD& Size);
+	bool SetSize(COORD Size);
 
-	bool GetWindowRect(SMALL_RECT& ConsoleWindow) const;
-	bool SetWindowRect(const SMALL_RECT& ConsoleWindow) const;
+	bool GetWindowRect(SMALL_RECT& ConsoleWindow);
+	bool SetWindowRect(const SMALL_RECT& ConsoleWindow);
 
-	bool GetWorkingRect(SMALL_RECT& WorkingRect) const;
+	bool GetWorkingRect(SMALL_RECT& WorkingRect);
 
-	bool GetTitle(string &strTitle) const;
-	bool SetTitle(LPCWSTR Title) const;
+	bool GetTitle(string &strTitle);
+	bool SetTitle(LPCWSTR Title);
 
-	bool GetKeyboardLayoutName(string &strName) const;
+	bool GetKeyboardLayoutName(string &strName);
 
-	UINT GetInputCodepage() const;
-	bool SetInputCodepage(UINT Codepage) const;
+	UINT GetInputCodepage();
+	bool SetInputCodepage(UINT Codepage);
 
-	UINT GetOutputCodepage() const;
-	bool SetOutputCodepage(UINT Codepage) const;
+	UINT GetOutputCodepage();
+	bool SetOutputCodepage(UINT Codepage);
 
-	bool SetControlHandler(PHANDLER_ROUTINE HandlerRoutine, bool Add) const;
+	bool SetControlHandler(PHANDLER_ROUTINE HandlerRoutine, bool Add);
 
-	bool GetMode(HANDLE ConsoleHandle, DWORD& Mode) const;
-	bool SetMode(HANDLE ConsoleHandle, DWORD Mode) const;
+	bool GetMode(HANDLE ConsoleHandle, DWORD& Mode);
+	bool SetMode(HANDLE ConsoleHandle, DWORD Mode);
 
-	bool PeekInput(INPUT_RECORD& Buffer, DWORD Length, DWORD& NumberOfEventsRead) const;
-	bool ReadInput(INPUT_RECORD& Buffer, DWORD Length, DWORD& NumberOfEventsRead) const;
-	bool WriteInput(INPUT_RECORD& Buffer, DWORD Length, DWORD& NumberOfEventsWritten) const;
-	bool ReadOutput(CHAR_INFO& Buffer, COORD BufferSize, COORD BufferCoord, SMALL_RECT& ReadRegion) const ;
-	bool WriteOutput(const CHAR_INFO& Buffer, COORD BufferSize, COORD BufferCoord, SMALL_RECT& WriteRegion) const;
-	bool Write(LPCWSTR Buffer, DWORD NumberOfCharsToWrite) const;
+	bool PeekInput(INPUT_RECORD& Buffer, DWORD Length, DWORD& NumberOfEventsRead);
+	bool ReadInput(INPUT_RECORD& Buffer, DWORD Length, DWORD& NumberOfEventsRead);
+	bool WriteInput(INPUT_RECORD& Buffer, DWORD Length, DWORD& NumberOfEventsWritten);
+	bool ReadOutput(CHAR_INFO& Buffer, COORD BufferSize, COORD BufferCoord, SMALL_RECT& ReadRegion);
+	bool WriteOutput(const CHAR_INFO& Buffer, COORD BufferSize, COORD BufferCoord, SMALL_RECT& WriteRegion);
+	bool Write(LPCWSTR Buffer, DWORD NumberOfCharsToWrite);
 
-	bool GetTextAttributes(WORD& Attributes) const;
-	bool SetTextAttributes(WORD Attributes) const;
+	bool GetTextAttributes(WORD& Attributes);
+	bool SetTextAttributes(WORD Attributes);
 
-	bool GetCursorInfo(CONSOLE_CURSOR_INFO& ConsoleCursorInfo) const;
-	bool SetCursorInfo(const CONSOLE_CURSOR_INFO& ConsoleCursorInfo) const;
+	bool GetCursorInfo(CONSOLE_CURSOR_INFO& ConsoleCursorInfo);
+	bool SetCursorInfo(const CONSOLE_CURSOR_INFO& ConsoleCursorInfo);
 
-	bool GetCursorPosition(COORD& Position) const;
-	bool SetCursorPosition(COORD Position) const;
+	bool GetCursorPosition(COORD& Position);
+	bool SetCursorPosition(COORD Position);
 
-	bool FlushInputBuffer() const;
+	bool FlushInputBuffer();
 
-	bool GetNumberOfInputEvents(DWORD& NumberOfEvents) const;
+	bool GetNumberOfInputEvents(DWORD& NumberOfEvents);
 
-	DWORD GetAlias(LPCWSTR Source, LPWSTR TargetBuffer, DWORD TargetBufferLength, LPCWSTR ExeName) const;
+	DWORD GetAlias(LPCWSTR Source, LPWSTR TargetBuffer, DWORD TargetBufferLength, LPCWSTR ExeName);
 
-	bool GetDisplayMode(DWORD& Mode) const;
+	bool GetDisplayMode(DWORD& Mode);
 
-	COORD GetLargestWindowSize() const;
+	COORD GetLargestWindowSize();
 
-	bool SetActiveScreenBuffer(HANDLE ConsoleOutput) const;
+	bool SetActiveScreenBuffer(HANDLE ConsoleOutput);
 
-	bool ClearExtraRegions(WORD Color) const;
+	bool ClearExtraRegions(WORD Color);
 
-	bool ScrollWindow(int Lines,int Columns=0) const;
+	bool ScrollWindow(int Lines,int Columns=0);
 
-	bool ScrollScreenBuffer(int Lines) const;
+	bool ScrollScreenBuffer(int Lines);
 
-	bool ResetPosition() const;
+	bool ResetPosition();
 
 private:
-	int GetDelta() const;
+	int GetDelta();
 };
 
 extern console Console;

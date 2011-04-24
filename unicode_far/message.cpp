@@ -4,8 +4,8 @@ message.cpp
 Вывод MessageBox
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "interf.hpp"
 #include "palette.hpp"
 #include "config.hpp"
-#include "keyboard.hpp"
 
 static int MessageX1,MessageY1,MessageX2,MessageY2;
 static string strMsgHelpTopic;
@@ -53,7 +52,7 @@ static int FirstButtonIndex,LastButtonIndex;
 static BOOL IsWarningStyle;
 
 
-int Message(DWORD Flags,size_t Buttons,const wchar_t *Title,const wchar_t *Str1,
+int Message(DWORD Flags,int Buttons,const wchar_t *Title,const wchar_t *Str1,
             const wchar_t *Str2,const wchar_t *Str3,const wchar_t *Str4,
             INT_PTR PluginNumber)
 {
@@ -61,7 +60,7 @@ int Message(DWORD Flags,size_t Buttons,const wchar_t *Title,const wchar_t *Str1,
 	               nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,PluginNumber));
 }
 
-int Message(DWORD Flags,size_t Buttons,const wchar_t *Title,const wchar_t *Str1,
+int Message(DWORD Flags,int Buttons,const wchar_t *Title,const wchar_t *Str1,
             const wchar_t *Str2,const wchar_t *Str3,const wchar_t *Str4,
             const wchar_t *Str5,const wchar_t *Str6,const wchar_t *Str7,
             INT_PTR PluginNumber)
@@ -71,7 +70,7 @@ int Message(DWORD Flags,size_t Buttons,const wchar_t *Title,const wchar_t *Str1,
 }
 
 
-int Message(DWORD Flags,size_t Buttons,const wchar_t *Title,const wchar_t *Str1,
+int Message(DWORD Flags,int Buttons,const wchar_t *Title,const wchar_t *Str1,
             const wchar_t *Str2,const wchar_t *Str3,const wchar_t *Str4,
             const wchar_t *Str5,const wchar_t *Str6,const wchar_t *Str7,
             const wchar_t *Str8,const wchar_t *Str9,const wchar_t *Str10,
@@ -81,7 +80,7 @@ int Message(DWORD Flags,size_t Buttons,const wchar_t *Title,const wchar_t *Str1,
 	               Str9,Str10,nullptr,nullptr,nullptr,nullptr,PluginNumber));
 }
 
-int Message(DWORD Flags,size_t Buttons,const wchar_t *Title,const wchar_t *Str1,
+int Message(DWORD Flags,int Buttons,const wchar_t *Title,const wchar_t *Str1,
             const wchar_t *Str2,const wchar_t *Str3,const wchar_t *Str4,
             const wchar_t *Str5,const wchar_t *Str6,const wchar_t *Str7,
             const wchar_t *Str8,const wchar_t *Str9,const wchar_t *Str10,
@@ -97,7 +96,7 @@ int Message(DWORD Flags,size_t Buttons,const wchar_t *Title,const wchar_t *Str1,
 	return Message(Flags,Buttons,Title,Str,StrCount,PluginNumber);
 }
 
-INT_PTR WINAPI MsgDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
+LONG_PTR WINAPI MsgDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2)
 {
 	switch (Msg)
 	{
@@ -105,12 +104,12 @@ INT_PTR WINAPI MsgDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
 		{
 			FarDialogItem di;
 
-			for (int i=0; SendDlgMessage(hDlg,DM_GETDLGITEMSHORT,i,&di); i++)
+			for (int i=0; SendDlgMessage(hDlg,DM_GETDLGITEMSHORT,i,(LONG_PTR)&di); i++)
 			{
 				if (di.Type==DI_EDIT)
 				{
 					COORD pos={0,0};
-					SendDlgMessage(hDlg,DM_SETCURSORPOS,i,&pos);
+					SendDlgMessage(hDlg,DM_SETCURSORPOS,i,(LONG_PTR)&pos);
 				}
 			}
 		}
@@ -118,35 +117,28 @@ INT_PTR WINAPI MsgDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
 		case DN_CTLCOLORDLGITEM:
 		{
 			FarDialogItem di;
-			SendDlgMessage(hDlg,DM_GETDLGITEMSHORT,Param1,&di);
+			SendDlgMessage(hDlg,DM_GETDLGITEMSHORT,Param1,(LONG_PTR)&di);
 
 			if (di.Type==DI_EDIT)
 			{
 				int Color=FarColorToReal(IsWarningStyle?COL_WARNDIALOGTEXT:COL_DIALOGTEXT)&0xFF;
-				return ((reinterpret_cast<INT_PTR>(Param2)&0xFF00FF00)|(Color<<16)|Color);
+				return ((Param2&0xFF00FF00)|(Color<<16)|Color);
 			}
 		}
 		break;
-		case DN_CONTROLINPUT:
+		case DN_KEY:
 		{
-			const INPUT_RECORD* record=(const INPUT_RECORD *)Param2;
-			if (record->EventType==KEY_EVENT)
+			if (Param1==FirstButtonIndex && (Param2==KEY_LEFT || Param2 == KEY_NUMPAD4 || Param2==KEY_SHIFTTAB))
 			{
-				int key = InputRecordToKey((const INPUT_RECORD *)Param2);
-				if (Param1==FirstButtonIndex && (key==KEY_LEFT || key == KEY_NUMPAD4 || key==KEY_SHIFTTAB))
-				{
-					SendDlgMessage(hDlg,DM_SETFOCUS,LastButtonIndex,0);
-					return TRUE;
-				}
-				else if (Param1==LastButtonIndex && (key==KEY_RIGHT || key == KEY_NUMPAD6 || key==KEY_TAB))
-				{
-					SendDlgMessage(hDlg,DM_SETFOCUS,FirstButtonIndex,0);
-					return TRUE;
-				}
+				SendDlgMessage(hDlg,DM_SETFOCUS,LastButtonIndex,0);
+				return TRUE;
+			}
+			else if (Param1==LastButtonIndex && (Param2==KEY_RIGHT || Param2 == KEY_NUMPAD6 || Param2==KEY_TAB))
+			{
+				SendDlgMessage(hDlg,DM_SETFOCUS,FirstButtonIndex,0);
+				return TRUE;
 			}
 		}
-		break;
-	default:
 		break;
 	}
 
@@ -155,16 +147,16 @@ INT_PTR WINAPI MsgDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
 
 int Message(
     DWORD Flags,
-    size_t Buttons,
+    int Buttons,
     const wchar_t *Title,
     const wchar_t * const *Items,
-    size_t ItemsNumber,
+    int ItemsNumber,
     INT_PTR PluginNumber
 )
 {
 	string strTempStr;
 	int X1,Y1,X2,Y2;
-	int Length, BtnLength;
+	int Length, BtnLength, J;
 	DWORD I, MaxLength, StrCount;
 	BOOL ErrorSets=FALSE;
 	const wchar_t **Str;
@@ -181,7 +173,7 @@ int Message(
 	if (!Str)
 		return -1;
 
-	StrCount=static_cast<DWORD>(ItemsNumber-Buttons);
+	StrCount=ItemsNumber-Buttons;
 
 	// предварительный обсчет максимального размера.
 	for (BtnLength=0,I=0; I<static_cast<DWORD>(Buttons); I++) //??
@@ -292,7 +284,7 @@ int Message(
 		ItemsNumber++;
 	}
 
-	for (size_t J=0; J < ItemsNumber-(EmptyText?1:0); ++J, ++I)
+	for (J=0; J < ItemsNumber-(EmptyText?1:0); ++J, ++I)
 	{
 		Str[I]=Items[J];
 	}
@@ -313,7 +305,7 @@ int Message(
 
 	if (Buttons>0)
 	{
-		size_t ItemCount=StrCount+Buttons+1;
+		DWORD ItemCount=StrCount+Buttons+1;
 		DialogItemEx *PtrMsgDlg;
 		DialogItemEx *MsgDlg = new DialogItemEx[ItemCount+1];
 
@@ -337,8 +329,8 @@ int Message(
 		if (Title && *Title)
 			MsgDlg[0].strData = Title;
 
-		FARDIALOGITEMTYPES TypeItem=DI_TEXT;
-		unsigned __int64 FlagsItem=DIF_SHOWAMPERSAND;
+		int TypeItem=DI_TEXT;
+		DWORD FlagsItem=DIF_SHOWAMPERSAND;
 		BOOL IsButton=FALSE;
 		int CurItem=0;
 		bool StrSeparator=false;
@@ -357,15 +349,13 @@ int Message(
 			}
 			if(I==StrCount+1)
 			{
+				PtrMsgDlg->DefaultButton=TRUE;
+				PtrMsgDlg->Focus=TRUE;
 				TypeItem=DI_BUTTON;
-				FlagsItem=DIF_CENTERGROUP|DIF_DEFAULTBUTTON|DIF_FOCUS;
+				FlagsItem=DIF_CENTERGROUP;
 				IsButton=TRUE;
 				FirstButtonIndex=CurItem+1;
 				LastButtonIndex=CurItem;
-			}
-			else
-			{
-				FlagsItem&=~DIF_DEFAULTBUTTON;
 			}
 
 			PtrMsgDlg->Type=TypeItem;
@@ -433,8 +423,6 @@ int Message(
 			}
 
 			Dlg.SetDialogMode(DMODE_MSGINTERNAL);
-			if (Flags & MSG_NOPLUGINS)
-				Dlg.SetDialogMode(DMODE_NOPLUGINS);
 			FlushInputBuffer();
 
 			if (Flags & MSG_KILLSAVESCREEN)

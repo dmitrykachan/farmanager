@@ -4,8 +4,8 @@ main.cpp
 Функция main.
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -62,11 +62,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "elevation.hpp"
 #include "cmdline.hpp"
 #include "console.hpp"
-#include "configdb.hpp"
 
 #ifdef DIRECT_RT
 int DirectRT=0;
 #endif
+
+static void CopyGlobalSettings();
 
 static void show_help()
 {
@@ -92,11 +93,8 @@ static void show_help()
 	    L" /ma  Do not execute auto run macros.\n"
 	    L" /p[<path>]\n"
 	    L"      Search for \"common\" plugins in the directory, specified by <path>.\n"
-	    L" /s <path>\n"
-	    L"      Custom location for Far configuration files - overrides Far.exe.ini.\n"
 	    L" /u <username>\n"
-	    L"      Allows to have separate registry settings for different users.\n"
-	    L"      Affects only 1.x Far Manager plugins\n"
+	    L"      Allows to have separate settings for different users.\n"
 	    L" /v <filename>\n"
 	    L"      View the specified file. If <filename> is -, data is read from the stdin.\n"
 	    L" /w   Stretch to console window instead of console buffer.\n"
@@ -306,62 +304,9 @@ int MainProcessSEH(string& strEditName,string& strViewName,string& DestName1,str
 	return Result;
 }
 
-void InitProfile(const string& strProfilePath)
-{
-	if (strProfilePath.IsEmpty())
-	{
-		int UseSystemProfiles = GetPrivateProfileInt(L"General", L"UseSystemProfiles", 1, g_strFarINI);
-		if (UseSystemProfiles)
-		{
-			// roaming profiles default path: %APPDATA%\Far Manager\Profile
-			SHGetFolderPath(nullptr, CSIDL_APPDATA|CSIDL_FLAG_CREATE, nullptr, 0, Opt.ProfilePath.GetBuffer(MAX_PATH));
-			Opt.ProfilePath.ReleaseBuffer();
-			AddEndSlash(Opt.ProfilePath);
-			Opt.ProfilePath += L"Far Manager";
-
-			if (UseSystemProfiles == 2)
-			{
-				Opt.LocalProfilePath = Opt.ProfilePath;
-			}
-			else
-			{
-				// local profiles default path: %LOCALAPPDATA%\Far Manager\Profile
-				SHGetFolderPath(nullptr, CSIDL_LOCAL_APPDATA|CSIDL_FLAG_CREATE, nullptr, 0, Opt.LocalProfilePath.GetBuffer(MAX_PATH));
-				Opt.LocalProfilePath.ReleaseBuffer();
-				AddEndSlash(Opt.LocalProfilePath);
-				Opt.LocalProfilePath += L"Far Manager";
-			}
-		}
-		else
-		{
-			string strUserProfileDir;
-			strUserProfileDir.ReleaseBuffer(GetPrivateProfileString(L"General", L"UserProfileDir", L"%FARHOME%\\UserData", strUserProfileDir.GetBuffer(NT_MAX_PATH), NT_MAX_PATH, g_strFarINI));
-			apiExpandEnvironmentStrings(strUserProfileDir, Opt.ProfilePath);
-			Unquote(Opt.ProfilePath);
-			ConvertNameToFull(Opt.ProfilePath,Opt.ProfilePath);
-			Opt.LocalProfilePath = Opt.ProfilePath;
-		}
-	}
-	else
-	{
-		Opt.ProfilePath = strProfilePath;
-		Opt.LocalProfilePath = strProfilePath;
-	}
-
-	string* Paths[] = {&Opt.ProfilePath, &Opt.LocalProfilePath};
-	for (size_t i = 0; i< ARRAYSIZE(Paths); ++i)
-	{
-		AddEndSlash(*Paths[i]);
-		*Paths[i] += L"Profile";
-		CreatePath(*Paths[i], true);
-	}
-}
-
 int _cdecl wmain(int Argc, wchar_t *Argv[])
 {
 	apiEnableLowFragmentationHeap();
-
-	std::set_new_handler(nullptr);
 
 	GetVersionEx(&WinVer);
 
@@ -385,16 +330,13 @@ int _cdecl wmain(int Argc, wchar_t *Argv[])
 	string DestNames[2];
 	int StartLine=-1,StartChar=-1;
 	int CntDestName=0; // количество параметров-имен каталогов
-
-#ifdef _MSC_VER
 	/*$ 18.04.2002 SKV
 	  Попользуем floating point что бы проинициализировался vc-ный fprtl.
 	*/
-	{
-		float x=1.1f;
-		wchar_t buf[15];
-		wsprintf(buf,L"%f",x);
-	}
+#ifdef _MSC_VER
+	float x=1.1f;
+	wchar_t buf[15];
+	wsprintf(buf,L"%f",x);
 #endif
 	// если под дебагером, то отключаем исключения однозначно,
 	//  иначе - смотря что указал юзвер.
@@ -403,34 +345,32 @@ int _cdecl wmain(int Argc, wchar_t *Argv[])
 #else
 	Opt.ExceptRules=IsDebuggerPresent()?0:-1;
 #endif
+//  Opt.ExceptRules=-1;
 
 #ifdef __GNUC__
 	Opt.ExceptRules=0;
 #endif
 
+//_SVS(SysLog(L"Opt.ExceptRules=%d",Opt.ExceptRules));
 	SetRegRootKey(HKEY_CURRENT_USER);
-	Opt.strRegRoot = L"Software\\Far Manager";
+	Opt.strRegRoot = L"Software\\Far2";
 	// По умолчанию - брать плагины из основного каталога
 	Opt.LoadPlug.MainPluginDir=TRUE;
 	Opt.LoadPlug.PluginsPersonal=TRUE;
 	Opt.LoadPlug.PluginsCacheOnly=FALSE;
 
-	g_strFarINI = g_strFarModuleName+L".ini";
 	g_strFarPath=g_strFarModuleName;
 	CutToSlash(g_strFarPath,true);
 	SetEnvironmentVariable(L"FARHOME", g_strFarPath);
 	AddEndSlash(g_strFarPath);
 
 	// don't inherit from parent process in any case
-	// for OEM plugins only!
 	SetEnvironmentVariable(L"FARUSER", nullptr);
 
 	SetEnvironmentVariable(L"FARADMINMODE", Opt.IsUserAdmin?L"1":nullptr);
 
 	// макросы не дисаблим
 	Opt.Macro.DisableMacro=0;
-
-	string strProfilePath;
 
 	for (int I=1; I<Argc; I++)
 	{
@@ -513,30 +453,19 @@ int _cdecl wmain(int Argc, wchar_t *Argv[])
 
 					if (I+1<Argc)
 					{
-						//Affects OEM plugins only!
 						Opt.strRegRoot += L"\\Users\\";
 						Opt.strRegRoot += Argv[I+1];
 						SetEnvironmentVariable(L"FARUSER", Argv[I+1]);
+						CopyGlobalSettings();
 						I++;
 					}
+
 					break;
-
-				case L'S':
-
-					if (I+1<Argc)
-					{
-						apiExpandEnvironmentStrings(Argv[I+1], strProfilePath);
-						Unquote(strProfilePath);
-						ConvertNameToFull(strProfilePath,strProfilePath);
-						I++;
-					}
-					break;
-
 				case L'P':
 				{
-					// Полиция 19 - BUGBUG ни кто эту опцию вообще не читал
-					//if (Opt.Policies.DisabledOptions&FFPOL_USEPSWITCH)
-						//break;
+					// Полиция 19
+					if (Opt.Policies.DisabledOptions&FFPOL_USEPSWITCH)
+						break;
 
 					Opt.LoadPlug.PluginsPersonal=FALSE;
 					Opt.LoadPlug.MainPluginDir=FALSE;
@@ -606,16 +535,13 @@ int _cdecl wmain(int Argc, wchar_t *Argv[])
 		}
 	}
 
-	InitProfile(strProfilePath);
-
-	InitDb();
-
-	//Настройка OEM сортировки. Должна быть перед InitKeysArray!
+	//Настройка OEM сортировки. Должна быть после CopyGlobalSettings и перед InitKeysArray!
 	LocalUpperInit();
 	InitLCIDSort();
-	//Инициализация массива клавиш.
+	//Инициализация массива клавиш. Должна быть после CopyGlobalSettings!
 	InitKeysArray();
 	WaitForInputIdle(GetCurrentProcess(),0);
+	std::set_new_handler(nullptr);
 
 	if (!Opt.LoadPlug.MainPluginDir) //если есть ключ /p то он отменяет /co
 		Opt.LoadPlug.PluginsCacheOnly=FALSE;
@@ -628,12 +554,7 @@ int _cdecl wmain(int Argc, wchar_t *Argv[])
 	}
 
 	InitConsole();
-
-	{
-		string strDefaultLanguage;
-		strDefaultLanguage.ReleaseBuffer(GetPrivateProfileString(L"General", L"DefaultLanguage", L"English", strDefaultLanguage.GetBuffer(100), 100, g_strFarINI));
-		GeneralCfg->GetValue(L"Language",L"Main",Opt.strLanguage,strDefaultLanguage);
-	}
+	GetRegKey(L"Language",L"Main",Opt.strLanguage,L"English");
 
 	if (!Lang.Init(g_strFarPath,true,MNewFileName))
 	{
@@ -659,23 +580,21 @@ int _cdecl wmain(int Argc, wchar_t *Argv[])
 
 	SetEnvironmentVariable(L"FARLANG",Opt.strLanguage);
 	SetHighlighting();
+	DeleteEmptyKey(HKEY_CLASSES_ROOT,L"Directory\\shellex\\CopyHookHandlers");
 	initMacroVarTable(1);
 
 	if (Opt.ExceptRules == -1)
 	{
-		GeneralCfg->GetValue(L"System",L"ExceptRules",&Opt.ExceptRules,1);
+		GetRegKey(L"System",L"ExceptRules",Opt.ExceptRules,1);
 	}
 
-	ErrorMode=SEM_FAILCRITICALERRORS|SEM_NOOPENFILEERRORBOX|(Opt.ExceptRules?SEM_NOGPFAULTERRORBOX:0)|(GeneralCfg->GetValue(L"System.Exception", L"IgnoreDataAlignmentFaults", 0)?SEM_NOALIGNMENTFAULTEXCEPT:0);
+	ErrorMode=SEM_FAILCRITICALERRORS|SEM_NOOPENFILEERRORBOX|(Opt.ExceptRules?SEM_NOGPFAULTERRORBOX:0)|(GetRegKey(L"System\\Exception", L"IgnoreDataAlignmentFaults", 0)?SEM_NOALIGNMENTFAULTEXCEPT:0);
 	SetErrorMode(ErrorMode);
 
 	int Result=MainProcessSEH(strEditName,strViewName,DestNames[0],DestNames[1],StartLine,StartChar);
 
 	EmptyInternalClipboard();
 	doneMacroVarTable(1);
-
-	ReleaseDb();
-
 	_OT(SysLog(L"[[[[[Exit of FAR]]]]]]]]]"));
 	return Result;
 }
@@ -690,3 +609,26 @@ int _cdecl main()
 	return Result;
 }
 #endif
+
+/* $ 03.08.2000 SVS
+  ! Не срабатывал шаблон поиска файлов для под-юзеров
+*/
+void CopyGlobalSettings()
+{
+	if (CheckRegKey(L"")) // при существующем - вываливаемся
+		return;
+
+	// такого извера нету - перенесем данные!
+	SetRegRootKey(HKEY_LOCAL_MACHINE);
+	CopyKeyTree(L"Software\\Far2",Opt.strRegRoot,L"Software\\Far2\\Users\0");
+	SetRegRootKey(HKEY_CURRENT_USER);
+	CopyKeyTree(L"Software\\Far2",Opt.strRegRoot,L"Software\\Far2\\Users\0Software\\Far2\\PluginsCache\0");
+	//  "Вспомним" путь по шаблону!!!
+	SetRegRootKey(HKEY_LOCAL_MACHINE);
+	GetRegKey(L"System",L"TemplatePluginsPath",Opt.LoadPlug.strPersonalPluginsPath,L"");
+	// удалим!!!
+	DeleteRegKey(L"System");
+	// запишем новое значение!
+	SetRegRootKey(HKEY_CURRENT_USER);
+	SetRegKey(L"System",L"PersonalPluginsPath",Opt.LoadPlug.strPersonalPluginsPath);
+}

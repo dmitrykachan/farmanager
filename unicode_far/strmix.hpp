@@ -6,8 +6,8 @@ strmix.hpp
 Куча разных вспомогательных функций по работе со строками
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -32,8 +32,6 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-
-#include "plugin.hpp"
 
 enum
 {
@@ -114,6 +112,3 @@ void Transform(string &strBuffer,const wchar_t *ConvStr,wchar_t TransformType);
 wchar_t GetDecimalSeparator();
 
 string ReplaceBrackets(const string& SearchStr,const string& ReplaceStr,RegExpMatch* Match,int Count);
-
-string GuidToStr(const GUID& Guid);
-bool StrToGuid(const string& Value,GUID& Guid);

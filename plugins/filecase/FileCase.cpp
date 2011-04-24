@@ -1,12 +1,9 @@
-#include <plugin.hpp>
-#include <CRT/crt.hpp>
-#include <PluginSettings.hpp>
-#include <DlgBuilder.hpp>
+#include <windows.h>
+#define _FAR_NO_NAMELESS_UNIONS
+#include "CRT/crt.hpp"
+#include "plugin.hpp"
 #include "FileLng.hpp"
 #include "FileCase.hpp"
-#include "version.hpp"
-#include <initguid.h>
-#include "guid.hpp"
 
 #if defined(__GNUC__)
 
@@ -27,65 +24,48 @@ BOOL WINAPI DllMainCRTStartup(HANDLE hDll,DWORD dwReason,LPVOID lpReserved)
 }
 #endif
 
-static struct PluginStartupInfo Info;
-static struct FarStandardFunctions FSF;
-
-struct Options
-{
-  int ConvertMode;
-  int ConvertModeExt;
-  int SkipMixedCase;
-  int ProcessSubDir;
-  int ProcessDir;
-  wchar_t WordDiv[512];
-  int WordDivLen;
-} Opt;
-
 #include "FileMix.cpp"
 #include "filecvt.cpp"
+#include "FileReg.cpp"
 #include "ProcessName.cpp"
 
-void WINAPI GetGlobalInfoW(struct GlobalInfo *Info)
+int WINAPI EXP_NAME(GetMinFarVersion)()
 {
-  Info->StructSize=sizeof(GlobalInfo);
-  Info->MinFarVersion=FARMANAGERVERSION;
-  Info->Version=PLUGIN_VERSION;
-  Info->Guid=MainGuid;
-  Info->Title=PLUGIN_NAME;
-  Info->Description=PLUGIN_DESC;
-  Info->Author=PLUGIN_AUTHOR;
+  return FARMANAGERVERSION;
 }
 
-void WINAPI SetStartupInfoW(const struct PluginStartupInfo *Info)
+
+void WINAPI EXP_NAME(SetStartupInfo)(const struct PluginStartupInfo *Info)
 {
   ::Info=*Info;
-  ::FSF=*Info->FSF;
-  ::Info.FSF=&::FSF;
+	::FSF=*Info->FSF;
+	::Info.FSF=&::FSF;
 
-  PluginSettings settings(MainGuid, ::Info.SettingsControl);
-  Opt.ConvertMode=settings.Get(0,L"ConvertMode",0);
-  Opt.ConvertModeExt=settings.Get(0,L"ConvertModeExt",0);
-  Opt.SkipMixedCase=settings.Get(0,L"SkipMixedCase",1);
-  Opt.ProcessSubDir=settings.Get(0,L"ProcessSubDir",0);
-  Opt.ProcessDir=settings.Get(0,L"ProcessDir",0);
-  settings.Get(0,L"WordDiv",Opt.WordDiv,ARRAYSIZE(Opt.WordDiv),L" _");
-  Opt.WordDivLen=lstrlen(Opt.WordDiv);
+	lstrcpy(PluginRootKey,Info->RootKey);
+	lstrcat(PluginRootKey,_T("\\CaseConvertion"));
+
+	Opt.ConvertMode=GetRegKey(HKEY_CURRENT_USER,_T(""),_T("ConvertMode"),0);
+	Opt.ConvertModeExt=GetRegKey(HKEY_CURRENT_USER,_T(""),_T("ConvertModeExt"),0);
+	Opt.SkipMixedCase=GetRegKey(HKEY_CURRENT_USER,_T(""),_T("SkipMixedCase"),1);
+	Opt.ProcessSubDir=GetRegKey(HKEY_CURRENT_USER,_T(""),_T("ProcessSubDir"),0);
+	Opt.ProcessDir=GetRegKey(HKEY_CURRENT_USER,_T(""),_T("ProcessDir"),0);
+	GetRegKey(HKEY_CURRENT_USER,_T(""),_T("WordDiv"),Opt.WordDiv,_T(" _"),ARRAYSIZE(Opt.WordDiv));
+	Opt.WordDivLen=lstrlen(Opt.WordDiv);
 }
 
 
-HANDLE WINAPI OpenW(const struct OpenInfo *OInfo)
+HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom,INT_PTR Item)
 {
   CaseConvertion();
-  return INVALID_HANDLE_VALUE;
+  return(INVALID_HANDLE_VALUE);
 }
 
 
-void WINAPI GetPluginInfoW(struct PluginInfo *Info)
+void WINAPI EXP_NAME(GetPluginInfo)(struct PluginInfo *Info)
 {
-  Info->StructSize=sizeof(*Info);
-  static const wchar_t *PluginMenuStrings[1];
-  PluginMenuStrings[0]=GetMsg(MFileCase);
-  Info->PluginMenu.Guids=&MenuGuid;
-  Info->PluginMenu.Strings=PluginMenuStrings;
-  Info->PluginMenu.Count=ARRAYSIZE(PluginMenuStrings);
+	Info->StructSize=sizeof(*Info);
+	static TCHAR *PluginMenuStrings[1];
+	PluginMenuStrings[0]=(TCHAR*)GetMsg(MFileCase);
+	Info->PluginMenuStrings=PluginMenuStrings;
+	Info->PluginMenuStringsNumber=ARRAYSIZE(PluginMenuStrings);
 }

@@ -1,11 +1,7 @@
 #pragma once
 
-
 namespace oldfar
 {
-#pragma warning(push)
-#pragma warning(disable:6244)
-
 #ifndef _WIN64
 #ifdef __GNUC__
 #pragma pack(2)
@@ -23,7 +19,10 @@ namespace oldfar
 		FMSG_KEEPBACKGROUND      = 0x00000004,
 		FMSG_DOWN                = 0x00000008,
 		FMSG_LEFTALIGN           = 0x00000010,
+
 		FMSG_ALLINONE            = 0x00000020,
+		FMSG_COLOURS             = 0x00000040,
+
 		FMSG_MB_OK               = 0x00010000,
 		FMSG_MB_OKCANCEL         = 0x00020000,
 		FMSG_MB_ABORTRETRYIGNORE = 0x00030000,
@@ -101,7 +100,7 @@ namespace oldfar
 		DIF_DISABLE               = 0x80000000UL,
 	};
 
-	enum FARMESSAGE
+	enum FarMessagesProc
 	{
 		DM_FIRST=0,
 		DM_CLOSE,
@@ -358,7 +357,11 @@ namespace oldfar
 			struct FarList *ListItems;
 			int  ListPos;
 			CHAR_INFO *VBuf;
-		};
+		}
+#ifdef _FAR_NO_NAMELESS_UNIONS
+		Param
+#endif
+		;
 		DWORD Flags;
 		int DefaultButton;
 		union
@@ -371,7 +374,11 @@ namespace oldfar
 				char *PtrData;
 				char  PtrTail[1];
 			} Ptr;
-		};
+		}
+#ifdef _FAR_NO_NAMELESS_UNIONS
+		Data
+#endif
+		;
 	};
 
 	struct FarDialogItemData
@@ -385,7 +392,7 @@ namespace oldfar
 		HANDLE hDlg;
 		int Msg;
 		int Param1;
-		void* Param2;
+		LONG_PTR Param2;
 		LONG_PTR Result;
 	};
 
@@ -406,9 +413,23 @@ namespace oldfar
 
 	typedef LONG_PTR(WINAPI *FARWINDOWPROC)(
 	    HANDLE   hDlg,
-	    int Msg,
+	    int      Msg,
 	    int      Param1,
-	    void* Param2
+	    LONG_PTR Param2
+	);
+
+	typedef LONG_PTR(WINAPI *FARAPISENDDLGMESSAGE)(
+	    HANDLE   hDlg,
+	    int      Msg,
+	    int      Param1,
+	    LONG_PTR Param2
+	);
+
+	typedef LONG_PTR(WINAPI *FARAPIDEFDLGPROC)(
+	    HANDLE   hDlg,
+	    int      Msg,
+	    int      Param1,
+	    LONG_PTR Param2
 	);
 
 	typedef int (WINAPI *FARAPIDIALOG)(
@@ -434,7 +455,7 @@ namespace oldfar
 	    DWORD                 Reserved,
 	    DWORD                 Flags,
 	    FARWINDOWPROC         DlgProc,
-	    void*                 Param
+	    LONG_PTR              Param
 	);
 
 
@@ -464,7 +485,7 @@ namespace oldfar
 		{
 			char  Text[128];
 			const char *TextPtr;
-		};
+		} Text;
 		DWORD AccelKey;
 		DWORD Reserved;
 		DWORD_PTR UserData;
@@ -796,7 +817,33 @@ namespace oldfar
 		ACTL_GETSHORTWINDOWINFO   = 23,
 		ACTL_REMOVEMEDIA          = 24,
 		ACTL_GETMEDIATYPE         = 25,
+		ACTL_GETPOLICIES          = 26,
 		ACTL_REDRAWALL            = 27,
+	};
+
+	enum FarPoliciesFlags
+	{
+		FFPOL_MAINMENUSYSTEM        = 0x00000001,
+		FFPOL_MAINMENUPANEL         = 0x00000002,
+		FFPOL_MAINMENUINTERFACE     = 0x00000004,
+		FFPOL_MAINMENULANGUAGE      = 0x00000008,
+		FFPOL_MAINMENUPLUGINS       = 0x00000010,
+		FFPOL_MAINMENUDIALOGS       = 0x00000020,
+		FFPOL_MAINMENUCONFIRMATIONS = 0x00000040,
+		FFPOL_MAINMENUPANELMODE     = 0x00000080,
+		FFPOL_MAINMENUFILEDESCR     = 0x00000100,
+		FFPOL_MAINMENUFOLDERDESCR   = 0x00000200,
+		FFPOL_MAINMENUVIEWER        = 0x00000800,
+		FFPOL_MAINMENUEDITOR        = 0x00001000,
+		FFPOL_MAINMENUCOLORS        = 0x00004000,
+		FFPOL_MAINMENUHILIGHT       = 0x00008000,
+		FFPOL_MAINMENUSAVEPARAMS    = 0x00020000,
+
+		FFPOL_CREATEMACRO           = 0x00040000,
+		FFPOL_USEPSWITCH            = 0x00080000,
+		FFPOL_PERSONALPATH          = 0x00100000,
+		FFPOL_KILLTASK              = 0x00200000,
+		FFPOL_SHOWHIDDENDRIVES      = 0x80000000,
 	};
 
 	enum FarSystemSettings
@@ -971,7 +1018,7 @@ namespace oldfar
 				const char *ErrMsg3;
 			} MacroResult;
 			DWORD_PTR Reserved[3];
-		};
+		} Param;
 	};
 
 	enum FARCOLORFLAGS
@@ -1016,7 +1063,7 @@ namespace oldfar
 
 	typedef INT_PTR(WINAPI *FARAPIADVCONTROL)(
 	    INT_PTR ModuleNumber,
-	    oldfar::ADVANCED_CONTROL_COMMANDS Command,
+	    int     Command,
 	    void   *Param
 	);
 
@@ -1057,7 +1104,7 @@ namespace oldfar
 		{
 			int iParam;
 			char *cParam;
-		};
+		} Param;
 		DWORD Flags;
 		DWORD Reserved;
 	};
@@ -1216,7 +1263,7 @@ namespace oldfar
 			int iParam;
 			char *cParam;
 			DWORD Reserved1;
-		};
+		} Param;
 		DWORD Flags;
 		DWORD Reserved2;
 	};
@@ -1366,7 +1413,7 @@ namespace oldfar
 	};
 
 	typedef int (WINAPI *FARAPIEDITORCONTROL)(
-	    EDITOR_CONTROL_COMMANDS   Command,
+	    int   Command,
 	    void *Param
 	);
 
@@ -1378,6 +1425,8 @@ namespace oldfar
 		FIB_NOUSELASTHISTORY = 0x00000008,
 		FIB_BUTTONS          = 0x00000010,
 		FIB_NOAMPERSAND      = 0x00000020,
+		FIB_CHECKBOX         = 0x00010000,
+		FIB_EDITPATH         = 0x01000000,
 	};
 
 	typedef int (WINAPI *FARAPIINPUTBOX)(
@@ -1586,8 +1635,8 @@ namespace oldfar
 		FARAPIADVCONTROL       AdvControl;
 		FARAPIINPUTBOX         InputBox;
 		FARAPIDIALOGEX         DialogEx;
-		FARWINDOWPROC          SendDlgMessage;
-		FARWINDOWPROC          DefDlgProc;
+		FARAPISENDDLGMESSAGE   SendDlgMessage;
+		FARAPIDEFDLGPROC       DefDlgProc;
 		DWORD_PTR              Reserved;
 		FARAPIVIEWERCONTROL    ViewerControl;
 	};
@@ -1616,7 +1665,7 @@ namespace oldfar
 		const char * const *PluginConfigStrings;
 		int PluginConfigStringsNumber;
 		const char *CommandPrefix;
-		DWORD Reserved;
+		DWORD SysID;
 	};
 
 
@@ -1642,7 +1691,7 @@ namespace oldfar
 	};
 
 
-	enum OPENPANELINFO_FLAGS
+	enum OPENPLUGININFO_FLAGS
 	{
 		OPIF_USEFILTER               = 0x00000001,
 		OPIF_USESORTGROUPS           = 0x00000002,
@@ -1662,7 +1711,7 @@ namespace oldfar
 	};
 
 
-	enum OPENPANELINFO_SORTMODES
+	enum OPENPLUGININFO_SORTMODES
 	{
 		SM_DEFAULT,
 		SM_UNSORTED,
@@ -1703,7 +1752,7 @@ namespace oldfar
 		OPM_QUICKVIEW  =0x0040,
 	};
 
-	struct OpenPanelInfo
+	struct OpenPluginInfo
 	{
 		int                   StructSize;
 		DWORD                 Flags;
@@ -1767,5 +1816,4 @@ namespace oldfar
 #pragma pack(pop)
 #endif
 #endif
-#pragma warning(pop)
 }

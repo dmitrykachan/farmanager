@@ -13,7 +13,7 @@ class YourClass : private NonCopyable
 
 */
 /*
-Copyright © 2009 Far Group
+Copyright (c) 2009 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

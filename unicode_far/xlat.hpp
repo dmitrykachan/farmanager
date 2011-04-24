@@ -6,8 +6,8 @@ xlat.hpp
 XLat - перекодировка
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -33,4 +33,4 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-wchar_t* WINAPI Xlat(wchar_t *Line,int StartPos,int EndPos,unsigned __int64 Flags);
+wchar_t* WINAPI Xlat(wchar_t *Line,int StartPos,int EndPos,DWORD Flags);

@@ -9,16 +9,13 @@ public:
 
 	SevenZipArchive* m_pArchive;
 
-	const ArchiveItem* m_pItems;
+	ArchiveItemEx* m_pItems;
 	unsigned int m_uItemsNumber;
 
 	string m_strDestDiskPath;
 	string m_strPathInArchive;
 
-	unsigned __int64 m_uProcessedBytesTotal;
-	unsigned __int64 m_uTotalBytes;
-	unsigned __int64 m_uTotalBytesFile;
-	unsigned __int64 m_uProcessedBytesFile;
+	unsigned __int64 m_uProcessedBytes;
 
 	CCryptoGetTextPassword* m_pGetTextPassword;
 
@@ -30,7 +27,7 @@ public:
 
 	CArchiveExtractCallback(
 			SevenZipArchive* pArchive,
-			const ArchiveItem* pItems,
+			ArchiveItemEx *pItems,
 			unsigned int uItemsNumber,
 			const TCHAR* lpDestDiskPath,
 			const TCHAR* lpPathInArchive

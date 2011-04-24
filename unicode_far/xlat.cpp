@@ -5,8 +5,8 @@ XLat - перекодировка
 
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -46,16 +46,15 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "headers.hpp"
 #pragma hdrstop
 
+#include "registry.hpp"
 #include "config.hpp"
 #include "xlat.hpp"
 #include "console.hpp"
-#include "plugin.hpp"
-#include "configdb.hpp"
 
 wchar_t* WINAPI Xlat(wchar_t *Line,
                      int StartPos,
                      int EndPos,
-                     unsigned __int64 Flags)
+                     DWORD Flags)
 {
 	wchar_t Chr,ChrOld;
 	int PreLang=2,CurLang=2; // unknown
@@ -114,7 +113,7 @@ wchar_t* WINAPI Xlat(wchar_t *Line,
 		      руками переключили раскладку,
 		      снова конвертим и...
 		*/
-		GeneralCfg->GetValue(L"XLat",strLayoutName,Opt.XLat.Rules[2],L"");
+		GetRegKey(L"XLat",strLayoutName,Opt.XLat.Rules[2],L"");
 
 		if (!Opt.XLat.Rules[2].IsEmpty())
 			ProcessLayoutName=TRUE;

@@ -10,8 +10,8 @@ vmenu.hpp
     * ...
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -96,20 +96,25 @@ class SaveScreen;
 
 struct MenuItemEx
 {
-	UINT64  Flags;                  // Флаги пункта
+	DWORD  Flags;                  // Флаги пункта
 
 	string strName;
 
 	DWORD  AccelKey;
 	int    UserDataSize;           // Размер пользовательских данных
-	void *UserData;                // Пользовательские данные:
+	union                          // Пользовательские данные:
+	{
+		char  *UserData;             // - указатель!
+		char   Str4[sizeof(char*)];  // - strlen(строка)+1 <= sizeof(char*)
+	};
+
 	short AmpPos;                  // Позиция автоназначенной подсветки
 	short Len[2];                  // размеры 2-х частей
 	short Idx2;                    // начало 2-й части
 
 	int   ShowPos;
 
-	UINT64 SetCheck(int Value)
+	DWORD SetCheck(int Value)
 	{
 		if (Value)
 		{
@@ -126,8 +131,8 @@ struct MenuItemEx
 		return Flags;
 	}
 
-	UINT64 SetSelect(int Value) { if (Value) Flags|=LIF_SELECTED; else Flags&=~LIF_SELECTED; return Flags;}
-	UINT64 SetDisable(int Value) { if (Value) Flags|=LIF_DISABLE; else Flags&=~LIF_DISABLE; return Flags;}
+	DWORD SetSelect(int Value) { if (Value) Flags|=LIF_SELECTED; else Flags&=~LIF_SELECTED; return Flags;}
+	DWORD SetDisable(int Value) { if (Value) Flags|=LIF_DISABLE; else Flags&=~LIF_DISABLE; return Flags;}
 
 	void Clear()
 	{
@@ -189,14 +194,6 @@ struct MenuDataEx
 	DWORD SetGrayed(int Value) { if (Value) Flags|=LIF_GRAYED; else Flags&=~LIF_GRAYED; return Flags;}
 };
 
-struct SortItemParam
-{
-	int Direction;
-	int Offset;
-};
-
-typedef int (*TMENUITEMEXCMPFUNC)(const MenuItemEx *el1,const MenuItemEx *el2, const SortItemParam *Param);
-
 
 class ConsoleTitle;
 
@@ -254,14 +251,18 @@ class VMenu: public Modal
 		int CheckHighlights(wchar_t Chr,int StartPos=0);
 		wchar_t GetHighlights(const struct MenuItemEx *_item);
 		bool ShiftItemShowPos(int Pos,int Direct);
-		bool ItemCanHaveFocus(UINT64 Flags);
-		bool ItemCanBeEntered(UINT64 Flags);
-		bool ItemIsVisible(UINT64 Flags);
+		bool ItemCanHaveFocus(DWORD Flags);
+		bool ItemCanBeEntered(DWORD Flags);
+		bool ItemIsVisible(DWORD Flags);
 		void UpdateMaxLengthFromTitles();
 		void UpdateMaxLength(int Length);
-		void UpdateInternalCounters(UINT64 OldFlags, UINT64 NewFlags);
+		void UpdateItemFlags(int Pos, DWORD NewFlags);
+		void UpdateInternalCounters(DWORD OldFlags, DWORD NewFlags);
+		void RestoreFilteredItems();
+		void FilterStringUpdated(bool bLonger);
 		bool IsFilterEditKey(int Key);
 		bool ShouldSendKeyToFilter(int Key);
+		bool AddToFilter(const wchar_t *str);
 		//коректировка текущей позиции и флагов SELECTED
 		void UpdateSelectPos();
 
@@ -320,13 +321,7 @@ class VMenu: public Modal
 		int  InsertItem(const FarListInsert *NewItem);
 		int  UpdateItem(const FarListUpdate *NewItem);
 		int  FindItem(const FarListFind *FindItem);
-		int  FindItem(int StartIndex,const wchar_t *Pattern,UINT64 Flags=0);
-		void RestoreFilteredItems();
-		void FilterStringUpdated(bool bLonger);
-		void SetFilterEnabled(bool bEnabled) { bFilterEnabled=bEnabled; };
-		void SetFilterLocked(bool bLocked) { bFilterEnabled=bLocked; };
- 		bool AddToFilter(const wchar_t *str);
- 		void SetFilterString(const wchar_t *str);
+		int  FindItem(int StartIndex,const wchar_t *Pattern,DWORD Flags=0);
 
 		int  GetItemCount() { return ItemCount; };
 		int  GetShowItemCount() { return ItemCount-ItemHiddenCount; };
@@ -345,16 +340,12 @@ class VMenu: public Modal
 		void SetCheck(int Check, int Position=-1);
 
 		bool UpdateRequired();
-		void UpdateItemFlags(int Pos, UINT64 NewFlags);
 
 		virtual void ResizeConsole();
 
 		struct MenuItemEx *GetItemPtr(int Position=-1);
 
 		void SortItems(int Direction=0,int Offset=0,BOOL SortForDataDWORD=FALSE);
-		void SortItems(TMENUITEMEXCMPFUNC user_cmp_func,int Direction=0,int Offset=0);
-		bool Pack();
-
 		BOOL GetVMenuInfo(struct FarListInfo* Info);
 
 		virtual const wchar_t *GetTypeName() {return L"[VMenu]";};
@@ -370,6 +361,8 @@ class VMenu: public Modal
 		static MenuItemEx *FarList2MenuItem(const FarListItem *Item,MenuItemEx *ListItem);
 		static FarListItem *MenuItem2FarList(const MenuItemEx *ListItem,FarListItem *Item);
 
-		static INT_PTR WINAPI DefMenuProc(HANDLE hVMenu,int Msg,int Param1,void* Param2);
-		static INT_PTR WINAPI SendMenuMessage(HANDLE hVMenu,int Msg,int Param1,void* Param2);
+		static LONG_PTR WINAPI DefMenuProc(HANDLE hVMenu,int Msg,int Param1,LONG_PTR Param2);
+		static LONG_PTR WINAPI SendMenuMessage(HANDLE hVMenu,int Msg,int Param1,LONG_PTR Param2);
 };
+
+void EnumFiles(VMenu& Menu, const wchar_t* Str);

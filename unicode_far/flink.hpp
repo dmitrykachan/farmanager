@@ -6,8 +6,8 @@ flink.hpp
 Заголовочный файл для работы с Hard & SymLink
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -33,8 +33,6 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "plugin.hpp"
-
 enum ReparsePointTypes
 {
 	RP_EXACTCOPY,   // для копирования/переноса ссылок, копия существующего
@@ -47,7 +45,7 @@ enum ReparsePointTypes
 };
 
 int   WINAPI MkHardLink(const wchar_t *ExistingName,const wchar_t *NewName);
-BOOL  WINAPI FarMkLink(const wchar_t *Src,const wchar_t *Dest, LINK_TYPE Type, MKLINK_FLAGS Flags);
+int   WINAPI FarMkLink(const wchar_t *Src,const wchar_t *Dest,DWORD Flags);
 
 int   WINAPI GetNumberOfLinks(const wchar_t *Name);
 bool WINAPI CreateVolumeMountPoint(const wchar_t *TargetVolume, const wchar_t *Object);

@@ -11,6 +11,7 @@ struct SMenuDlgParam
   LPCONTEXTMENU3 pMenu3;
 };
 
-BOOL CALLBACK MenuDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
+BOOL CALLBACK MenuDlgProc(HWND hwndDlg, UINT uMsg
+              , WPARAM wParam, LPARAM lParam);
 
 #endif

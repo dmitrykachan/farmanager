@@ -6,8 +6,8 @@ filepanels.hpp
 файловые панели
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -74,7 +74,8 @@ class FilePanels:public Frame
 		Panel* GetAnotherPanel(Panel *Current);
 		Panel* ChangePanelToFilled(Panel *Current,int NewType);
 		Panel* ChangePanel(Panel *Current,int NewType,int CreateNew,int Force);
-		void   SetPanelPositions(bool LeftFullScreen,bool RightFullScreen);
+		void   SetPanelPositions(int LeftFullScreen,int RightFullScreen);
+//    void   SetPanelPositions();
 
 		void   SetupKeyBar();
 

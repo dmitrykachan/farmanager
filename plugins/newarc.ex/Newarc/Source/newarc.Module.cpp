@@ -4,13 +4,8 @@ const TCHAR* __stdcall ArchiveModule::GetMsg(INT_PTR nModuleNumber, int nID)
 {
 	ArchiveModule *pModule = (ArchiveModule*)nModuleNumber;
 
-	if( pModule->m_pLanguage )
-	{
-		const TCHAR* lpResult = pModule->m_pLanguage->GetMsg(nID);
-
-		if ( lpResult )
-			return lpResult;
-	}
+	if ( nID < pModule->m_nStringsCount )
+		return pModule->m_pLanguageStrings[nID];
 
 	return _T("NO LNG STRING");
 }
@@ -18,13 +13,15 @@ const TCHAR* __stdcall ArchiveModule::GetMsg(INT_PTR nModuleNumber, int nID)
 ArchiveModule::ArchiveModule(ArchiveModuleManager* pManager)
 {
 	m_pManager = pManager; 
-	m_pLanguage = nullptr;
 }
 
 bool ArchiveModule::Load(const TCHAR *lpModuleName, const TCHAR *lpLanguage)
 {
 	m_strModuleName = lpModuleName;
 	m_hModule = LoadLibrary(lpModuleName);
+
+	m_pLanguageStrings = NULL;
+	m_nStringsCount = 0;
 
 	if ( m_hModule )
 	{
@@ -52,8 +49,6 @@ bool ArchiveModule::Load(const TCHAR *lpModuleName, const TCHAR *lpLanguage)
 			_si.Info.ModuleNumber = (INT_PTR)this;
 			_si.Info.GetMsg = GetMsg;
 
-			ReloadLanguage(lpLanguage); //хм, а не рано ли
-
 			if ( m_pfnModuleEntry(FID_INITIALIZE, (void*)&_si) == NAERROR_SUCCESS )
 			{
 				ArchiveModuleInfo info;
@@ -61,6 +56,8 @@ bool ArchiveModule::Load(const TCHAR *lpModuleName, const TCHAR *lpLanguage)
 
 				if ( m_pfnModuleEntry(FID_GETARCHIVEMODULEINFO, (void*)&info) == NAERROR_SUCCESS )
 				{
+					ReloadLanguage(lpLanguage);
+
 					m_dwFlags = info.dwFlags;
 					m_uid = info.uid;
 
@@ -98,10 +95,10 @@ ArchiveModule::~ArchiveModule()
 		m_pfnModuleEntry(FID_FINALIZE, NULL);
 
 	if ( m_hModule )
-		FreeLibrary(m_hModule);
+		FreeLibrary (m_hModule);
 
-	if ( m_pLanguage )
-		delete m_pLanguage;
+	if ( m_pLanguageStrings )
+		FinalizeLanguageStrings(m_pLanguageStrings, m_nStringsCount);
 }
 
 ArchivePlugin* ArchiveModule::GetPlugin(const GUID& uid)
@@ -231,6 +228,43 @@ void ArchiveModule::CloseArchive(const GUID& uidPlugin, HANDLE hArchive)
 	m_pfnModuleEntry(FID_CLOSEARCHIVE, (void*)&CAS);
 }
 
+
+string& LoadDefaultCommand (
+		ArchiveModule *pModule,
+		const GUID &uid,
+		int nCommand,
+		string& strDefaultCommand
+		)
+{
+	HKEY hKey;
+	string strRegKey;
+
+	strRegKey.Format(
+			_T("%s\\newarc\\Formats\\%s"),
+			Info.RootKey,
+			GUID2STR (uid)
+			);
+
+	if ( RegOpenKeyEx (
+			HKEY_CURRENT_USER,
+			strRegKey,
+			0,
+			KEY_READ,
+			&hKey
+			) == ERROR_SUCCESS )
+	{
+		strDefaultCommand = apiRegQueryStringValue(
+				hKey,
+				pCommandNames[nCommand],
+				strDefaultCommand
+				);
+
+		RegCloseKey (hKey);
+	}
+
+	return strDefaultCommand;
+}
+
 bool ArchiveModule::GetDefaultCommand(
 		const GUID& uidPlugin, 
 		const GUID& uidFormat, 
@@ -263,78 +297,18 @@ bool ArchiveModule::GetDefaultCommand(
 
 
 void ArchiveModule::ReloadLanguage(
-		const TCHAR* lpLanguage
+		const TCHAR *lpLanguage
 		)
 {
+	FinalizeLanguageStrings (m_pLanguageStrings, m_nStringsCount);
+
 	string strPath = m_strModuleName;
+
 	CutToSlash (strPath);
 
-	Language* pLanguage = nullptr;
-	Language* pEnglishLanguage = nullptr;
-
-	string strMask = strPath+_T("*.lng");
-	
-	WIN32_FIND_DATA FindData;
-	bool bResult = false;
-
-	HANDLE hSearch = FindFirstFile(
-			strMask,
-			(WIN32_FIND_DATA*)&FindData
-			);
-
-	if ( hSearch != INVALID_HANDLE_VALUE )
-	{
-		do {
-			string strFileName = strPath+FindData.cFileName;
-
-			pLanguage = new Language();
-
-			if ( pLanguage->LoadFromFile(strFileName) )
-			{
-				string strLanguage = pLanguage->GetLanguage();
-
-				if ( strLanguage == lpLanguage )
-				{
-					if ( m_pLanguage )
-						delete m_pLanguage;
-
-					m_pLanguage = pLanguage;
-
-					bResult = true;
-				}
-				else
-				{
-					if ( strLanguage == _T("English") ) //case??
-					{
-						if ( !pEnglishLanguage ) //нам два не надо
-							pEnglishLanguage = pLanguage;
-						else
-							delete pLanguage;
-					}
-					else
-						delete pLanguage;
-				}
-			}
-			else
-				delete pLanguage;
-
-		} while ( !bResult && FindNextFile(hSearch, (WIN32_FIND_DATA*)&FindData) );
-
-		FindClose (hSearch);
-	}
-
-	if ( pEnglishLanguage )
-	{
-		if ( !bResult )
-		{
-			if ( m_pLanguage )
-				delete m_pLanguage;
-
-			m_pLanguage = pEnglishLanguage;
-		}
-		else
-			delete pEnglishLanguage;
-	}
+	if ( !SearchAndLoadLanguageFile (strPath, lpLanguage, m_pLanguageStrings, m_nStringsCount) )
+		if ( !SearchAndLoadLanguageFile(strPath, _T("English"), m_pLanguageStrings, m_nStringsCount) )
+			SearchAndLoadLanguageFile (strPath, NULL, m_pLanguageStrings, m_nStringsCount);
 }
 
 
@@ -519,19 +493,12 @@ int ArchiveModule::GetArchiveInfo(HANDLE hArchive, const ArchiveInfoItem** pItem
 	return 0;
 }
 
-void ArchiveModule::ConfigureFormat(const GUID& uidPlugin, const GUID& uidFormat)
-{
-	ConfigureFormatStruct CFS;
-
-	CFS.uidFormat = uidFormat;
-	CFS.uidPlugin = uidPlugin;
-
-	m_pfnModuleEntry(FID_CONFIGUREFORMAT, (void*)&CFS);
-}
-
-void ArchiveModule::Configure()
+void ArchiveModule::Configure(const GUID& uid)
 {
 	ConfigureStruct CF;
+
+	//CF.uid = uid;
+
 	m_pfnModuleEntry(FID_CONFIGURE, (void*)&CF);
 }
 

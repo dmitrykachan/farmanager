@@ -233,46 +233,6 @@ LONG_PTR __stdcall hndModifyCreateArchive (
 
 	if ( nMsg == DN_CLOSE )
 	{
-		if ( nParam1 == ID_MCA_CANCEL+1 ) //BUGBUG, да вы прикалываетесь
-		{
-			ArchiveModule* pModule = nullptr;
-			GUID uidPlugin, uidFormat;
-
-			if ( D->GetCheck(ID_MCA_TEMPLATE) == BSTATE_CHECKED )
-			{
-				int pos = D->ListGetCurrentPos(ID_MCA_TEMPLATELIST, NULL);
-
-				if ( pos != -1 )
-				{
-					ArchiveTemplate *pTemplate = templates[pos];
-
-					pModule = pManager->GetModule(pTemplate->GetModuleUID());
-					
-					uidPlugin = pTemplate->GetPluginUID();
-					uidFormat = pTemplate->GetFormatUID();
-				}
-			}
-			else
-			{
-				int pos = D->ListGetCurrentPos(ID_MCA_FORMATLIST, NULL);
-
-				if ( pos != -1 )
-				{
-					ArchiveFormat* pFormat = (ArchiveFormat*)D->ListGetData(ID_MCA_FORMATLIST, pos);
-
-					pModule = pFormat->GetModule();
-
-					uidFormat = pFormat->GetUID();
-					uidPlugin = pFormat->GetPlugin()->GetUID();
-				}
-			}
-
-			if ( pModule != nullptr )
-				pModule->ConfigureFormat(uidPlugin, uidFormat);
-
-			return FALSE;
-		}
-
 		if ( nParam1 == ID_MCA_ADDCONFIRM )
 		{
 			string strPassword1, strPassword2;
@@ -405,18 +365,13 @@ bool dlgModifyCreateArchive(
 	D.Button (67, 7, _T("[*]")); //10
 	D.SetFlags(DIF_BTNNOCLOSE);
 
-	D.Text (8, 9, _M(MCreateArchiveArchiver));//11
-	D.ComboBox (18, 9, 18, NULL/*, 0, _T("123")*/);//12
-//	D.Text (9, 9, _M(MCreateArchiveArchiver));//11
-//	D.ComboBox (19, 9, 15, NULL/*, 0, _T("123")*/);//12
+	D.Text (9, 9, _M(MCreateArchiveArchiver));//11
+	D.ComboBox (19, 9, 15, NULL/*, 0, _T("123")*/);//12
 ///	D->ListBox (50, 5, 65, 10, NULL);
 	D.SetFlags (DIF_DROPDOWNLIST);
 
-	D.Text (38, 9, _M(MCreateArchiveAdditionalParams));//13
-	D.Edit (53, 9, 17, NULL, AUTO_LENGTH, _T("adsaf"));//14
-
-//	D.Text (37, 9, _M(MCreateArchiveAdditionalParams));//13
-//	D.Edit (52, 9, 18, NULL, AUTO_LENGTH, _T("adsaf"));//14
+	D.Text (37, 9, _M(MCreateArchiveAdditionalParams));//13
+	D.Edit (52, 9, 18, NULL, AUTO_LENGTH, _T("adsaf"));//14
 
 	D.Separator (10); //15
 

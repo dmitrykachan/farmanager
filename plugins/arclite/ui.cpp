@@ -1,5 +1,4 @@
 #include "msg.h"
-#include "guids.hpp"
 
 #include "utils.hpp"
 #include "farutils.hpp"
@@ -7,7 +6,6 @@
 #include "common.hpp"
 #include "ui.hpp"
 #include "archive.hpp"
-#include "options.hpp"
 
 wstring get_error_dlg_title() {
   return Far::get_msg(MSG_PLUGIN_NAME);
@@ -165,6 +163,14 @@ const wchar_t** get_speed_suffixes() {
   return suffixes;
 }
 
+
+const GUID c_password_dialog_guid = { /* 761F3B4C-FC45-4A9D-A383-3F75D505A43B */
+  0x761F3B4C,
+  0xFC45,
+  0x4A9D,
+  {0xA3, 0x83, 0x3F, 0x75, 0xD5, 0x05, 0xA4, 0x3B}
+};
+
 class PasswordDialog: public Far::Dialog {
 private:
   enum {
@@ -178,7 +184,7 @@ private:
   int ok_ctrl_id;
   int cancel_ctrl_id;
 
-  INT_PTR dialog_proc(int msg, int param1, void* param2) {
+  LONG_PTR dialog_proc(int msg, int param1, LONG_PTR param2) {
     if ((msg == DN_CLOSE) && (param1 >= 0) && (param1 != cancel_ctrl_id)) {
       password = get_text(password_ctrl_id);
     }
@@ -213,6 +219,13 @@ bool password_dialog(wstring& password, const wstring& arc_path) {
 }
 
 
+const GUID c_overwrite_dialog_guid = { /* 83B02899-4590-47F9-B4C1-6BC66C6CA4F9 */
+  0x83B02899,
+  0x4590,
+  0x47F9,
+  {0xB4, 0xC1, 0x6B, 0xC6, 0x6C, 0x6C, 0xA4, 0xF9}
+};
+
 class OverwriteDialog: public Far::Dialog {
 private:
   enum {
@@ -232,7 +245,7 @@ private:
   int append_ctrl_id;
   int cancel_ctrl_id;
 
-  INT_PTR dialog_proc(int msg, int param1, void* param2) {
+  LONG_PTR dialog_proc(int msg, int param1, LONG_PTR param2) {
     if (msg == DN_CLOSE && param1 >= 0 && param1 != cancel_ctrl_id) {
       options.all = get_check(all_ctrl_id);
       if (param1 == overwrite_ctrl_id)
@@ -330,6 +343,13 @@ bool overwrite_dialog(const wstring& file_path, const OverwriteFileInfo& src_fil
 }
 
 
+const GUID c_extract_dialog_guid = { /* 97877FD0-78E6-4169-B4FB-D76746249F4D */
+  0x97877FD0,
+  0x78E6,
+  0x4169,
+  {0xB4, 0xFB, 0xD7, 0x67, 0x46, 0x24, 0x9F, 0x4D}
+};
+
 class ExtractDialog: public Far::Dialog {
 private:
   enum {
@@ -350,44 +370,30 @@ private:
   int separate_dir_ctrl_id;
   int delete_archive_ctrl_id;
   int open_dir_ctrl_id;
+  int save_params_ctrl_id;
   int ok_ctrl_id;
   int cancel_ctrl_id;
-  int save_params_ctrl_id;
 
-  void read_controls(ExtractOptions& options) {
-    options.dst_dir = unquote(strip(get_text(dst_dir_ctrl_id)));
-    options.ignore_errors = get_check(ignore_errors_ctrl_id);
-    if (get_check(oa_ask_ctrl_id)) options.overwrite = oaAsk;
-    else if (get_check(oa_overwrite_ctrl_id)) options.overwrite = oaOverwrite;
-    else if (get_check(oa_skip_ctrl_id)) options.overwrite = oaSkip;
-    else if (get_check(oa_rename_ctrl_id)) options.overwrite = oaRename;
-    else if (get_check(oa_append_ctrl_id)) options.overwrite = oaAppend;
-    else options.overwrite = oaAsk;
-    if (options.move_files != triUndef)
-    options.move_files = get_check3(move_files_ctrl_id);
-    options.password = get_text(password_ctrl_id);
-    options.separate_dir = get_check3(separate_dir_ctrl_id);
-    options.delete_archive = get_check(delete_archive_ctrl_id);
-    options.open_dir = get_check(open_dir_ctrl_id);
-  }
-
-  INT_PTR dialog_proc(int msg, int param1, void* param2) {
+  LONG_PTR dialog_proc(int msg, int param1, LONG_PTR param2) {
     if ((msg == DN_CLOSE) && (param1 >= 0) && (param1 != cancel_ctrl_id)) {
-      read_controls(options);
+      options.dst_dir = unquote(strip(get_text(dst_dir_ctrl_id)));
+      options.ignore_errors = get_check(ignore_errors_ctrl_id);
+      if (get_check(oa_ask_ctrl_id)) options.overwrite = oaAsk;
+      else if (get_check(oa_overwrite_ctrl_id)) options.overwrite = oaOverwrite;
+      else if (get_check(oa_skip_ctrl_id)) options.overwrite = oaSkip;
+      else if (get_check(oa_rename_ctrl_id)) options.overwrite = oaRename;
+      else if (get_check(oa_append_ctrl_id)) options.overwrite = oaAppend;
+      else options.overwrite = oaAsk;
+      if (options.move_files != triUndef)
+        options.move_files = get_check3(move_files_ctrl_id);
+      options.password = get_text(password_ctrl_id);
+      options.separate_dir = get_check3(separate_dir_ctrl_id);
+      options.delete_archive = get_check(delete_archive_ctrl_id);
+      options.save_params = get_check(save_params_ctrl_id);
+      options.open_dir = get_check(open_dir_ctrl_id);
     }
     else if (msg == DN_BTNCLICK && param1 == delete_archive_ctrl_id) {
       enable(move_files_ctrl_id, options.move_files != triUndef && !get_check(delete_archive_ctrl_id));
-    }
-    else if (msg == DN_BTNCLICK && param1 == save_params_ctrl_id) {
-      ExtractOptions options;
-      read_controls(options);
-      g_options.extract_ignore_errors = options.ignore_errors;
-      g_options.extract_overwrite = options.overwrite;
-      g_options.extract_separate_dir = options.separate_dir;
-      g_options.extract_open_dir = options.open_dir;
-      g_options.save();
-      Far::info_dlg(Far::get_msg(MSG_EXTRACT_DLG_TITLE), Far::get_msg(MSG_EXTRACT_DLG_PARAMS_SAVED));
-      set_focus(ok_ctrl_id);
     }
     return default_dialog_proc(msg, param1, param2);
   }
@@ -437,9 +443,13 @@ public:
 
     separator();
     new_line();
+    save_params_ctrl_id = check_box(Far::get_msg(MSG_EXTRACT_DLG_SAVE_PARAMS), false);
+    new_line();
+
+    separator();
+    new_line();
     ok_ctrl_id = def_button(Far::get_msg(MSG_BUTTON_OK), DIF_CENTERGROUP);
     cancel_ctrl_id = button(Far::get_msg(MSG_BUTTON_CANCEL), DIF_CENTERGROUP);
-    save_params_ctrl_id = button(Far::get_msg(MSG_EXTRACT_DLG_SAVE_PARAMS), DIF_CENTERGROUP | DIF_BTNNOCLOSE);
     new_line();
 
     int item = Far::Dialog::show();
@@ -647,6 +657,12 @@ const CompressionMethod c_methods[] = {
   { MSG_COMPRESSION_METHOD_PPMD, c_method_ppmd },
 };
 
+const GUID c_update_dialog_guid = { /* CD57D7FA-552C-4E31-8FA8-73D9704F0666 */
+  0xCD57D7FA,
+  0x552C,
+  0x4E31,
+  {0x8F, 0xA8, 0x73, 0xD9, 0x70, 0x4F, 0x06, 0x66}
+};
 
 class UpdateDialog: public Far::Dialog {
 private:
@@ -898,34 +914,27 @@ private:
     if (new_arc) {
       arc_type = options.arc_type;
       for (unsigned i = 0; i < main_formats.size(); i++) {
-        if (options.arc_type == main_formats[i]) {
+        if (options.arc_type == main_formats[i])
           set_check(main_formats_ctrl_id + i);
-          break;
-        }
-      }
+      };
       for (unsigned i = 0; i < other_formats.size(); i++) {
         if (options.arc_type == other_formats[i]) {
           set_check(other_formats_ctrl_id);
           set_list_pos(other_formats_ctrl_id + 1, i);
           break;
         }
-      }
+      };
     }
 
     for (unsigned i = 0; i < ARRAYSIZE(c_levels); i++) {
-      if (options.level == c_levels[i].value) {
+      if (options.level == c_levels[i].value)
         set_check(level_ctrl_id + i);
-        break;
-      }
-    }
+    };
 
-    wstring method = options.method.empty() && options.arc_type == c_7z ? c_methods[0].value : options.method;
     for (unsigned i = 0; i < ARRAYSIZE(c_methods); i++) {
-      if (method == c_methods[i].value) {
+      if (options.method == c_methods[i].value)
         set_check(method_ctrl_id + i);
-        break;
-      }
-    }
+    };
 
     set_check(solid_ctrl_id, options.solid);
 
@@ -966,7 +975,7 @@ private:
     send_message(DM_LISTSET, profile_ctrl_id, &fl);
   }
 
-  INT_PTR dialog_proc(int msg, int param1, void* param2) {
+  LONG_PTR dialog_proc(int msg, int param1, LONG_PTR param2) {
     if (msg == DN_CLOSE && param1 >= 0 && param1 != cancel_ctrl_id) {
       read_controls(options);
       if (new_arc)
@@ -1195,11 +1204,10 @@ public:
 
     label(Far::get_msg(MSG_UPDATE_DLG_METHOD));
     new_line();
-    wstring method = options.method.empty() && options.arc_type == c_7z ? c_methods[0].value : options.method;
     for (unsigned i = 0; i < ARRAYSIZE(c_methods); i++) {
       if (i)
         spacer(1);
-      int ctrl_id = radio_button(Far::get_msg(c_methods[i].name_id), method == c_methods[i].value, i == 0 ? DIF_GROUP : 0);
+      int ctrl_id = radio_button(Far::get_msg(c_methods[i].name_id), options.method == c_methods[i].value, i == 0 ? DIF_GROUP : 0);
       if (i == 0)
         method_ctrl_id = ctrl_id;
     };
@@ -1287,6 +1295,13 @@ bool update_dialog(bool new_arc, UpdateOptions& options, UpdateProfiles& profile
 }
 
 
+const GUID c_settings_dialog_guid = { /* 08A1229B-AD54-451B-8B53-6D5FD35BCFAA */
+  0x08A1229B,
+  0xAD54,
+  0x451B,
+  {0x8B, 0x53, 0x6D, 0x5F, 0xD3, 0x5B, 0xCF, 0xAA}
+};
+
 class SettingsDialog: public Far::Dialog {
 private:
   enum {
@@ -1310,7 +1325,7 @@ private:
   int ok_ctrl_id;
   int cancel_ctrl_id;
 
-  INT_PTR dialog_proc(int msg, int param1, void* param2) {
+  LONG_PTR dialog_proc(int msg, int param1, LONG_PTR param2) {
     if ((msg == DN_CLOSE) && (param1 >= 0) && (param1 != cancel_ctrl_id)) {
       settings.handle_create = get_check(handle_create_ctrl_id);
       settings.handle_commands = get_check(handle_commands_ctrl_id);
@@ -1451,12 +1466,11 @@ bool settings_dialog(PluginSettings& settings) {
   return SettingsDialog(settings).show();
 }
 
-
 class AttrDialog: public Far::Dialog {
 private:
   const AttrList& attr_list;
 
-  INT_PTR dialog_proc(int msg, int param1, void* param2) {
+  LONG_PTR dialog_proc(int msg, int param1, LONG_PTR param2) {
     if (msg == DN_INITDIALOG) {
       FarDialogItem dlg_item;
       for (unsigned ctrl_id = 0; send_message(DM_GETDLGITEMSHORT, ctrl_id, &dlg_item); ctrl_id++) {
@@ -1470,14 +1484,14 @@ private:
       FarDialogItem dlg_item;
       if (send_message(DM_GETDLGITEMSHORT, param1, &dlg_item) && dlg_item.Type == DI_EDIT) {
         unsigned color = Far::get_colors(COL_DIALOGTEXT);
-        return (reinterpret_cast<INT_PTR>(param2) & 0xFF00FF00) | (color << 16) | color;
+        return (param2 & 0xFF00FF00) | (color << 16) | color;
       }
     }
     return default_dialog_proc(msg, param1, param2);
   }
 
 public:
-  AttrDialog(const AttrList& attr_list): Far::Dialog(Far::get_msg(MSG_ATTR_DLG_TITLE), &c_attr_dialog_guid), attr_list(attr_list) {
+  AttrDialog(const AttrList& attr_list): Far::Dialog(Far::get_msg(MSG_ATTR_DLG_TITLE)), attr_list(attr_list) {
   }
 
   void show() {

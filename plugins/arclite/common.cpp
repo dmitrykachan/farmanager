@@ -82,8 +82,12 @@ wstring expand_macros(const wstring& text) {
       break;
 
     wstring macro = L"print(" + text.substr(b_pos + 1, e_pos - b_pos - 1) + L") Enter";
+    ActlKeyMacro akm;
+    akm.Command = MCMD_POSTMACROSTRING;
+    akm.Param.PlainText.SequenceText = macro.c_str();
+    akm.Param.PlainText.Flags = 0;
     wstring mresult;
-    if (Far::post_macro(macro))
+    if (Far::adv_control(ACTL_KEYMACRO, &akm))
       Far::input_dlg(wstring(), wstring(), mresult);
     else
       FAIL(E_ABORT);

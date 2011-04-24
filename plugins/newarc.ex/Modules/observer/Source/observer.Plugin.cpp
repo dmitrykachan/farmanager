@@ -8,7 +8,7 @@ ObserverPlugin::ObserverPlugin(const GUID& uid)
 
 bool ObserverPlugin::Load(const TCHAR* lpModuleName)
 {
-	m_strModuleName = lpModuleName;
+    m_strModuleName = lpModuleName;
 		
 	m_hModule = LoadLibraryEx(
 			lpModuleName, 
@@ -19,40 +19,31 @@ bool ObserverPlugin::Load(const TCHAR* lpModuleName)
 	if ( m_hModule )
 	{
 		m_pfnLoadSubModule = (LoadSubModuleFunc)GetProcAddress(m_hModule, "LoadSubModule");
-		m_pfnUnloadSubModule = (UnloadSubModuleFunc)GetProcAddress(m_hModule, "UnloadSubModule");
-		
-		if ( m_pfnLoadSubModule && m_pfnUnloadSubModule ) //в обсервере так
+		m_pfnOpenStorage = (OpenStorageFunc)GetProcAddress(m_hModule, "OpenStorage");
+		m_pfnCloseStorage = (CloseStorageFunc)GetProcAddress(m_hModule, "CloseStorage");
+		m_pfnGetStorageItem = (GetItemFunc)GetProcAddress(m_hModule, "GetStorageItem");
+		m_pfnExtract = (ExtractFunc)GetProcAddress(m_hModule, "ExtractItem");
+
+		if ( m_pfnOpenStorage && m_pfnCloseStorage && m_pfnGetStorageItem )
 		{
-			ModuleLoadParameters params;
-			memset(&params, 0, sizeof(params));
+			m_pFormatInfo = new ArchiveFormatInfo;
+			memset(m_pFormatInfo, 0, sizeof(ArchiveFormatInfo));
 
-			if ( m_pfnLoadSubModule(&params) )
-			{
-				m_pfnOpenStorage = params.OpenStorage;
-				m_pfnCloseStorage = params.CloseStorage;
-				m_pfnGetStorageItem = params.GetItem;
-				m_pfnExtract = params.ExtractItem;
+			m_pFormatInfo->uid = CreateFormatUID(m_uid, FSF.PointToName(lpModuleName)); 
+			m_pFormatInfo->dwFlags = AFF_SUPPORT_INTERNAL_EXTRACT|AFF_NEED_EXTERNAL_NOTIFICATIONS;
 
-				m_pFormatInfo = new ArchiveFormatInfo;
-				memset(m_pFormatInfo, 0, sizeof(ArchiveFormatInfo));
+			string strName = FSF.PointToName(lpModuleName);
+			strName += _T(" [observer]");
 
-				m_pFormatInfo->uid = CreateFormatUID(m_uid, FSF.PointToName(lpModuleName)); 
-				m_pFormatInfo->dwFlags = AFF_SUPPORT_INTERNAL_EXTRACT|AFF_NEED_EXTERNAL_NOTIFICATIONS;
+			m_pFormatInfo->lpName = StrDuplicate(strName);
+			m_pFormatInfo->lpDefaultExtention = StrDuplicate(strName); //BUGBUG
 
-				string strName = FSF.PointToName(lpModuleName);
-				strName += _T(" [observer]");
-
-				m_pFormatInfo->lpName = StrDuplicate(strName);
-				m_pFormatInfo->lpDefaultExtention = StrDuplicate(strName); //BUGBUG
-
-				return true;
-			}
+			return true;
 		}
 	}
 
 	return false;
 }
-
 
 const GUID& ObserverPlugin::GetUID()
 {
@@ -79,7 +70,7 @@ int ObserverPlugin::QueryArchives(const TCHAR* lpFileName, Array<ArchiveQueryRes
 {
 	StorageGeneralInfo info;
 
-	HANDLE hArchive = OpenStorage(lpFileName, &info);
+	INT_PTR* hArchive = OpenStorage(lpFileName, &info);
 
 	if ( hArchive )
 	{
@@ -114,7 +105,7 @@ void ObserverPlugin::CloseArchive(ObserverArchive* pArchive)
 }
 
 
-HANDLE ObserverPlugin::OpenStorage(const TCHAR* lpFileName, StorageGeneralInfo* pInfo)
+INT_PTR* ObserverPlugin::OpenStorage(const TCHAR* lpFileName, StorageGeneralInfo* pInfo)
 {
 
 #ifdef UNICODE
@@ -123,17 +114,13 @@ HANDLE ObserverPlugin::OpenStorage(const TCHAR* lpFileName, StorageGeneralInfo* 
 	wchar_t* lpName = AnsiToUnicode(lpFileName);
 #endif
 
-	HANDLE hResult = NULL;
+	INT_PTR* hResult = NULL;
 
 	if ( m_pfnOpenStorage )
 	{
-		HANDLE hArchive;
-		StorageOpenParams params;
+		INT_PTR* hArchive;
 
-		params.FilePath = lpFileName;
-		params.Password = nullptr; //oops
-
-		if ( m_pfnOpenStorage(params, &hArchive, pInfo) == TRUE )
+		if ( m_pfnOpenStorage(lpName, &hArchive, pInfo) == TRUE )
 			hResult = hArchive;
 	}
 
@@ -146,7 +133,7 @@ HANDLE ObserverPlugin::OpenStorage(const TCHAR* lpFileName, StorageGeneralInfo* 
 	return hResult;
 }
 
-void ObserverPlugin::CloseStorage(HANDLE hArchive)
+void ObserverPlugin::CloseStorage(INT_PTR* hArchive)
 {
 	if ( m_pfnCloseStorage )
 		m_pfnCloseStorage(hArchive);
@@ -163,14 +150,11 @@ ObserverPlugin::~ObserverPlugin()
 		delete m_pFormatInfo;
 	}
 
-	if ( m_pfnUnloadSubModule )
-		m_pfnUnloadSubModule();
-
 	if ( m_hModule )
 		FreeLibrary(m_hModule);
 }
 
-int ObserverPlugin::GetStorageItem(HANDLE hArchive, int nIndex, ArchiveItem* pItem, unsigned int& uNumberOfFiles)
+int ObserverPlugin::GetStorageItem(INT_PTR* hArchive, int nIndex, ArchiveItem* pItem, unsigned int& uNumberOfFiles)
 {
 	int nResult = E_BROKEN;
 
@@ -215,7 +199,7 @@ int ObserverPlugin::GetStorageItem(HANDLE hArchive, int nIndex, ArchiveItem* pIt
 
 
 int ObserverPlugin::ExtractItem(
-		HANDLE hArchive, 
+		INT_PTR* hArchive, 
 		int nIndex,
 		const TCHAR* lpDestPath, 
 		ExtractProcessCallbacks* pCallbacks 

@@ -4,8 +4,8 @@ mix.cpp
 Куча разных вспомогательных функций
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -82,7 +82,7 @@ int ToPercent64(unsigned __int64 N1, unsigned __int64 N2)
         запятыми или точкой с запятой, можно указывать маски исключения,
         можно заключать маски в кавычки. Короче, все как и должно быть :-)
 */
-void WINAPI FarRecursiveSearch(const wchar_t *InitDir,const wchar_t *Mask,FRSUSERFUNC Func,unsigned __int64 Flags,void *Param)
+void WINAPI FarRecursiveSearch(const wchar_t *InitDir,const wchar_t *Mask,FRSUSERFUNC Func,DWORD Flags,void *Param)
 {
 	if (Func && InitDir && *InitDir && Mask && *Mask)
 	{
@@ -100,16 +100,16 @@ void WINAPI FarRecursiveSearch(const wchar_t *InitDir,const wchar_t *Mask,FRSUSE
 		{
 			if (FMask.Compare(FindData.strFileName))
 			{
-				PluginPanelItem fdata;
-				FindDataExToPluginPanelItem(&FindData, &fdata);
+				FAR_FIND_DATA fdata;
+				apiFindDataExToData(&FindData, &fdata);
 
 				if (!Func(&fdata,strFullName,Param))
 				{
-					FreePluginPanelItem(&fdata);
+					apiFreeFindData(&fdata);
 					break;
 				}
 
-				FreePluginPanelItem(&fdata);
+				apiFreeFindData(&fdata);
 			}
 		}
 	}
@@ -121,14 +121,14 @@ void WINAPI FarRecursiveSearch(const wchar_t *InitDir,const wchar_t *Mask,FRSUSE
     Template - шаблон по правилам функции mktemp, например "FarTmpXXXXXX"
     Вернет требуемый размер приемника.
 */
-size_t WINAPI FarMkTemp(wchar_t *Dest, size_t DestSize, const wchar_t *Prefix)
+int WINAPI FarMkTemp(wchar_t *Dest, DWORD size, const wchar_t *Prefix)
 {
 	string strDest;
-	if (FarMkTempEx(strDest, Prefix, TRUE) && Dest && DestSize)
+	if (FarMkTempEx(strDest, Prefix, TRUE) && Dest && size)
 	{
-		xwcsncpy(Dest, strDest, DestSize);
+		xwcsncpy(Dest, strDest, size);
 	}
-	return strDest.GetLength()+1;
+	return static_cast<int>(strDest.GetLength()+1);
 }
 
 /*
@@ -176,36 +176,4 @@ string& FarMkTempEx(string &strDest, const wchar_t *Prefix, BOOL WithTempPath, c
 
 	strDest.ReleaseBuffer();
 	return strDest;
-}
-
-void PluginPanelItemToFindDataEx(const PluginPanelItem *pSrc, FAR_FIND_DATA_EX *pDest)
-{
-	pDest->dwFileAttributes = pSrc->FileAttributes;
-	pDest->ftCreationTime = pSrc->CreationTime;
-	pDest->ftLastAccessTime = pSrc->LastAccessTime;
-	pDest->ftLastWriteTime = pSrc->LastWriteTime;
-	pDest->ftChangeTime = pSrc->ChangeTime;
-	pDest->nFileSize = pSrc->FileSize;
-	pDest->nPackSize = pSrc->PackSize;
-	pDest->strFileName = pSrc->FileName;
-	pDest->strAlternateFileName = pSrc->AlternateFileName;
-}
-
-void FindDataExToPluginPanelItem(const FAR_FIND_DATA_EX *pSrc, PluginPanelItem *pDest)
-{
-	pDest->FileAttributes = pSrc->dwFileAttributes;
-	pDest->CreationTime = pSrc->ftCreationTime;
-	pDest->LastAccessTime = pSrc->ftLastAccessTime;
-	pDest->LastWriteTime = pSrc->ftLastWriteTime;
-	pDest->ChangeTime = pSrc->ftChangeTime;
-	pDest->FileSize = pSrc->nFileSize;
-	pDest->PackSize = pSrc->nPackSize;
-	pDest->FileName = xf_wcsdup(pSrc->strFileName);
-	pDest->AlternateFileName = xf_wcsdup(pSrc->strAlternateFileName);
-}
-
-void FreePluginPanelItem(PluginPanelItem *pData)
-{
-	xf_free(pData->FileName);
-	xf_free(pData->AlternateFileName);
 }

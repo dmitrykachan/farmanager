@@ -4,8 +4,8 @@ processname.cpp
 Обработать имя файла: сравнить с маской, масками, сгенерировать по маске
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pathmix.hpp"
 
 // обработать имя файла: сравнить с маской, масками, сгенерировать по маске
-size_t WINAPI ProcessName(const wchar_t *param1, wchar_t *param2, size_t size, PROCESSNAME_FLAGS flags)
+int WINAPI ProcessName(const wchar_t *param1, wchar_t *param2, DWORD size, DWORD flags)
 {
 	bool skippath = (flags&PN_SKIPPATH)!=0;
 

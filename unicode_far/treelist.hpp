@@ -6,8 +6,8 @@ treelist.hpp
 Tree panel
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -148,7 +148,7 @@ class TreeList: public Panel
 		virtual void Update(int Mode);
 		int  ReadTree();
 
-		virtual BOOL SetCurDir(const wchar_t *NewDir,int ClosePanel);
+		virtual BOOL SetCurDir(const wchar_t *NewDir,int ClosePlugin);
 
 		void SetRootDir(const wchar_t *NewRootDir);
 

@@ -4,8 +4,8 @@ manager.cpp
 Переключение между несколькими file panels, viewers, editors, dialogs
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -45,6 +45,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "cmdline.hpp"
 #include "ctrlobj.hpp"
 #include "syslog.hpp"
+#include "registry.hpp"
 #include "interf.hpp"
 #include "keyboard.hpp"
 #include "grabber.hpp"
@@ -56,17 +57,15 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "exitcode.hpp"
 #include "scrbuf.hpp"
 #include "console.hpp"
-#include "configdb.hpp"
 
 Manager *FrameManager;
-long CurrentWindowType=-1;
 
 Manager::Manager():
 	ModalStack(nullptr),
 	ModalStackCount(0),
 	ModalStackSize(0),
 	FrameCount(0),
-	FrameList(static_cast<Frame **>(xf_malloc(sizeof(Frame*)*(FrameCount+1)))),
+	FrameList(reinterpret_cast<Frame **>(xf_malloc(sizeof(Frame*)*(FrameCount+1)))),
 	FrameListSize(0),
 	FramePos(-1),
 	InsertedFrame(nullptr),
@@ -228,7 +227,7 @@ void Manager::DeleteFrame(int Index)
 {
 	_MANAGER(CleverSysLog clv(L"Manager::DeleteFrame(int Index)"));
 	_MANAGER(SysLog(L"Index=%i",Index));
-	DeleteFrame((*this)[Index]);
+	DeleteFrame(this->operator[](Index));
 }
 
 
@@ -768,9 +767,6 @@ static void Test_EXCEPTION_STACK_OVERFLOW(char* target)
 	char Buffer[1024]; /* чтобы быстрее рвануло */
 	strcpy(Buffer, "zzzz");
 	Test_EXCEPTION_STACK_OVERFLOW(Buffer);
-
-	// "side effect" to prevent deletion of this function call due to C4718.
-	Sleep(0);
 }
 #if defined(_MSC_VER)
 #pragma warning( pop )
@@ -824,7 +820,7 @@ int Manager::ProcessKey(DWORD Key)
 #if defined(FAR_ALPHA_VERSION)
 
 // сей код для проверки исключатор, просьба не трогать :-)
-		if (Key == (KEY_APPS|KEY_CTRL|KEY_ALT) && GeneralCfg->GetValue(L"System.Exception",L"Used",0))
+		if (Key == (KEY_APPS|KEY_CTRL|KEY_ALT) && GetRegKey(L"System\\Exception",L"Used",0))
 		{
 			struct __ECODE
 			{
@@ -1219,9 +1215,9 @@ BOOL Manager::IsPanelsActive()
 	}
 }
 
-Frame *Manager::operator[](size_t Index)
+Frame *Manager::operator[](int Index)
 {
-	if (Index>=static_cast<size_t>(FrameCount) || !FrameList)
+	if (Index<0 || Index>=FrameCount || !FrameList)
 	{
 		return nullptr;
 	}
@@ -1414,7 +1410,6 @@ void Manager::ActivateCommit()
 	}
 
 	RefreshedFrame=CurrentFrame=ActivatedFrame;
-	InterlockedExchange(&CurrentWindowType,CurrentFrame->GetType());
 }
 
 void Manager::UpdateCommit()
@@ -1554,10 +1549,7 @@ void Manager::DeleteCommit()
 		_MANAGER(SysLog(L"delete DeletedFrame %p, CurrentFrame=%p",DeletedFrame,CurrentFrame));
 
 		if (CurrentFrame==DeletedFrame)
-		{
 			CurrentFrame=0;
-			InterlockedExchange(&CurrentWindowType,-1);
-		}
 
 		/* $ 14.05.2002 SKV
 		  Так как в деструкторе фрэйма неявно может быть

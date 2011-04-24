@@ -4,8 +4,8 @@ fileview.cpp
 Просмотр файла - надстройка над viewer.cpp
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -57,7 +57,7 @@ FileViewer::FileViewer(const wchar_t *Name,int EnableSwitch,int DisableHistory,
                        int DisableEdit,long ViewStartPos,const wchar_t *PluginData,
                        NamesList *ViewNamesList,int ToSaveAs,UINT aCodePage):
 	View(false,aCodePage),
-	FullScreen(true),
+	FullScreen(TRUE),
 	DisableEdit(DisableEdit)
 {
 	_OT(SysLog(L"[%p] FileViewer::FileViewer(I variant...)", this));
@@ -178,6 +178,9 @@ void FileViewer::InitKeyBar()
 	if (!GetCanLoseFocus())
 		ViewKeyBar.Change(KBL_ALT,L"",11-1);
 
+	if (!Opt.UsePrintManager || CtrlObject->Plugins.FindPlugin(SYSID_PRINTMANAGER))
+		ViewKeyBar.Change(KBL_ALT,L"",5-1);
+
 	ViewKeyBar.ReadRegGroup(L"Viewer",Opt.strLanguage);
 	ViewKeyBar.SetAllRegGroup();
 	SetKeyBar(&ViewKeyBar);
@@ -211,34 +214,6 @@ void FileViewer::DisplayObject()
 
 __int64 FileViewer::VMProcess(int OpCode,void *vParam,__int64 iParam)
 {
-	if (OpCode == MCODE_F_KEYBAR_SHOW)
-	{
-		int PrevMode=Opt.ViOpt.ShowKeyBar?2:1;
-		switch (iParam)
-		{
-			case 0:
-				break;
-			case 1:
-				Opt.ViOpt.ShowKeyBar=1;
-				ViewKeyBar.Show();
-				Show();
-				KeyBarVisible = Opt.ViOpt.ShowKeyBar;
-				break;
-			case 2:
-				Opt.ViOpt.ShowKeyBar=0;
-				ViewKeyBar.Hide();
-				Show();
-				KeyBarVisible = Opt.ViOpt.ShowKeyBar;
-				break;
-			case 3:
-				ProcessKey(KEY_CTRLB);
-				break;
-			default:
-				PrevMode=0;
-				break;
-		}
-		return PrevMode;
-	}
 	return View.VMProcess(OpCode,vParam,iParam);
 }
 
@@ -331,7 +306,7 @@ int FileViewer::ProcessKey(int Key)
 				string strViewFileName;
 				View.GetFileName(strViewFileName);
 				File Edit;
-				if(!Edit.Open(strViewFileName, FILE_READ_DATA, FILE_SHARE_READ|(Opt.EdOpt.EditOpenedForWrite?FILE_SHARE_WRITE:0), nullptr, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN))
+				if(!Edit.Open(strViewFileName, GENERIC_READ, FILE_SHARE_READ|(Opt.EdOpt.EditOpenedForWrite?FILE_SHARE_WRITE:0), nullptr, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN))
 				{
 					Message(MSG_WARNING|MSG_ERRORTYPE,1,MSG(MEditTitle),MSG(MEditCannotOpen),strViewFileName,MSG(MOk));
 					return TRUE;
@@ -355,7 +330,14 @@ int FileViewer::ProcessKey(int Key)
 			}
 
 			return TRUE;
+			// Печать файла с использованием плагина PrintMan
+		case KEY_ALTF5:
+		{
+			if (Opt.UsePrintManager && CtrlObject->Plugins.FindPlugin(SYSID_PRINTMANAGER))
+				CtrlObject->Plugins.CallPlugin(SYSID_PRINTMANAGER,OPEN_VIEWER,0); // printman
 
+			return TRUE;
+		}
 		case KEY_ALTSHIFTF9:
 			// Работа с локальной копией ViewerOptions
 			ViewerOptions ViOpt;

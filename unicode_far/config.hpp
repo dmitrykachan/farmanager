@@ -6,8 +6,8 @@ config.hpp
 Конфигурация
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -74,31 +74,6 @@ enum DIZUPDATETYPE
 	DIZ_NOT_UPDATE,
 	DIZ_UPDATE_IF_DISPLAYED,
 	DIZ_UPDATE_ALWAYS
-};
-
-enum FarPoliciesFlags
-{
-	FFPOL_MAINMENUSYSTEM        = 0x00000001,
-	FFPOL_MAINMENUPANEL         = 0x00000002,
-	FFPOL_MAINMENUINTERFACE     = 0x00000004,
-	FFPOL_MAINMENULANGUAGE      = 0x00000008,
-	FFPOL_MAINMENUPLUGINS       = 0x00000010,
-	FFPOL_MAINMENUDIALOGS       = 0x00000020,
-	FFPOL_MAINMENUCONFIRMATIONS = 0x00000040,
-	FFPOL_MAINMENUPANELMODE     = 0x00000080,
-	FFPOL_MAINMENUFILEDESCR     = 0x00000100,
-	FFPOL_MAINMENUFOLDERDESCR   = 0x00000200,
-	FFPOL_MAINMENUVIEWER        = 0x00000800,
-	FFPOL_MAINMENUEDITOR        = 0x00001000,
-	FFPOL_MAINMENUCOLORS        = 0x00004000,
-	FFPOL_MAINMENUHILIGHT       = 0x00008000,
-	FFPOL_MAINMENUSAVEPARAMS    = 0x00020000,
-
-	FFPOL_CREATEMACRO           = 0x00040000,
-	FFPOL_USEPSWITCH            = 0x00080000,
-	FFPOL_PERSONALPATH          = 0x00100000,
-	FFPOL_KILLTASK              = 0x00200000,
-	FFPOL_SHOWHIDDENDRIVES      = 0x80000000,
 };
 
 struct PanelOptions
@@ -582,6 +557,8 @@ struct Options
 
 	int ConsoleDetachKey; // Комбинация клавиш для детача Far'овской консоли от длятельного неинтерактивного процесса в ней запущенного.
 
+	int UsePrintManager;
+
 	string strHelpLanguage;
 	int FullScreenHelp;
 	int HelpTabSize;
@@ -639,11 +616,15 @@ struct Options
 	string strExecuteBatchType;
 
 	DWORD PluginMaxReadData;
+	int UseNumPad;
 	int ScanJunction;
 
 	DWORD ShowTimeoutDelFiles; // тайаут в процессе удаления (в ms)
 	DWORD ShowTimeoutDACLFiles;
 	int DelThreadPriority; // приоритет процесса удаления, по умолчанию = THREAD_PRIORITY_NORMAL
+
+	//int CPAJHefuayor; // производное от "Close Plugin And Jump:
+	// Highly experimental feature, use at your own risk"
 
 	LoadPluginsOptions LoadPlug;
 
@@ -667,10 +648,6 @@ struct Options
 
 	int ElevationMode;
 	BOOL WindowMode;
-
-	string ProfilePath;
-	string LocalProfilePath;
-	string GlobalUserMenuDir;
 };
 
 extern Options Opt;

@@ -339,7 +339,7 @@ ArcEntries Archive::detect(IInStream* stream, const wstring& file_ext, const Arc
   return arc_entries;
 }
 
-void Archive::open(const OpenOptions& options, Archives& archives) {
+void Archive::open(const OpenOptions& options, vector<ComObject<Archive>>& archives) {
   size_t parent_idx = -1;
   if (!archives.empty())
     parent_idx = archives.size() - 1;
@@ -380,8 +380,8 @@ void Archive::open(const OpenOptions& options, Archives& archives) {
   }
 }
 
-Archives Archive::open(const OpenOptions& options) {
-  Archives archives;
+vector<ComObject<Archive>> Archive::open(const OpenOptions& options) {
+  vector<ComObject<Archive>> archives;
   open(options, archives);
   if (!options.detect && !archives.empty())
     archives.erase(archives.begin(), archives.end() - 1);

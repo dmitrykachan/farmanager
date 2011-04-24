@@ -16,4 +16,3 @@ EXPORTS
 	ProcessHostFileW
 	ProcessKeyW
 	OpenPluginW
-	GetMinFarVersionW

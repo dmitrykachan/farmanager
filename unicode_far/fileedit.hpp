@@ -6,8 +6,8 @@ fileedit.hpp
 Редактирование файла - надстройка над editor.cpp
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -104,7 +104,6 @@ class FileEditor : public Frame
 		void CodepageChangedByUser() {Flags.Set(FFILEEDIT_CODEPAGECHANGEDBYUSER);};
 		virtual void Show();
 		void SetPluginTitle(const wchar_t *PluginTitle);
-		int GetId(void) const { return m_editor->EditorID; };
 
 		static const FileEditor *CurrentEditor;
 
@@ -168,7 +167,7 @@ class FileEditor : public Frame
 		DWORD EditorGetFileAttributes(const wchar_t *Name);
 		void SetPluginData(const wchar_t *PluginData);
 		const wchar_t *GetPluginData() {return strPluginData.CPtr();}
-		bool LoadFromCache(EditorPosCache &pc);
+		bool LoadFromCache(EditorCacheParams *pp);
 		void SaveToCache();
 };
 

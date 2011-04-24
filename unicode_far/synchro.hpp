@@ -5,7 +5,7 @@ synchro.hpp
 синхронизация для плагинов.
 */
 /*
-Copyright © 2009 Far Group
+Copyright (c) 2009 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@ class PluginSynchro
 		struct SynchroData
 		{
 			bool Plugin;
-			GUID PluginId;
+			INT_PTR ModuleNumber;
 			void* Param;
 		};
 	private:
@@ -48,7 +48,7 @@ class PluginSynchro
 	public:
 		PluginSynchro();
 		~PluginSynchro();
-		void Synchro(bool Plugin, const GUID& PluginId,void* Param);
+		void Synchro(bool Plugin, INT_PTR ModuleNumber,void* Param);
 		bool Process(void);
 };
 

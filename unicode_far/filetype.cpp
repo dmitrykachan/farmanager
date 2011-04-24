@@ -4,8 +4,8 @@ filetype.cpp
 Работа с ассоциациями файлов
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -48,13 +48,31 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "rdrwdsk.hpp"
 #include "savescr.hpp"
 #include "CFileMask.hpp"
+#include "registry.hpp"
 #include "message.hpp"
 #include "interf.hpp"
 #include "config.hpp"
 #include "execute.hpp"
 #include "fnparce.hpp"
 #include "strmix.hpp"
-#include "configdb.hpp"
+
+struct FileTypeStrings
+{
+	const wchar_t *Help,*HelpModify,*State,
+	*Associations,*TypeFmt, *Type0,
+	*Execute, *Desc, *Mask, *View, *Edit,
+	*AltExec, *AltView, *AltEdit;
+};
+
+
+const FileTypeStrings FTS=
+{
+	L"FileAssoc",L"FileAssocModify",L"State",
+	L"Associations",L"Associations\\Type%d",L"Associations\\Type",
+	L"Execute",L"Description",L"Mask",L"View",L"Edit",
+	L"AltExec",L"AltView",L"AltEdit"
+};
+
 
 /* $ 25.04.2001 DJ
    обработка @ в IF EXIST: функция, которая извлекает команду из строки
@@ -93,25 +111,28 @@ bool ExtractIfExistCommand(string &strCommandText)
 int GetDescriptionWidth(const wchar_t *Name=nullptr,const wchar_t *ShortName=nullptr)
 {
 	int Width=0;
-	DWORD Index=0;
-	unsigned __int64 id;
-	string strMask;
-	string strDescription;
-	CFileMask FMask;
+	RenumKeyRecord(FTS.Associations,FTS.TypeFmt,FTS.Type0);
 
-	while (AssocConfig->EnumMasks(Index++,&id,strMask))
+	for (int NumLine=0;; NumLine++)
 	{
+		string strRegKey;
+		strRegKey.Format(FTS.TypeFmt, NumLine);
+		string strMask;
+
+		if (!GetRegKey(strRegKey,FTS.Mask, strMask, L""))
+			break;
+
+		CFileMask FMask;
+
 		if (!FMask.Set(strMask, FMF_SILENT))
 			continue;
 
-		AssocConfig->GetDescription(id,strDescription);
-
+		string strDescription;
+		GetRegKey(strRegKey,FTS.Desc,strDescription,L"");
 		int CurWidth;
 
 		if (!Name)
-		{
 			CurWidth = HiStrlen(strDescription);
-		}
 		else
 		{
 			if (!FMask.Compare(Name))
@@ -129,7 +150,7 @@ int GetDescriptionWidth(const wchar_t *Name=nullptr,const wchar_t *ShortName=nul
 	if (Width>ScrX/2)
 		Width=ScrX/2;
 
-	return Width;
+	return(Width);
 }
 
 /* $ 14.01.2001 SVS
@@ -148,33 +169,68 @@ int GetDescriptionWidth(const wchar_t *Name=nullptr,const wchar_t *ShortName=nul
 */
 bool ProcessLocalFileTypes(const wchar_t *Name, const wchar_t *ShortName, int Mode, bool AlwaysWaitFinish)
 {
+	RenumKeyRecord(FTS.Associations,FTS.TypeFmt,FTS.Type0);
 	MenuItemEx TypesMenuItem;
 	VMenu TypesMenu(MSG(MSelectAssocTitle),nullptr,0,ScrY-4);
-	TypesMenu.SetHelp(L"FileAssoc");
+	TypesMenu.SetHelp(FTS.Help);
 	TypesMenu.SetFlags(VMENU_WRAPMODE);
 	TypesMenu.SetPosition(-1,-1,0,0);
 	int DizWidth=GetDescriptionWidth(Name, ShortName);
 	int ActualCmdCount=0; // отображаемых ассоциаций в меню
 	CFileMask FMask; // для работы с масками файлов
-	string strCommand, strDescription, strMask;
+	string strCommand, strDescription;
 	int CommandCount=0;
-	DWORD Index=0;
-	unsigned __int64 id;
 
-	while (AssocConfig->EnumMasksForType(Mode,Index++,&id,strMask))
+	for (int I=0;; I++)
 	{
 		strCommand.Clear();
+		string strRegKey, strMask;
+		strRegKey.Format(FTS.TypeFmt,I);
+
+		if (!GetRegKey(strRegKey,FTS.Mask,strMask,L""))
+			break;
 
 		if (FMask.Set(strMask,FMF_SILENT))
 		{
 			if (FMask.Compare(Name))
 			{
-				AssocConfig->GetCommand(id,Mode,strCommand);
+				LPCWSTR Type=nullptr;
 
-				if (!strCommand.IsEmpty())
+				switch (Mode)
 				{
-					AssocConfig->GetDescription(id,strDescription);
-					CommandCount++;
+					case FILETYPE_EXEC:
+						Type=FTS.Execute;
+						break;
+					case FILETYPE_VIEW:
+						Type=FTS.View;
+						break;
+					case FILETYPE_EDIT:
+						Type=FTS.Edit;
+						break;
+					case FILETYPE_ALTEXEC:
+						Type=FTS.AltExec;
+						break;
+					case FILETYPE_ALTVIEW:
+						Type=FTS.AltView;
+						break;
+					case FILETYPE_ALTEDIT:
+						Type=FTS.AltEdit;
+						break;
+				}
+
+				DWORD State=GetRegKey(strRegKey,FTS.State,0xffffffff);
+
+				if (State&(1<<Mode))
+				{
+					string strNewCommand;
+					GetRegKey(strRegKey,Type,strNewCommand,L"");
+
+					if (!strNewCommand.IsEmpty())
+					{
+						strCommand = strNewCommand;
+						GetRegKey(strRegKey,FTS.Desc,strDescription,L"");
+						CommandCount++;
+					}
 				}
 			}
 
@@ -215,7 +271,7 @@ bool ProcessLocalFileTypes(const wchar_t *Name, const wchar_t *ShortName, int Mo
 		TruncStr(strCommandText,ScrX-DizWidth-14);
 		strMenuText += strCommandText;
 		TypesMenuItem.strName = strMenuText;
-		TypesMenuItem.SetSelect(Index==1);
+		TypesMenuItem.SetSelect(!I);
 		TypesMenu.SetUserData(strCommand.CPtr(),0,TypesMenu.AddItem(&TypesMenuItem));
 	}
 
@@ -354,7 +410,7 @@ void ProcessExternal(const wchar_t *Command, const wchar_t *Name, const wchar_t 
 		if (!ExtractIfExistCommand(strFullExecStr))
 			return;
 
-		CtrlObject->ViewHistory->AddToHistory(strFullExecStr,AlwaysWaitFinish+2);
+		CtrlObject->ViewHistory->AddToHistory(strFullExecStr,(AlwaysWaitFinish&1)+2);
 
 		if (strExecStr.At(0) != L'@')
 			CtrlObject->CmdLine->ExecString(strExecStr,AlwaysWaitFinish, 0, 0, ListFileUsed, true);
@@ -385,20 +441,27 @@ static int FillFileTypesMenu(VMenu *TypesMenu,int MenuPos)
 	int DizWidth=GetDescriptionWidth();
 	MenuItemEx TypesMenuItem;
 	TypesMenu->DeleteItems();
-	DWORD Index=0;
-	string strMask;
-	string strTitle;
-	unsigned __int64 id;
+	int NumLine=0;
 
-	while (AssocConfig->EnumMasks(Index++,&id,strMask))
+	for (;; NumLine++)
 	{
+		string strRegKey;
+		strRegKey.Format(FTS.TypeFmt,NumLine);
 		TypesMenuItem.Clear();
+		string strMask;
+
+		if (!GetRegKey(strRegKey,FTS.Mask,strMask,L""))
+		{
+			break;
+		}
 
 		string strMenuText;
 
 		if (DizWidth)
 		{
-			AssocConfig->GetDescription(id,strTitle);
+			string strDescription;
+			GetRegKey(strRegKey,FTS.Desc,strDescription,L"");
+			string strTitle=strDescription;
 			size_t Pos=0;
 			bool Ampersand=strTitle.Pos(Pos,L'&');
 
@@ -411,15 +474,28 @@ static int FillFileTypesMenu(VMenu *TypesMenu,int MenuPos)
 		//TruncStr(strMask,ScrX-DizWidth-14);
 		strMenuText += strMask;
 		TypesMenuItem.strName = strMenuText;
-		TypesMenuItem.SetSelect((int)(Index-1)==MenuPos);
-		TypesMenu->SetUserData(&id, sizeof(id), TypesMenu->AddItem(&TypesMenuItem));
+		TypesMenuItem.SetSelect(NumLine==MenuPos);
+		TypesMenu->AddItem(&TypesMenuItem);
 	}
 
-	TypesMenuItem.Clear();
-	TypesMenuItem.SetSelect((int)(Index-1)==MenuPos);
+	TypesMenuItem.strName.Clear();
+	TypesMenuItem.SetSelect(NumLine==MenuPos);
 	TypesMenu->AddItem(&TypesMenuItem);
+	return NumLine;
+}
 
-	return (int)(Index-1);
+void MoveMenuItem(int Pos,int NewPos)
+{
+	string strSrc,strDst,strTmp;
+	strSrc.Format(FTS.TypeFmt,Pos);
+	strDst.Format(FTS.TypeFmt,NewPos);
+	strTmp.Format(L"Associations\\Tmp%u",GetTickCount());
+	CopyLocalKeyTree(strDst,strTmp);
+	DeleteKeyTree(strDst);
+	CopyLocalKeyTree(strSrc,strDst);
+	DeleteKeyTree(strSrc);
+	CopyLocalKeyTree(strTmp,strSrc);
+	DeleteKeyTree(strTmp);
 }
 
 enum EDITTYPERECORD
@@ -447,7 +523,7 @@ enum EDITTYPERECORD
 	ETR_BUTTON_CANCEL,
 };
 
-INT_PTR WINAPI EditTypeRecordDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
+LONG_PTR WINAPI EditTypeRecordDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2)
 {
 	switch (Msg)
 	{
@@ -461,9 +537,7 @@ INT_PTR WINAPI EditTypeRecordDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2
 				case ETR_COMBO_ALTVIEW:
 				case ETR_COMBO_EDIT:
 				case ETR_COMBO_ALTEDIT:
-					SendDlgMessage(hDlg,DM_ENABLE,Param1+1,ToPtr(reinterpret_cast<INT_PTR>(Param2)==BSTATE_CHECKED?TRUE:FALSE));
-					break;
-				default:
+					SendDlgMessage(hDlg,DM_ENABLE,Param1+1,Param2==BSTATE_CHECKED?TRUE:FALSE);
 					break;
 			}
 
@@ -485,63 +559,67 @@ INT_PTR WINAPI EditTypeRecordDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2
 			}
 
 			break;
-		default:
-			break;
 	}
 
 	return DefDlgProc(hDlg,Msg,Param1,Param2);
 }
 
-bool EditTypeRecord(unsigned __int64 EditPos,bool NewRec)
+bool EditTypeRecord(int EditPos,int TotalRecords,bool NewRec)
 {
+	bool Result=false;
 	const int DlgX=76,DlgY=23;
-	FarDialogItem EditDlgData[]=
+	DialogDataEx EditDlgData[]=
 	{
-		{DI_DOUBLEBOX,3, 1,DlgX-4,DlgY-2,0,nullptr,nullptr,0,MSG(MFileAssocTitle)},
-		{DI_TEXT,     5, 2, 0, 2,0,nullptr,nullptr,0,MSG(MFileAssocMasks)},
-		{DI_EDIT,     5, 3,DlgX-6, 3,0,L"Masks",nullptr,DIF_FOCUS|DIF_HISTORY,L""},
-		{DI_TEXT,     5, 4, 0, 4,0,nullptr,nullptr,0,MSG(MFileAssocDescr)},
-		{DI_EDIT,     5, 5,DlgX-6, 5,0,nullptr,nullptr,0,L""},
-		{DI_TEXT,     3, 6, 0, 6,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-		{DI_CHECKBOX, 5, 7, 0, 7,1,nullptr,nullptr,0,MSG(MFileAssocExec)},
-		{DI_EDIT,     9, 8,DlgX-6, 8,0,nullptr,nullptr,DIF_EDITPATH,L""},
-		{DI_CHECKBOX, 5, 9, 0, 9,1,nullptr,nullptr,0,MSG(MFileAssocAltExec)},
-		{DI_EDIT,     9,10,DlgX-6,10,0,nullptr,nullptr,DIF_EDITPATH,L""},
-		{DI_CHECKBOX, 5,11, 0,11,1,nullptr,nullptr,0,MSG(MFileAssocView)},
-		{DI_EDIT,     9,12,DlgX-6,12,0,nullptr,nullptr,DIF_EDITPATH,L""},
-		{DI_CHECKBOX, 5,13, 0,13,1,nullptr,nullptr,0,MSG(MFileAssocAltView)},
-		{DI_EDIT,     9,14,DlgX-6,14,0,nullptr,nullptr,DIF_EDITPATH,L""},
-		{DI_CHECKBOX, 5,15, 0,15,1,nullptr,nullptr,0,MSG(MFileAssocEdit)},
-		{DI_EDIT,     9,16,DlgX-6,16,0,nullptr,nullptr,DIF_EDITPATH,L""},
-		{DI_CHECKBOX, 5,17, 0,17,1,nullptr,nullptr,0,MSG(MFileAssocAltEdit)},
-		{DI_EDIT,     9,18,DlgX-6,18,0,nullptr,nullptr,DIF_EDITPATH,L""},
-		{DI_TEXT,     3,DlgY-4, 0,DlgY-4,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-		{DI_BUTTON,   0,DlgY-3, 0,DlgY-3,0,nullptr,nullptr,DIF_DEFAULTBUTTON|DIF_CENTERGROUP,MSG(MOk)},
-		{DI_BUTTON,   0,DlgY-3, 0,DlgY-3,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MCancel)},
+		DI_DOUBLEBOX,3, 1,DlgX-4,DlgY-2,0,0,MSG(MFileAssocTitle),
+		DI_TEXT,     5, 2, 0, 2,0,0,MSG(MFileAssocMasks),
+		DI_EDIT,     5, 3,DlgX-6, 3,(DWORD_PTR)L"Masks",DIF_FOCUS|DIF_HISTORY,L"",
+		DI_TEXT,     5, 4, 0, 4,0,0,MSG(MFileAssocDescr),
+		DI_EDIT,     5, 5,DlgX-6, 5,0,0,L"",
+		DI_TEXT,     3, 6, 0, 6,0,DIF_SEPARATOR,L"",
+		DI_CHECKBOX, 5, 7, 0, 7,1,0,MSG(MFileAssocExec),
+		DI_EDIT,     9, 8,DlgX-6, 8,0,DIF_EDITPATH,L"",
+		DI_CHECKBOX, 5, 9, 0, 9,1,0,MSG(MFileAssocAltExec),
+		DI_EDIT,     9,10,DlgX-6,10,0,DIF_EDITPATH,L"",
+		DI_CHECKBOX, 5,11, 0,11,1,0,MSG(MFileAssocView),
+		DI_EDIT,     9,12,DlgX-6,12,0,DIF_EDITPATH,L"",
+		DI_CHECKBOX, 5,13, 0,13,1,0,MSG(MFileAssocAltView),
+		DI_EDIT,     9,14,DlgX-6,14,0,DIF_EDITPATH,L"",
+		DI_CHECKBOX, 5,15, 0,15,1,0,MSG(MFileAssocEdit),
+		DI_EDIT,     9,16,DlgX-6,16,0,DIF_EDITPATH,L"",
+		DI_CHECKBOX, 5,17, 0,17,1,0,MSG(MFileAssocAltEdit),
+		DI_EDIT,     9,18,DlgX-6,18,0,DIF_EDITPATH,L"",
+		DI_TEXT,     3,DlgY-4, 0,DlgY-4,0,DIF_SEPARATOR,L"",
+		DI_BUTTON,   0,DlgY-3, 0,DlgY-3,0,DIF_DEFAULT|DIF_CENTERGROUP,MSG(MOk),
+		DI_BUTTON,   0,DlgY-3, 0,DlgY-3,0,DIF_CENTERGROUP,MSG(MCancel),
 	};
 	MakeDialogItemsEx(EditDlgData,EditDlg);
+	string strRegKey;
+	strRegKey.Format(FTS.TypeFmt,EditPos);
 
 	if (!NewRec)
 	{
-		AssocConfig->GetMask(EditPos,EditDlg[ETR_EDIT_MASKS].strData);
-		AssocConfig->GetDescription(EditPos,EditDlg[ETR_EDIT_DESCR].strData);
-		for (int i=FILETYPE_EXEC,Item=ETR_EDIT_EXEC; i<=FILETYPE_ALTEDIT; i++,Item+=2)
+		GetRegKey(strRegKey,FTS.Mask,EditDlg[ETR_EDIT_MASKS].strData,L"");
+		GetRegKey(strRegKey,FTS.Desc,EditDlg[ETR_EDIT_DESCR].strData,L"");
+		GetRegKey(strRegKey,FTS.Execute,EditDlg[ETR_EDIT_EXEC].strData,L"");
+		GetRegKey(strRegKey,FTS.AltExec,EditDlg[ETR_EDIT_ALTEXEC].strData,L"");
+		GetRegKey(strRegKey,FTS.View,EditDlg[ETR_EDIT_VIEW].strData,L"");
+		GetRegKey(strRegKey,FTS.AltView,EditDlg[ETR_EDIT_ALTVIEW].strData,L"");
+		GetRegKey(strRegKey,FTS.Edit,EditDlg[ETR_EDIT_EDIT].strData,L"");
+		GetRegKey(strRegKey,FTS.AltEdit,EditDlg[ETR_EDIT_ALTEDIT].strData,L"");
+		DWORD State=GetRegKey(strRegKey,FTS.State,0xffffffff);
+
+		for (int i=FILETYPE_EXEC,Item=ETR_COMBO_EXEC; i<=FILETYPE_ALTEDIT; i++,Item+=2)
 		{
-			bool on=false;
-			if (!AssocConfig->GetCommand(EditPos,i,EditDlg[Item].strData,&on) || !on)
+			if (!(State&(1<<i)))
 			{
-				EditDlg[Item-1].Selected = BSTATE_UNCHECKED;
-				EditDlg[Item].Flags |= DIF_DISABLE;
-			}
-			else if (on)
-			{
-				EditDlg[Item-1].Selected = BSTATE_CHECKED;
+				EditDlg[Item].Selected=BSTATE_UNCHECKED;
+				EditDlg[Item+1].Flags|=DIF_DISABLE;
 			}
 		}
 	}
 
 	Dialog Dlg(EditDlg,ARRAYSIZE(EditDlg),EditTypeRecordDlgProc);
-	Dlg.SetHelp(L"FileAssocModify");
+	Dlg.SetHelp(FTS.HelpModify);
 	Dlg.SetPosition(-1,-1,DlgX,DlgY);
 	Dlg.Process();
 
@@ -549,48 +627,59 @@ bool EditTypeRecord(unsigned __int64 EditPos,bool NewRec)
 	{
 		if (NewRec)
 		{
-			EditPos = AssocConfig->AddType(EditPos,EditDlg[ETR_EDIT_MASKS].strData,EditDlg[ETR_EDIT_DESCR].strData);
-		}
-		else
-		{
-			AssocConfig->UpdateType(EditPos,EditDlg[ETR_EDIT_MASKS].strData,EditDlg[ETR_EDIT_DESCR].strData);
+			InsertKeyRecord(FTS.TypeFmt,EditPos,TotalRecords);
 		}
 
-		for (int i=FILETYPE_EXEC,Item=ETR_EDIT_EXEC; i<=FILETYPE_ALTEDIT; i++,Item+=2)
+		SetRegKey(strRegKey,FTS.Mask,EditDlg[ETR_EDIT_MASKS].strData);
+		SetRegKey(strRegKey,FTS.Desc,EditDlg[ETR_EDIT_DESCR].strData);
+		SetRegKey(strRegKey,FTS.Execute,EditDlg[ETR_EDIT_EXEC].strData);
+		SetRegKey(strRegKey,FTS.AltExec,EditDlg[ETR_EDIT_ALTEXEC].strData);
+		SetRegKey(strRegKey,FTS.View,EditDlg[ETR_EDIT_VIEW].strData);
+		SetRegKey(strRegKey,FTS.AltView,EditDlg[ETR_EDIT_ALTVIEW].strData);
+		SetRegKey(strRegKey,FTS.Edit,EditDlg[ETR_EDIT_EDIT].strData);
+		SetRegKey(strRegKey,FTS.AltEdit,EditDlg[ETR_EDIT_ALTEDIT].strData);
+		DWORD State=0;
+
+		for (int i=FILETYPE_EXEC,Item=ETR_COMBO_EXEC; i<=FILETYPE_ALTEDIT; i++,Item+=2)
 		{
-			AssocConfig->SetCommand(EditPos,i,EditDlg[Item].strData,EditDlg[Item-1].Selected==BSTATE_CHECKED);
+			if (EditDlg[Item].Selected==BSTATE_CHECKED)
+			{
+				State|=(1<<i);
+			}
 		}
 
-		return true;
+		SetRegKey(strRegKey,FTS.State,State);
+		Result=true;
 	}
 
-	return false;
+	return Result;
 }
 
-bool DeleteTypeRecord(unsigned __int64 DeletePos)
+bool DeleteTypeRecord(int DeletePos)
 {
-	string strMask;
-	AssocConfig->GetMask(DeletePos,strMask);
-	InsertQuote(strMask);
+	bool Result=false;
+	string strRecText, strRegKey;
+	strRegKey.Format(FTS.TypeFmt,DeletePos);
+	GetRegKey(strRegKey,FTS.Mask,strRecText,L"");
+	string strItemName=strRecText;
+	InsertQuote(strItemName);
 
-	if (!Message(MSG_WARNING,2,MSG(MAssocTitle),MSG(MAskDelAssoc),strMask,MSG(MDelete),MSG(MCancel)))
+	if (!Message(MSG_WARNING,2,MSG(MAssocTitle),MSG(MAskDelAssoc),strItemName,MSG(MDelete),MSG(MCancel)))
 	{
-		AssocConfig->DelType(DeletePos);
-		return true;
+		DeleteKeyRecord(FTS.TypeFmt,DeletePos);
+		Result=true;
 	}
 
-	return false;
+	return Result;
 }
 
 void EditFileTypes()
 {
-	AssocConfig->BeginTransaction();
-
 	int NumLine=0;
 	int MenuPos=0;
-	unsigned __int64 id;
+	RenumKeyRecord(FTS.Associations,FTS.TypeFmt,FTS.Type0);
 	VMenu TypesMenu(MSG(MAssocTitle),nullptr,0,ScrY-4);
-	TypesMenu.SetHelp(L"FileAssoc");
+	TypesMenu.SetHelp(FTS.Help);
 	TypesMenu.SetFlags(VMENU_WRAPMODE);
 	TypesMenu.SetPosition(-1,-1,0,0);
 	TypesMenu.SetBottomTitle(MSG(MAssocBottom));
@@ -618,19 +707,13 @@ void EditFileTypes()
 				case KEY_DEL:
 
 					if (MenuPos<NumLine)
-					{
-						if (TypesMenu.GetUserData(&id,sizeof(id),MenuPos))
-							DeleteTypeRecord(id);
-						MenuModified=true;
-					}
+						DeleteTypeRecord(MenuPos);
 
+					MenuModified=true;
 					break;
 				case KEY_NUMPAD0:
 				case KEY_INS:
-					if (MenuPos-1 >= 0 && TypesMenu.GetUserData(&id,sizeof(id),MenuPos-1))
-						EditTypeRecord(id,true);
-					else
-						EditTypeRecord(0,true);
+					EditTypeRecord(MenuPos,NumLine,true);
 					MenuModified=true;
 					break;
 				case KEY_NUMENTER:
@@ -638,12 +721,9 @@ void EditFileTypes()
 				case KEY_F4:
 
 					if (MenuPos<NumLine)
-					{
-						if (TypesMenu.GetUserData(&id,sizeof(id),MenuPos))
-							EditTypeRecord(id,false);
-						MenuModified=true;
-					}
+						EditTypeRecord(MenuPos,NumLine,false);
 
+					MenuModified=true;
 					break;
 				case KEY_CTRLUP:
 				case KEY_CTRLDOWN:
@@ -653,11 +733,8 @@ void EditFileTypes()
 						if (!(Key==KEY_CTRLUP && !MenuPos) && !(Key==KEY_CTRLDOWN && MenuPos==TypesMenu.GetItemCount()-2))
 						{
 							int NewMenuPos=MenuPos+(Key==KEY_CTRLUP?-1:+1);
-							unsigned __int64 id2=0;
-							if (TypesMenu.GetUserData(&id,sizeof(id),MenuPos))
-								if (TypesMenu.GetUserData(&id2,sizeof(id2),NewMenuPos))
-									if (AssocConfig->SwapPositions(id,id2))
-										MenuPos=NewMenuPos;
+							MoveMenuItem(MenuPos,NewMenuPos);
+							MenuPos=NewMenuPos;
 							MenuModified=true;
 						}
 					}
@@ -681,6 +758,4 @@ void EditFileTypes()
 
 		break;
 	}
-
-	AssocConfig->EndTransaction();
 }
