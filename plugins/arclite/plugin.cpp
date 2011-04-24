@@ -221,7 +221,8 @@ public:
     }
 
     ErrorLog error_log;
-    archive->extract(src_dir_index, indices, options, error_log);
+    vector<UInt32> extracted_indices;
+    archive->extract(src_dir_index, indices, options, error_log, options.move_files == triTrue ? &extracted_indices : nullptr);
 
     if (!error_log.empty() && show_dialog) {
       show_error_log(error_log);
@@ -233,8 +234,9 @@ public:
         archive->delete_archive();
         Far::close_plugin(this, archive->arc_dir());
       }
-      else if (options.move_files == triTrue)
-        archive->delete_files(indices);
+      else if (options.move_files == triTrue) {
+        archive->delete_files(extracted_indices);
+      }
       Far::progress_notify();
     }
 
