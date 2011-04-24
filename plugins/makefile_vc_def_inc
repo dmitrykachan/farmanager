@@ -33,7 +33,7 @@
 #
 #DEBUG - set if a debug build is needed
 #
-#ANSI - set for ansi build
+#WIDE - set for a unicode build
 #
 #ULINK - set if you want to use ulink for linking
 #
@@ -96,7 +96,7 @@ DIRNAME=final
 DIRNAME=debug
 !endif                   
 
-!ifndef ANSI
+!ifdef WIDE
 DIRSUFF = W
 !endif
 
@@ -118,7 +118,7 @@ OBJDIR = $(WORKDIR)\obj$(ADDOBJDIR)
 !ifndef COMMON
 COMMON = ..\common
 !endif
-!ifdef ANSI
+!ifndef WIDE
 COMINC = $(COMMON)\ascii
 !else
 COMINC = $(COMMON)\unicode
@@ -130,7 +130,7 @@ EXT = dll
 !endif
 DLLNAME = $(NAME).$(EXT)
 DLLFULLNAME = $(OUTDIR)$(ADDOUTDIR)\$(DLLNAME)
-!ifdef ANSI
+!ifndef WIDE
 DEF = $(DEF_NAME).vc$(ULN_DEF).def
 !else
 DEF = $(DEF_NAME)W.vc$(ULN_DEF).def
@@ -171,7 +171,6 @@ CPP_PROJ=$(CPP_PROJ_NO) /Fo"$(OBJDIR)\\"
 !ifdef EXCLUDECRT
 !undef COMMONLIB
 !endif
-
 LIBS = $(COMMONLIB) chkstk.obj kernel32.lib user32.lib gdi32.lib advapi32.lib shell32.lib ole32.lib uuid.lib mpr.lib version.lib oleaut32.lib wbemuuid.lib
 
 !ifdef _BIN_PATH_
@@ -198,7 +197,7 @@ NOENTRY = /noentry
 NODEFLIB = /nodefaultlib
 !endif
 
-!if !defined(CPU)
+!if !defined(CPU) && defined (WIDE)
 SUBSYSTEM=/subsystem:windows,5.0
 !endif
 
@@ -244,3 +243,4 @@ RC=$(_RC_PATH)rc.exe
 .path.rc=.
 .path.def=.
 !endif
+

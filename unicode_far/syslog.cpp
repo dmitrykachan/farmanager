@@ -4,8 +4,8 @@ syslog.cpp
 Системный отладочный лог :-)
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "strmix.hpp"
 #include "interf.hpp"
 #include "console.hpp"
-#include "farversion.hpp"
 
 #if !defined(SYSLOG)
 #if defined(SYSLOG_OT)             || \
@@ -129,7 +128,7 @@ FILE * OpenLogStream(const wchar_t *file)
 	string strRealLogName;
 	SYSTEMTIME st;
 	GetLocalTime(&st);
-	strRealLogName.Format(L"%s\\Far.%04d%02d%02d.%05d.log",file,st.wYear,st.wMonth,st.wDay,FAR_VERSION.Build);
+	strRealLogName.Format(L"%s\\Far.%04d%02d%02d.%05d.log",file,st.wYear,st.wMonth,st.wDay,HIWORD(FAR_VERSION));
 	return _wfsopen(strRealLogName,L"a+t",SH_DENYWR);
 #else
 	return nullptr;
@@ -552,7 +551,7 @@ void PluginsStackItem_Dump(const wchar_t *Title,const PluginsListItem *ListItems
 #endif
 }
 
-void GetOpenPanelInfo_Dump(const wchar_t *Title,const OpenPanelInfo *Info,FILE *fp)
+void GetOpenPluginInfo_Dump(const wchar_t *Title,const OpenPluginInfo *Info,FILE *fp)
 {
 #if defined(SYSLOG)
 
@@ -564,13 +563,13 @@ void GetOpenPanelInfo_Dump(const wchar_t *Title,const OpenPanelInfo *Info,FILE *
 	if (InternalLog)
 	{
 		OpenSysLog();
-		fp=PrintBaner(fp,L"OpenPanelInfo",Title);
+		fp=PrintBaner(fp,L"OpenPluginInfo",Title);
 	}
 
 	if (fp)
 	{
 		fwprintf(fp,L"\tStructSize      =%d\n",Info->StructSize);
-		fwprintf(fp,L"\tFlags           =0x%08I64X\n",Info->Flags);
+		fwprintf(fp,L"\tFlags           =0x%08X\n",Info->Flags);
 		fwprintf(fp,L"\tHostFile        ='%s'\n",NullToEmpty(Info->HostFile));
 		fwprintf(fp,L"\tCurDir          ='%s'\n",NullToEmpty(Info->CurDir));
 		fwprintf(fp,L"\tFormat          ='%s'\n",NullToEmpty(Info->Format));
@@ -580,7 +579,7 @@ void GetOpenPanelInfo_Dump(const wchar_t *Title,const OpenPanelInfo *Info,FILE *
 
 		if (Info->InfoLines)
 		{
-			for (size_t I=0; I<Info->InfoLinesNumber; ++I)
+			for (int I=0; I<Info->InfoLinesNumber; ++I)
 			{
 				fwprintf(fp,L"\t\t%d) Text=[%s], Data=[%s], Separator=[%d]\n",I,
 				         NullToEmpty(Info->InfoLines[I].Text),NullToEmpty(Info->InfoLines[I].Data),Info->InfoLines[I].Separator);
@@ -594,16 +593,16 @@ void GetOpenPanelInfo_Dump(const wchar_t *Title,const OpenPanelInfo *Info,FILE *
 
 		if (Info->PanelModesArray)
 		{
-			for (size_t I=0; I<Info->PanelModesNumber; ++I)
+			for (int I=0; I<Info->PanelModesNumber; ++I)
 			{
 				fwprintf(fp,L"\t%d) ------------------\n",I);
 				fwprintf(fp,L"\t\tColumnTypes       ='%s'\n",NullToEmpty(Info->PanelModesArray[I].ColumnTypes));
 				fwprintf(fp,L"\t\tColumnWidths      ='%s'\n",NullToEmpty(Info->PanelModesArray[I].ColumnWidths));
 				fwprintf(fp,L"\t\tColumnTitles      =%p\n",Info->PanelModesArray[I].ColumnTitles);
-				fwprintf(fp,L"\t\tFullScreen        =%d\n",(Info->PanelModesArray[I].Flags&PMFLAGS_FULLSCREEN)!=0);
-				fwprintf(fp,L"\t\tDetailedStatus    =%d\n",(Info->PanelModesArray[I].Flags&PMFLAGS_DETAILEDSTATUS)!=0);
-				fwprintf(fp,L"\t\tAlignExtensions   =%d\n",(Info->PanelModesArray[I].Flags&PMFLAGS_ALIGNEXTENSIONS)!=0);
-				fwprintf(fp,L"\t\tCaseConversion    =%d\n",(Info->PanelModesArray[I].Flags&PMFLAGS_CASECONVERSION)!=0);
+				fwprintf(fp,L"\t\tFullScreen        =%d\n",Info->PanelModesArray[I].FullScreen);
+				fwprintf(fp,L"\t\tDetailedStatus    =%d\n",Info->PanelModesArray[I].DetailedStatus);
+				fwprintf(fp,L"\t\tAlignExtensions   =%d\n",Info->PanelModesArray[I].AlignExtensions);
+				fwprintf(fp,L"\t\tCaseConversion    =%d\n",Info->PanelModesArray[I].CaseConversion);
 				fwprintf(fp,L"\t\tStatusColumnTypes ='%s'\n",NullToEmpty(Info->PanelModesArray[I].StatusColumnTypes));
 				fwprintf(fp,L"\t\tStatusColumnWidths='%s'\n",NullToEmpty(Info->PanelModesArray[I].StatusColumnWidths));
 			}
@@ -767,7 +766,7 @@ void ManagerClass_Dump(const wchar_t *Title,const Manager *m,FILE *fp)
 
 
 #if defined(SYSLOG_FARSYSLOG)
-void WINAPIV FarSysLog(const wchar_t *ModuleName,int l,const wchar_t *fmt,...)
+void WINAPIV _export FarSysLog(const wchar_t *ModuleName,int l,const wchar_t *fmt,...)
 {
 	if (!IsLogON())
 		return;
@@ -802,7 +801,7 @@ void WINAPIV FarSysLog(const wchar_t *ModuleName,int l,const wchar_t *fmt,...)
 	}
 }
 
-void WINAPI FarSysLogDump(const wchar_t *ModuleName,DWORD StartAddress,LPBYTE Buf,int SizeBuf)
+void WINAPI _export FarSysLogDump(const wchar_t *ModuleName,DWORD StartAddress,LPBYTE Buf,int SizeBuf)
 {
 	if (!IsLogON())
 		return;
@@ -810,7 +809,7 @@ void WINAPI FarSysLogDump(const wchar_t *ModuleName,DWORD StartAddress,LPBYTE Bu
 	SysLogDump(ModuleName,StartAddress,Buf,SizeBuf,nullptr);
 }
 
-void WINAPI FarSysLog_INPUT_RECORD_Dump(const wchar_t *ModuleName,INPUT_RECORD *rec)
+void WINAPI _export FarSysLog_INPUT_RECORD_Dump(const wchar_t *ModuleName,INPUT_RECORD *rec)
 {
 	if (!IsLogON())
 		return;
@@ -860,7 +859,7 @@ struct __XXX_Name
 	const wchar_t *Name;
 };
 
-static string _XXX_ToName(DWORD Val,const wchar_t *Pref,__XXX_Name *arrDef,size_t cntArr)
+static string _XXX_ToName(int Val,const wchar_t *Pref,__XXX_Name *arrDef,size_t cntArr)
 {
 	string Name;
 
@@ -978,7 +977,7 @@ string __FCTL_ToName(int Command)
 #define DEF_FCTL_(m) { FCTL_##m , L#m }
 	__XXX_Name FCTL[]=
 	{
-		DEF_FCTL_(CLOSEPANEL),
+		DEF_FCTL_(CLOSEPLUGIN),
 		DEF_FCTL_(GETPANELINFO),
 		DEF_FCTL_(UPDATEPANEL),
 		DEF_FCTL_(REDRAWPANEL),
@@ -993,6 +992,7 @@ string __FCTL_ToName(int Command)
 		DEF_FCTL_(GETCMDLINEPOS),
 		DEF_FCTL_(SETSORTMODE),
 		DEF_FCTL_(SETSORTORDER),
+		DEF_FCTL_(GETCMDLINESELECTEDTEXT),
 		DEF_FCTL_(SETCMDLINESELECTION),
 		DEF_FCTL_(GETCMDLINESELECTION),
 		DEF_FCTL_(CHECKPANELSEXIST),
@@ -1030,7 +1030,7 @@ string __ACTL_ToName(int Command)
 		DEF_ACTL_(GETSYSWORDDIV),          DEF_ACTL_(WAITKEY),
 		DEF_ACTL_(GETCOLOR),               DEF_ACTL_(GETARRAYCOLOR),
 		DEF_ACTL_(EJECTMEDIA),             DEF_ACTL_(KEYMACRO),
-		DEF_ACTL_(GETWINDOWINFO),
+		DEF_ACTL_(POSTKEYSEQUENCE),        DEF_ACTL_(GETWINDOWINFO),
 		DEF_ACTL_(GETWINDOWCOUNT),         DEF_ACTL_(SETCURRENTWINDOW),
 		DEF_ACTL_(COMMIT),                 DEF_ACTL_(GETFARHWND),
 		DEF_ACTL_(GETSYSTEMSETTINGS),      DEF_ACTL_(GETPANELSETTINGS),
@@ -1069,7 +1069,7 @@ string __VCTL_ToName(int Command)
 }
 
 
-string __MCODE_ToName(DWORD OpCode)
+string __MCODE_ToName(int OpCode)
 {
 #if defined(SYSLOG)
 #define DEF_MCODE_(m) { MCODE_##m , L#m }
@@ -1127,7 +1127,6 @@ string __MCODE_ToName(DWORD OpCode)
 		DEF_MCODE_(F_AKEY),
 		DEF_MCODE_(F_ASC),
 		DEF_MCODE_(F_CHR),
-		DEF_MCODE_(F_FMATCH),
 		DEF_MCODE_(F_CLIP),
 		DEF_MCODE_(F_DATE),
 		DEF_MCODE_(F_DLG_GETVALUE),
@@ -1152,7 +1151,6 @@ string __MCODE_ToName(DWORD OpCode)
 		DEF_MCODE_(F_MAX),
 		DEF_MCODE_(F_MENU_CHECKHOTKEY),
 		DEF_MCODE_(F_MENU_GETHOTKEY),           // S=gethotkey()
-		DEF_MCODE_(F_MENU_SHOW),           // S=Menu.Show(Items[,Title[,Flags[,FindOrFilter[,X[,Y]]]]])
 		DEF_MCODE_(F_MIN),
 		DEF_MCODE_(F_MSAVE),
 		DEF_MCODE_(F_MLOAD),
@@ -1311,8 +1309,6 @@ string __MCODE_ToName(DWORD OpCode)
 		DEF_MCODE_(F_BEEP),                     // N=beep([N])
 		DEF_MCODE_(F_KBDLAYOUT),                // N=kbdLayout([N])
 		DEF_MCODE_(F_WINDOW_SCROLL),               // N=Window.Scroll(Lines[,Axis])
-		DEF_MCODE_(F_KEYBAR_SHOW),              // N=KeyBar.Show([N])
-		DEF_MCODE_(F_HISTIORY_ENABLE),           // N=History.Enable([State])
 
 	};
 	string Name;
@@ -1355,7 +1351,7 @@ string __FARKEY_ToName(int Key)
 }
 
 
-string __DLGMSG_ToName(DWORD Msg)
+string __DLGMSG_ToName(int Msg)
 {
 #if defined(SYSLOG)
 #define DEF_MESSAGE(m) { m , L#m }
@@ -1394,9 +1390,9 @@ string __DLGMSG_ToName(DWORD Msg)
 		DEF_MESSAGE(DN_GOTFOCUS),           DEF_MESSAGE(DN_HELP),
 		DEF_MESSAGE(DN_HOTKEY),             DEF_MESSAGE(DN_INITDIALOG),
 		DEF_MESSAGE(DN_KILLFOCUS),          DEF_MESSAGE(DN_LISTCHANGE),
-		DEF_MESSAGE(DN_CONTROLINPUT),       DEF_MESSAGE(DN_DRAGGED),
-		DEF_MESSAGE(DN_RESIZECONSOLE),      DEF_MESSAGE(DN_INPUT),
-		DEF_MESSAGE(DN_CLOSE),              DEF_MESSAGE(DM_KEY),
+		DEF_MESSAGE(DN_MOUSECLICK),         DEF_MESSAGE(DN_DRAGGED),
+		DEF_MESSAGE(DN_RESIZECONSOLE),      DEF_MESSAGE(DN_MOUSEEVENT),
+		DEF_MESSAGE(DN_CLOSE),              DEF_MESSAGE(DN_KEY),
 		DEF_MESSAGE(DM_USER),               DEF_MESSAGE(DM_KILLSAVESCREEN),
 		DEF_MESSAGE(DM_ALLKEYMODE),         DEF_MESSAGE(DM_LISTGETDATASIZE),
 		DEF_MESSAGE(DN_ACTIVATEAPP),
@@ -1603,7 +1599,7 @@ string __INPUT_RECORD_Dump(INPUT_RECORD *rec)
 			    rec->Event.KeyEvent.wVirtualScanCode,
 			    (rec->Event.KeyEvent.uChar.UnicodeChar && !(rec->Event.KeyEvent.uChar.UnicodeChar == L'\t' || rec->Event.KeyEvent.uChar.UnicodeChar == L'\r' || rec->Event.KeyEvent.uChar.UnicodeChar == L'\n')?rec->Event.KeyEvent.uChar.UnicodeChar:L' '),
 			    rec->Event.KeyEvent.uChar.UnicodeChar,
-			    ((AsciiChar && AsciiChar != '\r' && AsciiChar != '\t' && AsciiChar !='\n')? AsciiChar : ' '),
+			    (AsciiChar && AsciiChar != '\r' && AsciiChar != '\t' && AsciiChar !='\n' ?AsciiChar:' '),
 			    AsciiChar,
 			    rec->Event.KeyEvent.dwControlKeyState,
 			    (rec->Event.KeyEvent.dwControlKeyState&LEFT_CTRL_PRESSED?L'C':L'c'),
@@ -1629,8 +1625,8 @@ string __INPUT_RECORD_Dump(INPUT_RECORD *rec)
 			break;
 	}
 
-	FormatString tmp;
-	tmp << L" (" << (IsFullscreen()?L"Fullscreen":L"Widowed") << L")";
+	string tmp;
+	tmp.Format(L" (%s)",IsFullscreen()?L"Fullscreen":L"Widowed");
 	Records+=tmp;
 	return Records;
 #else
@@ -1957,12 +1953,12 @@ void PanelViewSettings_Dump(const wchar_t *Title,const PanelViewSettings &ViewSe
 
 		fwprintf(fp,L"%d]\n",ViewSettings.StatusColumnWidth[I]);
 		fwprintf(fp,L"%*s %s  StatusColumnCount    = %d\n",12,L"",space,ViewSettings.StatusColumnCount);
-		fwprintf(fp,L"%*s %s  FullScreen           = %d\n",12,L"",space,(ViewSettings.Flags&PVS_FULLSCREEN)?1:0);
-		fwprintf(fp,L"%*s %s  AlignExtensions      = %d\n",12,L"",space,(ViewSettings.Flags&PVS_ALIGNEXTENSIONS)?1:0);
-		fwprintf(fp,L"%*s %s  FolderAlignExtensions= %d\n",12,L"",space,(ViewSettings.Flags&PVS_FOLDERALIGNEXTENSIONS)?1:0);
-		fwprintf(fp,L"%*s %s  FolderUpperCase      = %d\n",12,L"",space,(ViewSettings.Flags&PVS_FOLDERUPPERCASE)?1:0);
-		fwprintf(fp,L"%*s %s  FileLowerCase        = %d\n",12,L"",space,(ViewSettings.Flags&PVS_FILELOWERCASE)?1:0);
-		fwprintf(fp,L"%*s %s  FileUpperToLowerCase = %d\n",12,L"",space,(ViewSettings.Flags&PVS_FILEUPPERTOLOWERCASE)?1:0);
+		fwprintf(fp,L"%*s %s  FullScreen           = %d\n",12,L"",space,ViewSettings.FullScreen);
+		fwprintf(fp,L"%*s %s  AlignExtensions      = %d\n",12,L"",space,ViewSettings.AlignExtensions);
+		fwprintf(fp,L"%*s %s  FolderAlignExtensions= %d\n",12,L"",space,ViewSettings.FolderAlignExtensions);
+		fwprintf(fp,L"%*s %s  FolderUpperCase      = %d\n",12,L"",space,ViewSettings.FolderUpperCase);
+		fwprintf(fp,L"%*s %s  FileLowerCase        = %d\n",12,L"",space,ViewSettings.FileLowerCase);
+		fwprintf(fp,L"%*s %s  FileUpperToLowerCase = %d\n",12,L"",space,ViewSettings.FileUpperToLowerCase);
 		fwprintf(fp,L"%*s %s  }\n",12,L"",space);
 		fflush(fp);
 	}

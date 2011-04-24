@@ -4,8 +4,8 @@ language.cpp
 Работа с lng файлами
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -254,12 +254,12 @@ int Select(int HelpLanguage,VMenu **MenuPtr)
 */
 int GetOptionsParam(FILE *SrcFile,const wchar_t *KeyName,string &strValue, UINT nCodePage)
 {
-	wchar_t ReadStr[1024]={};
+	wchar_t ReadStr[1024];
 	string strFullParamName;
 	int Length=StrLength(L".Options");
 	long CurFilePos=ftell(SrcFile);
 
-	while (ReadString(SrcFile, ReadStr, ARRAYSIZE(ReadStr), nCodePage) )
+	while (ReadString(SrcFile, ReadStr, 1024, nCodePage) )
 	{
 		if (!StrCmpNI(ReadStr,L".Options",Length))
 		{
@@ -299,6 +299,7 @@ Language::Language():
 	m_bUnicode(true)
 {
 }
+
 
 bool Language::Init(const wchar_t *Path, bool bUnicode, int CountNeed)
 {

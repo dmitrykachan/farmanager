@@ -13,8 +13,6 @@ int OnInitialize (StartupInfo *pInfo)
 	pModule = new SevenZipModule;
 	pModule->Load();
 
-//	MessageBoxW(0, _M(MTest), _T("123"), MB_OK);
-
 	return NAERROR_SUCCESS;
 }
 
@@ -24,13 +22,13 @@ int OnFinalize ()
 	return NAERROR_SUCCESS;
 }
 
-int OnQueryArchive(QueryArchiveStruct* pQAS)
+int OnQueryArchive(QueryArchiveStruct *pQAS)
 {
 	bool bMoreArchives = false;
 
 	const ArchiveQueryResult* pResult = pModule->QueryArchive(pQAS, bMoreArchives);
-
-	if ( pResult )
+    
+    if ( pResult )
 	{
 		pQAS->uidFormat = pResult->uidFormat;
 		pQAS->uidPlugin = pResult->uidPlugin;
@@ -79,7 +77,6 @@ int OnEndOperation(OperationStruct* pEOS)
 int OnCloseArchive(CloseArchiveStruct *pCAS)
 {
 	pModule->CloseArchive(pCAS->uidPlugin, (SevenZipArchive*)pCAS->hArchive);
-
 	return NAERROR_SUCCESS;
 }
 
@@ -156,10 +153,7 @@ int OnGetDefaultCommand(GetDefaultCommandStruct* pGDC)
 	SevenZipPlugin* pPlugin = pModule->GetPlugin(pGDC->uidPlugin);
 
 	if ( pPlugin )
-	{
 		pGDC->bResult = pPlugin->GetDefaultCommand(pGDC->uidFormat, pGDC->nCommand, &pGDC->lpCommand);
-		pGDC->bEnabledByDefault = true;
-	}
 	else
 		pGDC->bResult = false;
 	
@@ -179,55 +173,15 @@ int OnDelete(DeleteStruct *pDS)
 }
 
 
-int OnConfigure(ConfigureStruct* pCF)
+int OnConfigure(ConfigureStruct *pCF)
 {
 /*
 	SevenZipPlugin* pPlugin = pModule->GetPluginFromUID(pCF->uid);
 
 	if ( pPlugin )
 		pPlugin->Configure(pCF->uid);
-	*/
-	return NAERROR_SUCCESS;
-}
-
-int OnConfigureFormat(ConfigureFormatStruct* pCFS)
-{
-	//пока считаем, что тут у нас uidFormat уникален (а так оно и есть)
-
-	const CompressionFormatInfo* pFormat = GetCompressionFormatInfo(pCFS->uidFormat);
-
-	if ( pFormat )
-	{
-		SevenZipCompressionConfig* pCfg = new SevenZipCompressionConfig;
-		memset(pCfg, 0, sizeof(SevenZipCompressionConfig));
-
-		//pCfg->FromString(pCFS->pResult);
-		pCfg->pFormat = pFormat;
-
-		if ( dlgSevenZipPluginConfigure(pCfg) )
-		{
-			string strResult;
-
-			pCfg->ToString(strResult);
-
-			MessageBoxW (0, strResult, strResult, MB_OK);
-
-			pCFS->pResult = StrDuplicate(strResult);
-
-			return NAERROR_SUCCESS;
-		}
-
-		pCFS->pResult = nullptr;
-	}
+*/
 	
-	return NAERROR_SUCCESS;
-}
-
-int OnFreeConfigResult(FreeConfigResultStruct* pFCR)
-{
-//	Config::Free
-//	StrFree(pFCR->pResult);
-
 	return NAERROR_SUCCESS;
 }
 
@@ -297,12 +251,6 @@ int __stdcall ModuleEntry (
 
 	case FID_CONFIGURE:
 		return OnConfigure((ConfigureStruct*)pParams);
-
-	case FID_CONFIGUREFORMAT:
-		return OnConfigureFormat((ConfigureFormatStruct*)pParams);
-
-	case FID_FREECONFIGRESULT:
-		return OnFreeConfigResult((FreeConfigResultStruct*)pParams);
 
 	case FID_GETARCHIVEINFO:
 		return OnGetArchiveInfo((ArchiveInfoStruct*)pParams);

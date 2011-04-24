@@ -1,33 +1,3 @@
-t-rex 10.03.2011 00:44:59 +0200 - build 19
-
-1. Far 3.0 API 1905
-
-2. Use PluginSettings.
-
-t-rex 14.02.2011 21:03:16 +0200 - build 18
-
-1. Update for DialogBuilder.StartSingleBox() change.
-
-t-rex 11.02.2011 13:47:51 +0200 - build 17
-
-1. Far 3.0.1854 API
-
-2. Убран код 1.75.
-
-3. Mantis#1342: Падение при использовании ключа /u со слишком длинным параметром.
-
-4. Различные чистки и перетасовки.
-
-5. Use pluginreg lib.
-
-6. Use DialogBuilder for Dialogs.
-
-7. registry key -> "Far Manager"
-
-t-rex 06.02.2011 00:26:48 +0200
-
-1. lng,hlf -> utf8, reg -> Far2
-
 svs 19.01.2010 14:53:44 +0300 - build 16
 
 1. Некорретно прозводилось выделение блока, если курсор стоял "вне скобкой"

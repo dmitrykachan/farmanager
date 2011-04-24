@@ -4,8 +4,8 @@ panelmix.cpp
 Commonly used panel related functions
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -211,8 +211,8 @@ int _MakePath1(DWORD Key, string &strPathName, const wchar_t *Param2,int ShortNa
 					else
 					{
 						FileList *SrcFilePanel=(FileList *)SrcPanel;
-						OpenPanelInfo Info;
-						CtrlObject->Plugins.GetOpenPanelInfo(SrcFilePanel->GetPluginHandle(),&Info);
+						OpenPluginInfo Info;
+						CtrlObject->Plugins.GetOpenPluginInfo(SrcFilePanel->GetPluginHandle(),&Info);
 						FileList::AddPluginPrefix(SrcFilePanel,strPathName);
 						if (Info.HostFile && *Info.HostFile)
 						{
@@ -498,7 +498,7 @@ const string FormatStr_Attribute(DWORD FileAttributes,int Width)
 
 	strResult<<OutStr;
 
-	return strResult;
+	return strResult.strValue();
 }
 
 const string FormatStr_DateTime(const FILETIME *FileTime,int ColumnType,DWORD Flags,int Width)
@@ -510,7 +510,7 @@ const string FormatStr_DateTime(const FILETIME *FileTime,int ColumnType,DWORD Fl
 		if (ColumnType == DATE_COLUMN)
 			Width=0;
 		else
-			return strResult;
+			return strResult.strValue();
 	}
 
 	int ColumnWidth=Width;
@@ -566,10 +566,10 @@ const string FormatStr_DateTime(const FILETIME *FileTime,int ColumnType,DWORD Fl
 
 	strResult<<fmt::Width(Width)<<fmt::Precision(Width)<<strOutStr;
 
-	return strResult;
+	return strResult.strValue();
 }
 
-const string FormatStr_Size(__int64 UnpSize, __int64 PackSize, __int64 StreamsSize, const string& strName,DWORD FileAttributes,DWORD ShowFolderSize,DWORD ReparseTag,int ColumnType,DWORD Flags,int Width)
+const string FormatStr_Size(__int64 UnpSize, __int64 PackSize, __int64 StreamsSize, const string strName,DWORD FileAttributes,DWORD ShowFolderSize,DWORD ReparseTag,int ColumnType,DWORD Flags,int Width)
 {
 	FormatString strResult;
 
@@ -612,15 +612,11 @@ const string FormatStr_Size(__int64 UnpSize, __int64 PackSize, __int64 StreamsSi
 			}
 		}
 
-		FormatString strStr;
+		string strStr;
 		if (StrLength(PtrName) <= Width-2)
-		{
-			strStr << L"<" << PtrName << L">";
-		}
+			strStr.Format(L"<%s>", PtrName);
 		else
-		{
-			strStr << PtrName;
-		}
+			strStr = PtrName;
 
 		strResult<<fmt::Width(Width)<<fmt::Precision(Width)<<strStr;
 	}
@@ -630,5 +626,5 @@ const string FormatStr_Size(__int64 UnpSize, __int64 PackSize, __int64 StreamsSi
 		strResult<<FileSizeToStr(strOutStr,Packed?PackSize:Streams?StreamsSize:UnpSize,Width,Flags).CPtr();
 	}
 
-	return strResult;
+	return strResult.strValue();
 }

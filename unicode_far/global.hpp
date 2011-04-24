@@ -7,8 +7,8 @@ global.hpp
 ¬ключать последним.
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,6 @@ extern int WaitInMainLoop;
 extern int WaitInFastFind;
 
 extern string g_strFarModuleName;
-extern string g_strFarINI;
 extern string g_strFarPath;
 
 extern string strGlobalSearchString;
@@ -54,15 +53,16 @@ extern int GlobalSearchReverse;
 
 extern int ScreenSaverActive;
 
-extern int CloseFAR, CloseFARMenu, AllowCancelExit;
+extern int CloseFAR, CloseFARMenu;
 
 extern int DisablePluginsOutput;
+
+extern const DWORD FAR_VERSION;
 
 extern BOOL IsProcessAssignMacroKey;
 extern BOOL IsRedrawFramesInProcess;
 
-extern const wchar_t* Version;
-extern const wchar_t* Copyright;
+extern const char *Copyright;
 
 extern int WidthNameForMessage;
 

@@ -4,8 +4,8 @@ edit.cpp
 Реализация одиночной строки редактирования
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "clipboard.hpp"
 #include "xlat.hpp"
 #include "datetime.hpp"
-#include "shortcuts.hpp"
+#include "ffolders.hpp"
 #include "pathmix.hpp"
 #include "strmix.hpp"
 #include "panelmix.hpp"
@@ -82,7 +82,7 @@ public:
 Edit::Edit(ScreenObject *pOwner, Callback* aCallback, bool bAllocateData):
 	m_next(nullptr),
 	m_prev(nullptr),
-	Str(bAllocateData ? static_cast<wchar_t*>(xf_malloc(sizeof(wchar_t))) : nullptr),
+	Str(bAllocateData ? reinterpret_cast<wchar_t*>(xf_malloc(sizeof(wchar_t))) : nullptr),
 	StrSize(0),
 	MaxLength(-1),
 	Mask(nullptr),
@@ -534,7 +534,7 @@ int Edit::ProcessInsPath(int Key,int PrevSelStart,int PrevSelEnd)
 	{
 		string strPluginModule, strPluginFile, strPluginData;
 
-		if (CtrlObject->FolderShortcuts->Get(Key-KEY_RCTRL0,&strPathName,&strPluginModule,&strPluginFile,&strPluginData))
+		if (GetShortcutFolder(Key-KEY_RCTRL0,&strPathName,&strPluginModule,&strPluginFile,&strPluginData))
 			RetCode=TRUE;
 	}
 	else // Пути/имена?
@@ -2159,11 +2159,11 @@ int Edit::Search(const string& Str,string& ReplaceStr,int Position,int Case,int 
 					*SearchLength = m[0].end - m[0].start;
 					CurPos = m[0].start;
 					ReplaceStr=ReplaceBrackets(this->Str,ReplaceStr,m,n);
-					xf_free(m);
+					free(m);
 					return TRUE;
 				}
 
-				xf_free(m);
+				free(m);
 			}
 
 			return FALSE;
@@ -2673,7 +2673,10 @@ void Edit::ApplyColor()
 			continue;
 
 		// Корректировка относительно табов (отключается, если присутвует флаг ECF_TAB1)
-		int CorrectPos = CurItem->Flags & ECF_TAB1 ? 0 : 1;
+		int CorrectPos = Attr & ECF_TAB1 ? 0 : 1;
+
+		if (!CorrectPos)
+			Attr &= ~ECF_TAB1;
 
 		// Получаем конечную позицию
 		int EndPos = CurItem->EndPos;
@@ -2702,7 +2705,6 @@ void Edit::ApplyColor()
 		// с начала строки (с учётом корректировки относительно табов)
 		else if (EndPos < Pos)
 		{
-			// TODO: возможно так же нужна коррекция с учетом табов (на предмет Mantis#0001718)
 			RealEnd = RealPosToTab(0, 0, EndPos, &CorrectPos);
 			EndPos += CorrectPos;
 			End = RealEnd-LeftPos;
@@ -2711,15 +2713,8 @@ void Edit::ApplyColor()
 		// корректировки относительно табов)
 		else
 		{
-			// Mantis#0001718: Отсутствие ECF_TAB1 не всегда корректно отрабатывает
-			// Коррекция с учетом последнего таба
-			if (CorrectPos && EndPos < StrSize && Str[EndPos] == L'\t')
-				RealEnd = RealPosToTab(TabPos, Pos, ++EndPos, nullptr);
-			else
-			{
-				RealEnd = RealPosToTab(TabPos, Pos, EndPos, &CorrectPos);
-				EndPos += CorrectPos;
-			}
+			RealEnd = RealPosToTab(TabPos, Pos, EndPos, &CorrectPos);
+			EndPos += CorrectPos;
 			End = RealEnd-LeftPos;
 		}
 
@@ -3024,7 +3019,7 @@ int EditControl::AutoCompleteProc(bool Manual,bool DelBlock,int& BackKey)
 		}
 		else if(pList)
 		{
-			for(size_t i=0;i<pList->ItemsNumber;i++)
+			for(int i=0;i<pList->ItemsNumber;i++)
 			{
 				if (!StrCmpNI(pList->Items[i].Text, strTemp, static_cast<int>(strTemp.GetLength())) && StrCmp(pList->Items[i].Text, strTemp))
 				{
@@ -3099,8 +3094,8 @@ int EditControl::AutoCompleteProc(bool Manual,bool DelBlock,int& BackKey)
 						if((MenuKey>=L' ' && MenuKey<=WCHAR_MAX) || MenuKey==KEY_BS || MenuKey==KEY_DEL || MenuKey==KEY_NUMDEL)
 						{
 							string strPrev;
-							DeleteBlock();
 							GetString(strPrev);
+							DeleteBlock();
 							ProcessKey(MenuKey);
 							GetString(strTemp);
 							if(StrCmp(strPrev,strTemp))
@@ -3115,7 +3110,7 @@ int EditControl::AutoCompleteProc(bool Manual,bool DelBlock,int& BackKey)
 									}
 									else if(pList)
 									{
-										for(size_t i=0;i<pList->ItemsNumber;i++)
+										for(int i=0;i<pList->ItemsNumber;i++)
 										{
 											if (!StrCmpNI(pList->Items[i].Text, strTemp, static_cast<int>(strTemp.GetLength())) && StrCmp(pList->Items[i].Text, strTemp))
 											{
@@ -3172,31 +3167,6 @@ int EditControl::AutoCompleteProc(bool Manual,bool DelBlock,int& BackKey)
 									break;
 								}
 
-							case KEY_SHIFTDEL:
-							case KEY_SHIFTNUMDEL:
-								{
-									if(ComplMenu.GetItemCount()>1)
-									{
-										unsigned __int64 CurrentRecord = 0;
-										ComplMenu.GetUserData(&CurrentRecord,sizeof(CurrentRecord));
-										if (pHistory->DeleteIfUnlocked(CurrentRecord))
-										{
-											ComplMenu.DeleteItem(ComplMenu.GetSelectPos());
-											if(ComplMenu.GetItemCount()>1)
-											{
-												SetMenuPos(ComplMenu);
-												ComplMenu.Redraw();
-												Show();
-											}
-											else
-											{
-												ComplMenu.SetExitCode(-1);
-											}
-										}
-									}
-								}
-								break;
-
 							// навигация по строке ввода
 							case KEY_LEFT:
 							case KEY_NUMPAD4:
@@ -3217,17 +3187,10 @@ int EditControl::AutoCompleteProc(bool Manual,bool DelBlock,int& BackKey)
 										MenuKey = KEY_CTRLD;
 									}
 									pOwner->ProcessKey(MenuKey);
-									ComplMenu.Show();
-									Show();
 									break;
 								}
 
 							// навигация по списку
-							case KEY_SHIFT:
-							case KEY_ALT:
-							case KEY_RALT:
-							case KEY_CTRL:
-							case KEY_RCTRL:
 							case KEY_HOME:
 							case KEY_NUMPAD7:
 							case KEY_END:

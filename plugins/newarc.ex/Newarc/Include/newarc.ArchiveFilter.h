@@ -77,7 +77,7 @@ private:
 
 	bool m_bUseRemaining;
 
-	ObjectArray<ArchiveFilterEntry*> m_pFilters; //this is NOT ArchiveFilterArray
+	ObjectArray<ArchiveFilterEntry*> m_pFilters; //this is NOT archive filter array
 	ArchiveFilterArray m_pStopFilters;
 
 	ArchiveModuleManager* m_pManager;

@@ -4,8 +4,8 @@ codepage.cpp
 Работа с кодовыми страницами
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,17 +37,18 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "codepage.hpp"
 #include "lang.hpp"
 #include "vmenu.hpp"
+#include "savefpos.hpp"
 #include "keys.hpp"
+#include "registry.hpp"
 #include "language.hpp"
 #include "dialog.hpp"
 #include "interf.hpp"
 #include "config.hpp"
-#include "configdb.hpp"
 
 // Ключ где хранятся имена кодовых страниц
-const wchar_t *NamesOfCodePagesKey = L"CodePages.Names";
+const wchar_t *NamesOfCodePagesKey = L"CodePages\\Names";
 
-const wchar_t *FavoriteCodePagesKey = L"CodePages.Favorites";
+const wchar_t *FavoriteCodePagesKey = L"CodePages\\Favorites";
 
 // Стандартные кодовое страницы
 enum StandardCodePages
@@ -109,7 +110,7 @@ inline UINT GetMenuItemCodePage(int Position = -1)
 
 inline UINT GetListItemCodePage(int Position = -1)
 {
-	return static_cast<UINT>(SendDlgMessage(dialog, DM_LISTGETDATA, control, ToPtr(Position)));
+	return static_cast<UINT>(SendDlgMessage(dialog, DM_LISTGETDATA, control, Position));
 }
 
 // Проверяем попадает или нет позиция в диапазон стандартных кодовых страниц (правильность работы для разделителей не гарантируется)
@@ -150,7 +151,7 @@ void AddCodePage(const wchar_t *codePageName, UINT codePage, int position, bool 
 		if (position==-1)
 		{
 			FarListInfo info;
-			SendDlgMessage(dialog, DM_LISTINFO, control, &info);
+			SendDlgMessage(dialog, DM_LISTINFO, control, (LONG_PTR)&info);
 			position = info.ItemsNumber;
 		}
 
@@ -171,13 +172,13 @@ void AddCodePage(const wchar_t *codePageName, UINT codePage, int position, bool 
 			item.Item.Flags |= MIF_GRAYED;
 		}
 
-		SendDlgMessage(dialog, DM_LISTINSERT, control, &item);
+		SendDlgMessage(dialog, DM_LISTINSERT, control, (LONG_PTR)&item);
 		// Устанавливаем данные для элемента
 		FarListItemData data;
 		data.Index = position;
-		data.Data = &codePage;
-		data.DataSize = sizeof(codePage);
-		SendDlgMessage(dialog, DM_LISTSETDATA, control, &data);
+		data.Data = (void*)(DWORD_PTR)codePage;
+		data.DataSize = sizeof(UINT);
+		SendDlgMessage(dialog, DM_LISTSETDATA, control, (LONG_PTR)&data);
 	}
 	else
 	{
@@ -192,8 +193,8 @@ void AddCodePage(const wchar_t *codePageName, UINT codePage, int position, bool 
 		FormatCodePageString(codePage, codePageName, name, IsCodePageNameCustom);
 		item.strName = name;
 
-		item.UserData = &codePage;
-		item.UserDataSize = sizeof(codePage);
+		item.UserData = (char *)(UINT_PTR)codePage;
+		item.UserDataSize = sizeof(UINT);
 
 		// Добавляем новый элемент в меню
 		if (position>=0)
@@ -222,7 +223,7 @@ void AddStandardCodePage(const wchar_t *codePageName, UINT codePage, int positio
 		FormatString strCodePageName;
 		strCodePageName<<codePage;
 		int selectType = 0;
-		GeneralCfg->GetValue(FavoriteCodePagesKey, strCodePageName, &selectType, 0);
+		GetRegKey(FavoriteCodePagesKey, strCodePageName, selectType, 0);
 
 		if (selectType & CPST_FIND)
 			checked = true;
@@ -239,14 +240,14 @@ void AddSeparator(LPCWSTR Label=nullptr,int position = -1)
 		if (position==-1)
 		{
 			FarListInfo info;
-			SendDlgMessage(dialog, DM_LISTINFO, control, &info);
+			SendDlgMessage(dialog, DM_LISTINFO, control, (LONG_PTR)&info);
 			position = info.ItemsNumber;
 		}
 
 		FarListInsert item = {position};
 		item.Item.Text = Label;
 		item.Item.Flags = LIF_SEPARATOR;
-		SendDlgMessage(dialog, DM_LISTINSERT, control, &item);
+		SendDlgMessage(dialog, DM_LISTINSERT, control, (LONG_PTR)&item);
 	}
 	else
 	{
@@ -272,7 +273,7 @@ int GetItemsCount()
 	else
 	{
 		FarListInfo info;
-		SendDlgMessage(dialog, DM_LISTINFO, control, &info);
+		SendDlgMessage(dialog, DM_LISTINFO, control, (LONG_PTR)&info);
 		return info.ItemsNumber;
 	}
 }
@@ -312,7 +313,7 @@ bool GetCodePageInfo(UINT CodePage, CPINFOEX &CodePageInfoEx)
 		CodePageInfoEx.MaxCharSize = CodePageInfo.MaxCharSize;
 		CodePageInfoEx.CodePageName[0] = L'\0';
 	}
-
+	
 	// BUBUG: Пока не поддерживаем многобайтовые кодовые страницы
 	if (CodePageInfoEx.MaxCharSize != 1)
 		return false;
@@ -347,7 +348,7 @@ BOOL __stdcall EnumCodePagesProc(const wchar_t *lpwszCodePage)
 	wchar_t *codePageName = FormatCodePageName(_wtoi(lpwszCodePage), cpiex.CodePageName, sizeof(cpiex.CodePageName)/sizeof(wchar_t), IsCodePageNameCustom);
 	// Получаем признак выбранности таблицы символов
 	int selectType = 0;
-	GeneralCfg->GetValue(FavoriteCodePagesKey, lpwszCodePage, &selectType, 0);
+	GetRegKey(FavoriteCodePagesKey, lpwszCodePage, selectType, 0);
 
 	// Добавляем таблицу символов либо в нормальные, либо в выбранные таблицы симовлов
 	if (selectType & CPST_FAVORITE)
@@ -431,22 +432,22 @@ void ProcessSelected(bool select)
 		strCPName<<codePage;
 		// Получаем текущее состояние флага в реестре
 		int selectType = 0;
-		GeneralCfg->GetValue(FavoriteCodePagesKey, strCPName, &selectType, 0);
+		GetRegKey(FavoriteCodePagesKey, strCPName, selectType, 0);
 
 		// Удаляем/добавляем в ресестре информацию о выбранной кодовой странице
 		if (select)
-			GeneralCfg->SetValue(FavoriteCodePagesKey, strCPName, CPST_FAVORITE | (selectType & CPST_FIND ? CPST_FIND : 0));
+			SetRegKey(FavoriteCodePagesKey, strCPName, CPST_FAVORITE | (selectType & CPST_FIND ? CPST_FIND : 0));
 		else if (selectType & CPST_FIND)
-			GeneralCfg->SetValue(FavoriteCodePagesKey, strCPName, CPST_FIND);
+			SetRegKey(FavoriteCodePagesKey, strCPName, CPST_FIND);
 		else
-			GeneralCfg->DeleteValue(FavoriteCodePagesKey, strCPName);
+			DeleteRegValue(FavoriteCodePagesKey, strCPName);
 
 		// Создаём новый элемент меню
 		MenuItemEx newItem;
 		newItem.Clear();
 		newItem.strName = CodePages->GetItemPtr()->strName;
-		newItem.UserData = &codePage;
-		newItem.UserDataSize = sizeof(codePage);
+		newItem.UserData = (char *)(UINT_PTR)codePage;
+		newItem.UserDataSize = sizeof(UINT);
 		// Сохраняем позицию курсора
 		int position=CodePages->GetSelectPos();
 		// Удаляем старый пункт меню
@@ -569,7 +570,7 @@ wchar_t *FormatCodePageName(UINT CodePage, wchar_t *CodePageName, size_t Length,
 	FormatString strCodePage;
 	strCodePage<<CodePage;
 	string strCodePageName;
-	if (GeneralCfg->GetValue(NamesOfCodePagesKey, strCodePage, strCodePageName, L""))
+	if (GetRegKey(NamesOfCodePagesKey, strCodePage, strCodePageName, L""))
 	{
 		Length = Min(Length-1, strCodePageName.GetLength());
 		IsCodePageNameCustom = true;
@@ -592,7 +593,7 @@ wchar_t *FormatCodePageName(UINT CodePage, wchar_t *CodePageName, size_t Length,
 		{
 			if (strCodePageName==Name)
 			{
-				GeneralCfg->DeleteValue(NamesOfCodePagesKey, strCodePage);
+				DeleteRegValue(NamesOfCodePagesKey, strCodePage);
 				IsCodePageNameCustom = false;
 				return Name;
 			}
@@ -609,7 +610,7 @@ wchar_t *FormatCodePageName(UINT CodePage, wchar_t *CodePageName, size_t Length,
 }
 
 // Каллбак для диалога редактирования имени кодовой страницы
-INT_PTR WINAPI EditDialogProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
+LONG_PTR WINAPI EditDialogProc(HANDLE hDlg, int Msg, int Param1, LONG_PTR Param2)
 {
 	if (Msg==DN_CLOSE)
 	{
@@ -622,14 +623,14 @@ INT_PTR WINAPI EditDialogProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 			if (Param1==EDITCP_OK)
 			{
 				wchar_t *CodePageName = strCodePageName.GetBuffer(SendDlgMessage(hDlg, DM_GETTEXTPTR, EDITCP_EDIT, 0)+1);
-				SendDlgMessage(hDlg, DM_GETTEXTPTR, EDITCP_EDIT, CodePageName);
+				SendDlgMessage(hDlg, DM_GETTEXTPTR, EDITCP_EDIT, (LONG_PTR)CodePageName);
 				strCodePageName.ReleaseBuffer();
 			}
 			// Если имя кодовой страницы пустое, то считаем, что имя не задано
 			if (!strCodePageName.GetLength())
-				GeneralCfg->DeleteValue(NamesOfCodePagesKey, strCodePage);
+				DeleteRegValue(NamesOfCodePagesKey, strCodePage);
 			else
-				GeneralCfg->SetValue(NamesOfCodePagesKey, strCodePage, strCodePageName);
+				SetRegKey(NamesOfCodePagesKey, strCodePage, strCodePageName);
 			// Получаем информацию о кодовой странице
 			CPINFOEX cpiex;
 			if (GetCodePageInfo(CodePage, cpiex))
@@ -646,8 +647,8 @@ INT_PTR WINAPI EditDialogProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 				MenuItemEx NewItem;
 				NewItem.Clear();
 				NewItem.strName = strCodePage;
-				NewItem.UserData = &CodePage;
-				NewItem.UserDataSize = sizeof(CodePage);
+				NewItem.UserData = (char *)(UINT_PTR)CodePage;
+				NewItem.UserDataSize = sizeof(UINT);
 				CodePages->AddItem(&NewItem, Position);
 				CodePages->SetSelectPos(Position, 1);
 			}
@@ -667,14 +668,14 @@ void EditCodePageName()
 	if (!CodePageName.Pos(BoxPosition, BoxSymbols[BS_V1]))
 		return;
 	CodePageName.LShift(BoxPosition+2);
-	FarDialogItem EditDialogData[]=
+	DialogDataEx EditDialogData[]=
 		{
-			{DI_DOUBLEBOX, 3, 1, 50, 5, 0, nullptr, nullptr, 0, MSG(MGetCodePageEditCodePageName)},
-			{DI_EDIT,      5, 2, 48, 2, 0, L"CodePageName", nullptr, DIF_FOCUS|DIF_HISTORY, CodePageName},
-			{DI_TEXT,      0, 3,  0, 3, 0, nullptr, nullptr, DIF_SEPARATOR, L""},
-			{DI_BUTTON,    0, 4,  0, 3, 0, nullptr, nullptr, DIF_DEFAULTBUTTON|DIF_CENTERGROUP, MSG(MOk)},
-			{DI_BUTTON,    0, 4,  0, 3, 0, nullptr, nullptr, DIF_CENTERGROUP, MSG(MCancel)},
-			{DI_BUTTON,    0, 4,  0, 3, 0, nullptr, nullptr, DIF_CENTERGROUP, MSG(MGetCodePageResetCodePageName)}
+			DI_DOUBLEBOX, 3, 1, 50, 5, 0, 0, MSG(MGetCodePageEditCodePageName),
+			DI_EDIT,      5, 2, 48, 2, (DWORD_PTR)L"CodePageName", DIF_FOCUS|DIF_HISTORY, CodePageName,
+			DI_TEXT,      0, 3,  0, 3, 0, DIF_SEPARATOR, L"",
+			DI_BUTTON,    0, 4,  0, 3, 0, DIF_DEFAULT|DIF_CENTERGROUP, MSG(MOk),
+			DI_BUTTON,    0, 4,  0, 3, 0, DIF_CENTERGROUP, MSG(MCancel),
+			DI_BUTTON,    0, 4,  0, 3, 0, DIF_CENTERGROUP, MSG(MGetCodePageResetCodePageName)
 		};
 	MakeDialogItemsEx(EditDialogData, EditDialog);
 	Dialog Dlg(EditDialog, ARRAYSIZE(EditDialog), EditDialogProc);
@@ -752,17 +753,17 @@ UINT FillCodePagesList(HANDLE dialogHandle, UINT controlId, UINT codePage, bool 
 	{
 		// Если надо выбираем элемент
 		FarListInfo info;
-		SendDlgMessage(dialogHandle, DM_LISTINFO, control, &info);
+		SendDlgMessage(dialogHandle, DM_LISTINFO, control, (LONG_PTR)&info);
 
 		for (int i=0; i<info.ItemsNumber; i++)
 		{
 			if (GetListItemCodePage(i)==codePage)
 			{
 				FarListGetItem Item={i};
-				SendDlgMessage(dialog, DM_LISTGETITEM, control, &Item);
-				SendDlgMessage(dialog, DM_SETTEXTPTR, control, const_cast<wchar_t*>(Item.Item.Text));
+				SendDlgMessage(dialog, DM_LISTGETITEM, control, reinterpret_cast<LONG_PTR>(&Item));
+				SendDlgMessage(dialog, DM_SETTEXTPTR, control, reinterpret_cast<LONG_PTR>(Item.Item.Text));
 				FarListPos Pos={i,-1};
-				SendDlgMessage(dialog, DM_LISTSETCURPOS, control, &Pos);
+				SendDlgMessage(dialog, DM_LISTSETCURPOS, control, reinterpret_cast<LONG_PTR>(&Pos));
 				break;
 			}
 		}

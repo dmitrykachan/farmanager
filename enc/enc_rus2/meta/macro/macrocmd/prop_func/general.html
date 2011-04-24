@@ -445,18 +445,10 @@
       </td>
   </tr>
   <tr>
-    <td>S=<dfn><a name="xlat">xlat</a></dfn>(S[,Flags])</td>
-    <td><p>Возвращает транслитерируемую строку <var>S</var>.</p>
+    <td>S=<dfn><a name="xlat">xlat</a></dfn>(S)</td>
+    <td><p>Возвращает транслитерируемую строку.</p>
       <p>Функция аналогична макрокоманде <a href="../xlat.html">$XLat</a>, но используется в
-      выражениях. Необязательный аргумент <var>Flags</var> позволяет уточнять поведение функции:</p>
-       <table class="cont2 params lite tiny">
-       <col class="value">
-       <col>
-       <tr><th><var>Flags</var></th><th>Описание</th></tr>
-        <tr><td>1</td><td>переключить раскладку клавиатуры</td></tr>
-        <tr><td>2</td><td>издать системный звук</td></tr>
-       </table>
-    </td>
+      выражениях. Строковый аргумент <var>S</var> обязателен.</p></td>
   </tr>
   <tr>
     <td>S=<dfn><a name="lcase">lcase</a></dfn>(S)</td>
@@ -774,39 +766,6 @@
        <p>В параметре <var>S</var> допускается использование символов масок '*' и '?'. В этом случае функция
        возвращает атрибуты только для первого найденного файла/папки.</p>
        <p>В отличии от <a href="panels.html#panel.fattr">panel.fattr()</a>, функция не работает с панелями.</p>
-    </td>
-  </tr>
-  <tr>
-    <td>N=<dfn><a name="fmatch">fmatch</a></dfn>(S,Mask)</td>
-    <td><p>Тестирует строку <var>S</var> на соответствие маске <var>Mask</var>.</p>
-       <p><var>Mask</var> может быть:</p>
-       <p> - маской</p>
-       <p> - списком масок (разделённых запятой или точкой с запятой)</p>
-       <p> - маской исключения - одной или несколькими масками файлов, которой не должна соответствовать строка <var>S</var>.
-       Маска исключения отделяется от основной маски символом |</p>
-       <p> - регулярным выражением. Текст регулярного выражения должен быть окружён символами /</p>
-       <p>Возвращает:</p>
-       <table class="cont2 params lite tiny">
-       <col class="value">
-       <col>
-       <tr><th>Значение</th><th>Описание</th></tr>
-        <tr><td> 1</td><td>строка соответствует маске</td></tr>
-        <tr><td> 0</td><td>строка не соответствует маске</td></tr>
-        <tr><td>-1</td><td>ошибка в регулярном выражении</td></tr>
-       </table>
-       <p>Примеры</p>
-       <table class="cont2 params lite tiny">
-         <col>
-         <col>
-         <tr>
-           <th>Вызов</th>
-           <th>Результат</th>
-         </tr>
-          <tr><td>FMatch("Readme.txt", "*.txt")</td><td>возвращает 1</td></tr>
-          <tr><td>FMatch("Readme.txt", "Readme.*|*.txt")</td><td>возвращает 0</td></tr>
-          <tr><td>FMatch(@"c:\Readme.txt", @"/txt$/i")</td><td>возвращает 1</td></tr>
-          <tr><td>FMatch(@"c:\Readme.txt", @"/txt$")</td><td>возвращает -1</td></tr>
-       </table>
     </td>
   </tr>
 </table>
@@ -1299,67 +1258,6 @@ $end</code></pre>
         <tr><td> 2</td><td>переключить значение <var>Action</var> (триггер)</td></tr>
        </table>
        Функция возвращает предыдущее значение.
-    </td>
-  </tr>
-
-    <tr>
-    <td>N=<dfn><a name="history.enable">history.enable</a></dfn>([State])</td>
-    <td><p>Позволяет включать добавление пунктов в истории во время воспроизведения текущего макроса.</p>
-      <p>Необязательный параметр <var>State</var>:</p>
-       <table class="cont2 params lite tiny">
-       <col class="value">
-       <col>
-       <tr><th>Бит</th><th>Описание</th></tr>
-        <tr><td>0</td><td>история командной строки</td></tr>
-        <tr><td>1</td><td>история папок</td></tr>
-        <tr><td>2</td><td>история редактора/вьювера</td></tr>
-        <tr><td>3</td><td>история диалогов</td></tr>
-       </table>
-       <p>Если соответствующий бит выставлен, то история разблокируется.</p>
-       <p>Если параметр не указан, то просто возвращает текущую маску.</p>
-       <p>Функция возвращает предыдущее значение.</p>
-       <p>При старте макроса запрещено добавление во все истории.</p>
-       <p>Примеры</p>
-       <table class="cont2 params lite tiny">
-        <col>
-        <col>
-        <tr>
-          <th>Вызов</th>
-          <th>Результат</th>
-        </tr>
-         <tr><td>history.enable()</td><td>получить текущее состояние блокировок историй</td></tr>
-         <tr><td>history.enable(-1)</td><td>включить все истории</td></tr>
-         <tr><td>history.enable(5)</td><td>включить истории командной строки и редактора/вьювера, остальные отключить</td></tr>
-      </table>
-    </td>
-  </tr>
-
-    <tr>
-    <td>N=<dfn><a name="keybar.show">keybar.show</a></dfn>([Mode])</td>
-    <td><p>Позволяет управлять видимостью линейки функциональных клавиш.</p>
-      <p>Необязательный параметр <var>Mode</var>:</p>
-       <table class="cont2 params lite tiny">
-       <col class="value">
-       <col>
-       <tr><th><var>Mode</var></th><th>Описание</th></tr>
-        <tr><td>0</td><td>получить состояние видимости</td></tr>
-        <tr><td>1</td><td>показать линейку</td></tr>
-        <tr><td>2</td><td>скрыть линейку</td></tr>
-        <tr><td>3</td><td>изменить состояние видимости на обратное</td></tr>
-       </table>
-       <p>Функция возвращает предыдущее состояние видимости линейки:</p>
-       <table class="cont2 params lite tiny">
-       <col class="value">
-       <col>
-       <tr><th>Value</th><th>Описание</th></tr>
-        <tr><td>0</td><td>скрыта</td></tr>
-        <tr><td>1</td><td>показана</td></tr>
-        <tr><td>-1</td><td>в этой макрообласти линейка клавиш не найдена</td></tr>
-       </table>
-       Действие функции актуально только для текущих панелей, редакторов, вьюверов.
-
-       <p>Например, Esc при погашенных панелях гасить и кейбар:
-       <pre class="codesample"><code>CtrlO $if (APanel.Visible &amp;&amp; PPanel.Visible) KeyBar.Show(1) $else KeyBar.Show(2) $end</code></pre>
     </td>
   </tr>
 

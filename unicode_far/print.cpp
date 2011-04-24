@@ -4,8 +4,8 @@ print.cpp
 Ïå÷àòü (Alt-F5)
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -250,7 +250,7 @@ void PrintFiles(Panel *SrcPanel)
 					DWORD Read,Written;
 					Success=TRUE;
 
-					while (SrcFile.Read(Buffer, sizeof(Buffer), Read) && Read > 0)
+					while (SrcFile.Read(Buffer, sizeof(Buffer), &Read) && Read > 0)
 						if (!WritePrinter(hPrinter,Buffer,Read,&Written))
 						{
 							Success=FALSE;

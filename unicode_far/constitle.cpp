@@ -4,8 +4,8 @@ constitle.cpp
 Заголовок консоли
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ctrlobj.hpp"
 #include "CriticalSections.hpp"
 #include "console.hpp"
-#include "farversion.hpp"
 
 static const string& GetFarTitleAddons()
 {
@@ -63,8 +62,8 @@ static const string& GetFarTitleAddons()
 	if (bFirstRun)
 	{
 		bFirstRun = false;
-		strVer<<FAR_VERSION.Major<<L"."<<FAR_VERSION.Minor;
-		strBuild<<FAR_VERSION.Build;
+		strVer<<HIBYTE(LOWORD(FAR_VERSION))<<L"."<<LOBYTE(LOWORD(FAR_VERSION));
+		strBuild<<HIWORD(FAR_VERSION);
 	}
 
 	ReplaceStrings(strTitleAddons,L"%Ver",strVer,-1,true);

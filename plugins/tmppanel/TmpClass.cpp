@@ -170,7 +170,6 @@ int TmpPanel::PutDirectoryContents(const TCHAR* Path)
     if(!Info.GetDirList(Path, &DirItems, &DirItemsNumber))
     {
       FreePanelItems(TmpPanelItem, TmpItemsNumber);
-      TmpPanelItem=NULL;
       TmpItemsNumber=0;
       return FALSE;
     }

@@ -6,8 +6,8 @@ viewer.hpp
 Internal viewer
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -65,9 +65,13 @@ struct ViewerString
 	__int64 nFilePos;
 	__int64 nSelStart;
 	__int64 nSelEnd;
-	int  nbytes;
 	bool bSelection;
-	bool have_eol;
+};
+
+struct InternalViewerBookMark
+{
+	DWORD64 SavePosAddr[BOOKMARK_COUNT];
+	DWORD64 SavePosLeft[BOOKMARK_COUNT];
 };
 
 struct ViewerUndoData
@@ -132,6 +136,7 @@ class Viewer:public ScreenObject
 
 		__int64 LeftPos;
 		__int64 LastPage;
+		int CRSym;
 		__int64 SelectPos,SelectSize;
 		DWORD SelectFlags;
 		__int64 SelectPosOffSet; // Используется для коррекции позиции выделения в юникодных файлах
@@ -144,7 +149,7 @@ class Viewer:public ScreenObject
 		int ReadStdin;
 		int InternalKey;
 
-		struct ViewerBookmark BMSavePos;
+		struct InternalViewerBookMark BMSavePos;
 		struct ViewerUndoData UndoData[VIEWER_UNDO_COUNT];
 
 		int LastKeyUndo;
@@ -158,32 +163,12 @@ class Viewer:public ScreenObject
 		bool m_bQuickView;
 
 		UINT DefCodePage;
-
-		int update_check_period;
-		DWORD last_update_check;
-
-		char *vread_buffer;
-		int vread_buffer_size;
-
-		wchar_t *Up_buffer;
-		int Up_buffer_size;
-
-		ViewerString vString;
-
-		unsigned char vgetc_buffer[32];
-		bool vgetc_ready;
-		int  vgetc_cb;
-		int  vgetc_ib;
-		wchar_t vgetc_composite;
-
 	private:
 		virtual void DisplayObject();
 
 		void ShowPage(int nMode);
 
 		void Up();
-		int WrappedLength(wchar_t *str, int line_size);
-
 		void ShowHex();
 		void ShowStatus();
 		/* $ 27.04.2001 DJ
@@ -195,24 +180,24 @@ class Viewer:public ScreenObject
 		void AdjustWidth();
 		void AdjustFilePos();
 
-		void ReadString(ViewerString *pString, int MaxSize);
+		void ReadString(ViewerString *pString, int MaxSize, int StrSize);
 		int CalcStrSize(const wchar_t *Str,int Length);
 		void ChangeViewKeyBar();
+		void SetCRSym();
 		void Search(int Next,int FirstChar);
 		void ConvertToHex(char *SearchStr,int &SearchLength);
-
-		int vread(wchar_t *Buf, int Count, wchar_t *Buf2 = nullptr);
-		bool vseek(__int64 Offset, int Whence);
+		int HexToNum(int Hex);
+		int vread(wchar_t *Buf,int Count, bool Raw=false);
+		int vseek(__int64 Offset,int Whence);
 		__int64 vtell();
-		bool vgetc(wchar_t *ch);
-		bool veof();
-
+		bool vgetc(WCHAR& C);
 		void SetFileSize();
 		int GetStrBytesNum(const wchar_t *Str, int Length);
 
 	public:
 		Viewer(bool bQuickView = false, UINT aCodePage = CP_AUTODETECT);
 		virtual ~Viewer();
+
 
 	public:
 		int OpenFile(const wchar_t *Name,int warning);
@@ -248,7 +233,7 @@ class Viewer:public ScreenObject
 		int  ViewerControl(int Command,void *Param);
 		void SetHostFileViewer(FileViewer *Viewer) {HostFileViewer=Viewer;};
 
-		void GoTo(int ShowDlg=TRUE,__int64 NewPos=0,UINT64 Flags=0);
+		void GoTo(int ShowDlg=TRUE,__int64 NewPos=0,DWORD Flags=0);
 		void GetSelectedParam(__int64 &Pos, __int64 &Length, DWORD &Flags);
 		// Функция выделения - как самостоятельная функция
 		void SelectText(const __int64 &MatchPos,const __int64 &SearchLength, const DWORD Flags=0x1);
@@ -282,6 +267,4 @@ class Viewer:public ScreenObject
 		int ProcessHexMode(int newMode, bool isRedraw=TRUE);
 		int ProcessWrapMode(int newMode, bool isRedraw=TRUE);
 		int ProcessTypeWrapMode(int newMode, bool isRedraw=TRUE);
-
-		void SearchTextTransform(UnicodeString &to, const wchar_t *from, bool hex2text);
 };

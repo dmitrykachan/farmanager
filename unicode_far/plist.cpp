@@ -4,8 +4,8 @@ plist.cpp
 Список процессов (Ctrl-W)
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -202,7 +202,7 @@ BOOL CALLBACK EnumWindowsProc(HWND hwnd,LPARAM lParam)
 	VMenu *ProcList=(VMenu *)lParam;
 
 	if (IsWindowVisible(hwnd) ||
-	        (IsIconic(hwnd) && !(GetWindowLongPtr(hwnd,GWL_STYLE) & WS_DISABLED)))
+	        (IsIconic(hwnd) && !(GetWindowLong(hwnd,GWL_STYLE) & WS_DISABLED)))
 	{
 		int LenTitle=GetWindowTextLength(hwnd);
 
@@ -218,7 +218,7 @@ BOOL CALLBACK EnumWindowsProc(HWND hwnd,LPARAM lParam)
 					MenuItemEx ListItem;
 					ListItem.Clear();
 					ListItem.strName=lpwszTitle;
-					ProcList->SetUserData(&hwnd,sizeof(hwnd),ProcList->AddItem(&ListItem));
+					ProcList->SetUserData(hwnd,sizeof(hwnd),ProcList->AddItem(&ListItem));
 				}
 
 				xf_free(lpwszTitle);

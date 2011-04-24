@@ -4,8 +4,8 @@ infolist.cpp
 Информационная панель
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -92,8 +92,7 @@ void InfoList::Update(int Mode)
 
 string &InfoList::GetTitle(string &strTitle,int SubLen,int TruncSize)
 {
-	strTitle.Clear();
-	strTitle.Append(L" ").Append(MSG(MInfoTitle)).Append(" ");
+	strTitle.Format(L" %s ", MSG(MInfoTitle));
 	TruncStr(strTitle,X2-X1-3);
 	return strTitle;
 }
@@ -106,7 +105,7 @@ void InfoList::DisplayObject()
 	string strDriveRoot;
 	string strVolumeName, strFileSystemName;
 	DWORD MaxNameLength,FileSystemFlags,VolumeNumber;
-	FormatString strDiskNumber;
+	string strDiskNumber;
 	CloseFile();
 
 	Box(X1,Y1,X2,Y2,COL_PANELBOX,DOUBLE_BOX);
@@ -217,27 +216,28 @@ void InfoList::DisplayObject()
 		}
 
 		LPCWSTR DiskType=(IdxMsgID!=-1)?MSG(IdxMsgID):L"";
+		wchar_t LocalName[]={ExtractPathRoot(strCurDir).At(0),L':',L'\0'}; // strDriveRoot?
 		string strAssocPath;
 
-		if (GetSubstName(DriveType,strDriveRoot,strAssocPath))
+		if (GetSubstName(DriveType,LocalName,strAssocPath))
 		{
 			DiskType = MSG(MInfoSUBST);
 			DriveType=DRIVE_SUBSTITUTE;
 		}
-		else if(DriveType == DRIVE_FIXED && GetVHDName(strDriveRoot,strAssocPath))
+		else if(DriveType == DRIVE_FIXED && GetVHDName(LocalName,strAssocPath))
 		{
 			DiskType = MSG(MInfoVirtual);
 			DriveType=DRIVE_VIRTUAL;
 		}
 
 
-		strTitle=string(L" ")+DiskType+L" "+MSG(MInfoDisk)+L" "+strDriveRoot+L" ("+strFileSystemName+L") ";
+		strTitle=string(L" ")+DiskType+L" "+MSG(MInfoDisk)+L" "+((!strDriveRoot.IsEmpty() && strDriveRoot.At(1)==L':')?LocalName:strDriveRoot)+L" ("+strFileSystemName+L") ";
 
 		switch(DriveType)
 		{
 		case DRIVE_REMOTE:
 			{
-				apiWNetGetConnection(strDriveRoot, strAssocPath);
+				apiWNetGetConnection(LocalName, strAssocPath);
 			}
 			break;
 
@@ -250,9 +250,7 @@ void InfoList::DisplayObject()
 			break;
 		}
 
-		strDiskNumber <<
-			fmt::Width(4) << fmt::FillChar(L'0') << fmt::Radix(16) << HIWORD(VolumeNumber) << L'-' <<
-			fmt::Width(4) << fmt::FillChar(L'0') << fmt::Radix(16) << LOWORD(VolumeNumber);
+		strDiskNumber.Format(L"%04X-%04X",VolumeNumber>>16,VolumeNumber & 0xffff);
 	}
 	else // Error!
 		strTitle = strDriveRoot;
@@ -614,12 +612,12 @@ void InfoList::ShowPluginDescription()
 		return;
 
 	CloseFile();
-	OpenPanelInfo Info;
-	AnotherPanel->GetOpenPanelInfo(&Info);
+	OpenPluginInfo Info;
+	AnotherPanel->GetOpenPluginInfo(&Info);
 
-	for (size_t I=0; I<Info.InfoLinesNumber; I++)
+	for (int I=0; I<Info.InfoLinesNumber; I++)
 	{
-		int Y=static_cast<int>(Y2-Info.InfoLinesNumber+I);
+		int Y=Y2-Info.InfoLinesNumber+I;
 
 		if (Y<=Y1)
 			continue;

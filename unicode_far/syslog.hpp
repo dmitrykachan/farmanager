@@ -6,8 +6,8 @@ syslog.hpp
 Системный отладочный лог :-)
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@ void CheckHeap(int NumLine);
 
 string __FARKEY_ToName(int Key);
 #define _FARKEY_ToName(K) __FARKEY_ToName(K).CPtr()
-string __MCODE_ToName(DWORD OpCode);
+string __MCODE_ToName(int OpCode);
 #define _MCODE_ToName(K) __MCODE_ToName(K).CPtr()
 string __VK_KEY_ToName(int VkKey);
 #define _VK_KEY_ToName(K) __VK_KEY_ToName(K).CPtr()
@@ -60,7 +60,7 @@ string __VE_ToName(int Command);
 #define _VE_ToName(K) __VE_ToName(K).CPtr()
 string __FCTL_ToName(int Command);
 #define _FCTL_ToName(K) __FCTL_ToName(K).CPtr()
-string __DLGMSG_ToName(DWORD Msg);
+string __DLGMSG_ToName(int Msg);
 #define _DLGMSG_ToName(K) __DLGMSG_ToName(K).CPtr()
 string __ACTL_ToName(int Command);
 #define _ACTL_ToName(K) __ACTL_ToName(K).CPtr()
@@ -73,7 +73,7 @@ string __MOUSE_EVENT_RECORD_Dump(MOUSE_EVENT_RECORD *Rec);
 string __SysLog_LinearDump(LPBYTE Buf,int SizeBuf);
 #define _SysLog_LinearDump(B,S) __SysLog_LinearDump((B),(S)).CPtr()
 
-void GetOpenPanelInfo_Dump(const wchar_t *Title,const struct OpenPanelInfo *Info,FILE *fp);
+void GetOpenPluginInfo_Dump(const wchar_t *Title,const struct OpenPluginInfo *Info,FILE *fp);
 void INPUT_RECORD_DumpBuffer(FILE *fp=nullptr);
 void PanelViewSettings_Dump(const wchar_t *Title,const struct PanelViewSettings &ViewSettings,FILE *fp=nullptr);
 void PluginsStackItem_Dump(const wchar_t *Title,const struct PluginsStackItem *StackItems,int ItemNumber,FILE *fp=nullptr);
@@ -91,9 +91,9 @@ void WIN32_FIND_DATA_Dump(const wchar_t *Title,const WIN32_FIND_DATA &fd,FILE *f
 extern "C"
 {
 #endif
-	void WINAPIV FarSysLog(const wchar_t *ModuleName,int Level,char *fmt,...);
-	void WINAPI FarSysLogDump(const wchar_t *ModuleName,DWORD StartAddress,LPBYTE Buf,int SizeBuf);
-	void WINAPI FarSysLog_INPUT_RECORD_Dump(const wchar_t *ModuleName,INPUT_RECORD *rec);
+	void WINAPIV _export FarSysLog(const wchar_t *ModuleName,int Level,char *fmt,...);
+	void WINAPI  _export FarSysLogDump(const wchar_t *ModuleName,DWORD StartAddress,LPBYTE Buf,int SizeBuf);
+	void WINAPI _export FarSysLog_INPUT_RECORD_Dump(const wchar_t *ModuleName,INPUT_RECORD *rec);
 #ifdef __cplusplus
 };
 #endif

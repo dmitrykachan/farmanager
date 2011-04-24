@@ -1,9 +1,6 @@
 #include "Plugin.h"
 #include "OleThread.h"
 #include <cassert>
-#include "version.hpp"
-#include <initguid.h>
-#include "guid.hpp"
 
 CPlugin *thePlug=NULL;
 
@@ -36,18 +33,12 @@ BOOL WINAPI DLLMAINFUNC(HANDLE hDll,DWORD dwReason,LPVOID lpReserved)
 extern "C" void __cdecl main(void) {}
 #endif
 
-void WINAPI GetGlobalInfoW(struct GlobalInfo *Info)
+int WINAPI EXP_NAME(GetMinFarVersion)()
 {
-  Info->StructSize=sizeof(GlobalInfo);
-  Info->MinFarVersion=FARMANAGERVERSION;
-  Info->Version=PLUGIN_VERSION;
-  Info->Guid=MainGuid;
-  Info->Title=PLUGIN_NAME;
-  Info->Description=PLUGIN_DESC;
-  Info->Author=PLUGIN_AUTHOR;
+  return FARMANAGERVERSION;
 }
 
-void WINAPI SetStartupInfoW(const struct PluginStartupInfo *Info)
+void WINAPI EXP_NAME(SetStartupInfo)(const struct PluginStartupInfo *Info)
 {
   thePlug = new CPlugin(Info);
 
@@ -57,22 +48,22 @@ void WINAPI SetStartupInfoW(const struct PluginStartupInfo *Info)
   OleThread::hTerminator = new OleThread::CThreadTerminator;
 }
 
-void WINAPI GetPluginInfoW(struct PluginInfo *Info)
+void WINAPI EXP_NAME(GetPluginInfo)(struct PluginInfo *Info)
 {
   thePlug->GetPluginInfo(Info);
 }
 
-HANDLE WINAPI OpenW(const struct OpenInfo *OInfo)
+HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom, INT_PTR Item)
 {
-  return thePlug->OpenPlugin(OInfo->OpenFrom, OInfo->Data);
+  return thePlug->OpenPlugin(OpenFrom, Item);
 }
 
-int WINAPI ConfigureW(const GUID* Guid)
+int WINAPI EXP_NAME(Configure)(int)
 {
   return thePlug->Configure();
 }
 
-void WINAPI ExitFARW()
+void WINAPI EXP_NAME(ExitFAR)()
 {
   thePlug->ExitFAR();
 

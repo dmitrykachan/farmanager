@@ -4,8 +4,8 @@ cvtname.cpp
 Функций для преобразования имен файлов/путей.
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -190,7 +190,6 @@ void MixToFullPath(string& strPath)
 				case 0:
 				{
 					pstPath[m] = 0;
-					pstPath[m-1] = 0;
 					continue;
 				}
 				break;
@@ -319,7 +318,7 @@ bool MixToFullPath(LPCWSTR stPath, string& strDest, LPCWSTR stCurrentDir)
 			strDest+=pstPath;
 		}
 
-		if (!blIgnore && !HasPathPrefix(strDest))
+		if (!blIgnore)
 			MixToFullPath(strDest);
 
 		return true;
@@ -328,17 +327,10 @@ bool MixToFullPath(LPCWSTR stPath, string& strDest, LPCWSTR stCurrentDir)
 	return false;
 }
 
-void ConvertNameToFull(const wchar_t *lpwszSrc, string &strDest, LPCWSTR CurrentDirectory)
+void ConvertNameToFull(const wchar_t *lpwszSrc, string &strDest)
 {
 	string strCurDir;
-	if(!CurrentDirectory)
-	{
-		apiGetCurrentDirectory(strCurDir);
-	}
-	else
-	{
-		strCurDir = CurrentDirectory;
-	}
+	apiGetCurrentDirectory(strCurDir);
 	string strSrc = lpwszSrc;
 	MixToFullPath(strSrc,strDest,strCurDir);
 }
@@ -349,7 +341,7 @@ string TryConvertVolumeGuidToDrivePath(const string& Path)
 {
 	string Result = Path;
 
-	if (Path.GetLength() >= cVolumeGuidLen && Path.IsSubStrAt(0, L"\\\\?\\Volume"))
+	if (Path.GetLength() >= cVolumeGuidLen && Path.Equal(0, L"\\\\?\\Volume"))
 	{
 		if (ifn.pfnGetVolumePathNamesForVolumeName)
 		{
@@ -396,7 +388,7 @@ string TryConvertVolumeGuidToDrivePath(const string& Path)
 				{
 					if (apiGetVolumeNameForVolumeMountPoint(Drive,strVolumeGuid))
 					{
-						if (Path.IsSubStrAt(0, strVolumeGuid, cVolumeGuidLen))
+						if (Path.Equal(0, strVolumeGuid, cVolumeGuidLen))
 						{
 							DeleteEndSlash(Drive);
 							Result.Replace(0, cVolumeGuidLen, Drive);
@@ -577,8 +569,8 @@ void ConvertNameToUNC(string &strFileName)
 // CheckFullPath используется в FCTL_SET[ANOTHER]PANELDIR
 string& PrepareDiskPath(string &strPath, bool CheckFullPath)
 {
-	// elevation not required during cosmetic operation
-	DisableElevation de;
+	// elevation not required during cosmetic operation 
+	DisableElevation de; 
 
 	if (!strPath.IsEmpty())
 	{

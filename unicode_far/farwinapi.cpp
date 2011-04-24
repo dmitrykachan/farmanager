@@ -4,8 +4,8 @@ farwinapi.cpp
 Враперы вокруг некоторых WinAPI функций
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -65,7 +65,7 @@ HANDLE FindFirstFileInternal(LPCWSTR Name, FAR_FIND_DATA_EX& FindData)
 			{
 				if(Directory->Open(strDirectory, FILE_LIST_DIRECTORY, FILE_SHARE_READ|FILE_SHARE_WRITE, nullptr, OPEN_EXISTING))
 				{
-					Handle->ObjectHandle =static_cast<HANDLE>(Directory);
+					Handle->ObjectHandle =reinterpret_cast<HANDLE>(Directory);
 
 					// for network paths buffer size must be <= 65k
 					Handle->BufferSize = 0x10000;
@@ -75,7 +75,7 @@ HANDLE FindFirstFileInternal(LPCWSTR Name, FAR_FIND_DATA_EX& FindData)
 						LPCWSTR NamePtr = PointToName(Name);
 						if(Directory->NtQueryDirectoryFile(Handle->BufferBase, Handle->BufferSize, FileBothDirectoryInformation, FALSE, NamePtr, TRUE))
 						{
-							PFILE_BOTH_DIR_INFORMATION DirectoryInfo = static_cast<PFILE_BOTH_DIR_INFORMATION>(Handle->BufferBase);
+							PFILE_BOTH_DIR_INFORMATION DirectoryInfo = reinterpret_cast<PFILE_BOTH_DIR_INFORMATION>(Handle->BufferBase);
 							FindData.dwFileAttributes = DirectoryInfo->FileAttributes;
 							FindData.ftCreationTime.dwLowDateTime = DirectoryInfo->CreationTime.LowPart;
 							FindData.ftCreationTime.dwHighDateTime = DirectoryInfo->CreationTime.HighPart;
@@ -103,7 +103,7 @@ HANDLE FindFirstFileInternal(LPCWSTR Name, FAR_FIND_DATA_EX& FindData)
 							}
 
 							Handle->NextOffset = DirectoryInfo->NextEntryOffset;
-							Result = static_cast<HANDLE>(Handle);
+							Result = reinterpret_cast<HANDLE>(Handle);
 						}
 						else
 						{
@@ -136,16 +136,16 @@ HANDLE FindFirstFileInternal(LPCWSTR Name, FAR_FIND_DATA_EX& FindData)
 bool FindNextFileInternal(HANDLE Find, FAR_FIND_DATA_EX& FindData)
 {
 	bool Result = false;
-	PSEUDO_HANDLE* Handle = static_cast<PSEUDO_HANDLE*>(Find);
+	PSEUDO_HANDLE* Handle = reinterpret_cast<PSEUDO_HANDLE*>(Find);
 	bool Status = true;
-	PFILE_BOTH_DIR_INFORMATION DirectoryInfo = static_cast<PFILE_BOTH_DIR_INFORMATION>(Handle->BufferBase);
+	PFILE_BOTH_DIR_INFORMATION DirectoryInfo = reinterpret_cast<PFILE_BOTH_DIR_INFORMATION>(Handle->BufferBase);
 	if(Handle->NextOffset)
 	{
 		DirectoryInfo = reinterpret_cast<PFILE_BOTH_DIR_INFORMATION>(reinterpret_cast<LPBYTE>(DirectoryInfo)+Handle->NextOffset);
 	}
 	else
 	{
-		File* Directory = static_cast<File*>(Handle->ObjectHandle);
+		File* Directory = reinterpret_cast<File*>(Handle->ObjectHandle);
 		Status = Directory->NtQueryDirectoryFile(Handle->BufferBase, Handle->BufferSize, FileBothDirectoryInformation, FALSE, nullptr, FALSE);
 	}
 
@@ -185,9 +185,9 @@ bool FindNextFileInternal(HANDLE Find, FAR_FIND_DATA_EX& FindData)
 
 bool FindCloseInternal(HANDLE Find)
 {
-	PSEUDO_HANDLE* Handle = static_cast<PSEUDO_HANDLE*>(Find);
+	PSEUDO_HANDLE* Handle = reinterpret_cast<PSEUDO_HANDLE*>(Find);
 	xf_free(Handle->BufferBase);
-	File* Directory = static_cast<File*>(Handle->ObjectHandle);
+	File* Directory = reinterpret_cast<File*>(Handle->ObjectHandle);
 	delete Directory;
 	delete Handle;
 	return true;
@@ -197,7 +197,7 @@ FindFile::FindFile(LPCWSTR Object, bool ScanSymLink):
 	Handle(INVALID_HANDLE_VALUE),
 	empty(false)
 {
-	NTPath strName(Object);
+	string strName(NTPath(Object).Get());
 
 	// temporary disable elevation to try "real" name first
 	DWORD OldElevationMode = Opt.ElevationMode;
@@ -263,9 +263,7 @@ bool FindFile::Get(FAR_FIND_DATA_EX& FindData)
 
 
 File::File():
-	Handle(INVALID_HANDLE_VALUE),
-	Pointer(0),
-	NeedSyncPointer(false)
+	Handle(INVALID_HANDLE_VALUE)
 {
 }
 
@@ -280,71 +278,23 @@ bool File::Open(LPCWSTR Object, DWORD DesiredAccess, DWORD ShareMode, LPSECURITY
 	return Handle != INVALID_HANDLE_VALUE;
 }
 
-inline void File::SyncPointer()
+bool File::Read(LPVOID Buffer, DWORD NumberOfBytesToRead, LPDWORD NumberOfBytesRead, LPOVERLAPPED Overlapped)
 {
-	if(NeedSyncPointer)
-	{
-		SetFilePointerEx(Handle, *reinterpret_cast<PLARGE_INTEGER>(&Pointer), reinterpret_cast<PLARGE_INTEGER>(&Pointer), FILE_BEGIN);
-		NeedSyncPointer = false;
-	}
+	return ReadFile(Handle, Buffer, NumberOfBytesToRead, NumberOfBytesRead, Overlapped) != FALSE;
 }
 
-
-bool File::Read(LPVOID Buffer, DWORD NumberOfBytesToRead, DWORD& NumberOfBytesRead, LPOVERLAPPED Overlapped)
+bool File::Write(LPCVOID Buffer, DWORD NumberOfBytesToWrite, LPDWORD NumberOfBytesWritten, LPOVERLAPPED Overlapped) const
 {
-	SyncPointer();
-	bool Result = ReadFile(Handle, Buffer, NumberOfBytesToRead, &NumberOfBytesRead, Overlapped) != FALSE;
-	if(Result)
-	{
-		Pointer += NumberOfBytesRead;
-	}
-	return Result;
-}
-
-bool File::Write(LPCVOID Buffer, DWORD NumberOfBytesToWrite, DWORD& NumberOfBytesWritten, LPOVERLAPPED Overlapped)
-{
-	SyncPointer();
-	bool Result = WriteFile(Handle, Buffer, NumberOfBytesToWrite, &NumberOfBytesWritten, Overlapped) != FALSE;
-	if(Result)
-	{
-		Pointer += NumberOfBytesWritten;
-	}
-	return Result;
+	return WriteFile(Handle, Buffer, NumberOfBytesToWrite, NumberOfBytesWritten, Overlapped) != FALSE;
 }
 
 bool File::SetPointer(INT64 DistanceToMove, PINT64 NewFilePointer, DWORD MoveMethod)
 {
-	INT64 OldPointer = Pointer;
-	switch (MoveMethod)
-	{
-	case FILE_BEGIN:
-		Pointer = DistanceToMove;
-		break;
-	case FILE_CURRENT:
-		Pointer+=DistanceToMove;
-		break;
-	case FILE_END:
-		{
-			UINT64 Size=0;
-			GetSize(Size);
-			Pointer = Size+DistanceToMove;
-		}
-		break;
-	}
-	if(OldPointer != Pointer)
-	{
-		NeedSyncPointer = true;
-	}
-	if(NewFilePointer)
-	{
-		*NewFilePointer = Pointer;
-	}
-	return true;
+	return SetFilePointerEx(Handle, *reinterpret_cast<PLARGE_INTEGER>(&DistanceToMove), reinterpret_cast<PLARGE_INTEGER>(NewFilePointer), MoveMethod) != FALSE;
 }
 
 bool File::SetEnd()
 {
-	SyncPointer();
 	return SetEndOfFile(Handle) != FALSE;
 }
 
@@ -410,17 +360,16 @@ bool File::Close()
 		Result = CloseHandle(Handle) != FALSE;
 		Handle = INVALID_HANDLE_VALUE;
 	}
-	Pointer = 0;
-	NeedSyncPointer = false;
 	return Result;
 }
 
 bool File::Eof()
 {
-	INT64 Ptr = GetPointer();
+	INT64 Ptr=0;
+	GetPointer(Ptr);
 	UINT64 Size=0;
 	GetSize(Size);
-	return static_cast<UINT64>(Ptr) >= Size;
+	return static_cast<UINT64>(Ptr)==Size;
 }
 
 NTSTATUS GetLastNtStatus()
@@ -430,7 +379,7 @@ NTSTATUS GetLastNtStatus()
 
 BOOL apiDeleteFile(const wchar_t *lpwszFileName)
 {
-	NTPath strNtName(lpwszFileName);
+	string strNtName(NTPath(lpwszFileName).Get());
 	BOOL Result = DeleteFile(strNtName);
 	if(!Result && ElevationRequired(ELEVATION_MODIFY_REQUEST))
 	{
@@ -441,7 +390,7 @@ BOOL apiDeleteFile(const wchar_t *lpwszFileName)
 
 BOOL apiRemoveDirectory(const wchar_t *DirName)
 {
-	NTPath strNtName(DirName);
+	string strNtName(NTPath(DirName).Get());
 	BOOL Result = RemoveDirectory(strNtName);
 	if(!Result && ElevationRequired(ELEVATION_MODIFY_REQUEST))
 	{
@@ -452,7 +401,7 @@ BOOL apiRemoveDirectory(const wchar_t *DirName)
 
 HANDLE apiCreateFile(const wchar_t* Object, DWORD DesiredAccess, DWORD ShareMode, LPSECURITY_ATTRIBUTES SecurityAttributes, DWORD CreationDistribution, DWORD FlagsAndAttributes, HANDLE TemplateFile, bool ForceElevation)
 {
-	NTPath strObject(Object);
+	string strObject(NTPath(Object).Get());
 	FlagsAndAttributes|=FILE_FLAG_BACKUP_SEMANTICS|(CreationDistribution==OPEN_EXISTING?FILE_FLAG_POSIX_SEMANTICS:0);
 
 	HANDLE Handle=CreateFile(strObject, DesiredAccess, ShareMode, SecurityAttributes, CreationDistribution, FlagsAndAttributes, TemplateFile);
@@ -486,7 +435,7 @@ BOOL apiCopyFileEx(
     DWORD dwCopyFlags
 )
 {
-	NTPath strFrom(lpwszExistingFileName), strTo(lpwszNewFileName);
+	string strFrom(NTPath(lpwszExistingFileName).Get()), strTo(NTPath(lpwszNewFileName).Get());
 	BOOL Result = CopyFileEx(strFrom, strTo, lpProgressRoutine, lpData, pbCancel, dwCopyFlags);
 	if(!Result && ElevationRequired(ELEVATION_MODIFY_REQUEST)) //BUGBUG, really unknown
 	{
@@ -500,7 +449,7 @@ BOOL apiMoveFile(
     const wchar_t *lpwszNewFileName   // address of new name for the file
 )
 {
-	NTPath strFrom(lpwszExistingFileName), strTo(lpwszNewFileName);
+	string strFrom(NTPath(lpwszExistingFileName).Get()), strTo(NTPath(lpwszNewFileName).Get());
 	BOOL Result = MoveFile(strFrom, strTo);
 	if(!Result && ElevationRequired(ELEVATION_MODIFY_REQUEST)) //BUGBUG, really unknown
 	{
@@ -515,7 +464,7 @@ BOOL apiMoveFileEx(
     DWORD dwFlags   // flag to determine how to move file
 )
 {
-	NTPath strFrom(lpwszExistingFileName), strTo(lpwszNewFileName);
+	string strFrom(NTPath(lpwszExistingFileName).Get()), strTo(NTPath(lpwszNewFileName).Get());
 	BOOL Result = MoveFileEx(strFrom, strTo, dwFlags);
 	if(!Result && ElevationRequired(ELEVATION_MODIFY_REQUEST)) //BUGBUG, really unknown
 	{
@@ -738,6 +687,38 @@ BOOL apiGetVolumeInformation(
 	return bResult;
 }
 
+void apiFindDataToDataEx(const FAR_FIND_DATA *pSrc, FAR_FIND_DATA_EX *pDest)
+{
+	pDest->dwFileAttributes = pSrc->dwFileAttributes;
+	pDest->ftCreationTime = pSrc->ftCreationTime;
+	pDest->ftLastAccessTime = pSrc->ftLastAccessTime;
+	pDest->ftLastWriteTime = pSrc->ftLastWriteTime;
+	pDest->ftChangeTime.dwHighDateTime=0;
+	pDest->ftChangeTime.dwLowDateTime=0;
+	pDest->nFileSize = pSrc->nFileSize;
+	pDest->nPackSize = pSrc->nPackSize;
+	pDest->strFileName = pSrc->lpwszFileName;
+	pDest->strAlternateFileName = pSrc->lpwszAlternateFileName;
+}
+
+void apiFindDataExToData(const FAR_FIND_DATA_EX *pSrc, FAR_FIND_DATA *pDest)
+{
+	pDest->dwFileAttributes = pSrc->dwFileAttributes;
+	pDest->ftCreationTime = pSrc->ftCreationTime;
+	pDest->ftLastAccessTime = pSrc->ftLastAccessTime;
+	pDest->ftLastWriteTime = pSrc->ftLastWriteTime;
+	pDest->nFileSize = pSrc->nFileSize;
+	pDest->nPackSize = pSrc->nPackSize;
+	pDest->lpwszFileName = xf_wcsdup(pSrc->strFileName);
+	pDest->lpwszAlternateFileName = xf_wcsdup(pSrc->strAlternateFileName);
+}
+
+void apiFreeFindData(FAR_FIND_DATA *pData)
+{
+	xf_free(pData->lpwszFileName);
+	xf_free(pData->lpwszAlternateFileName);
+}
+
 BOOL apiGetFindDataEx(const wchar_t *lpwszFileName, FAR_FIND_DATA_EX& FindData,bool ScanSymLink)
 {
 	FindFile Find(lpwszFileName, ScanSymLink);
@@ -855,7 +836,7 @@ BOOL apiGetDiskSize(const wchar_t *Path,unsigned __int64 *TotalSize, unsigned __
 	uiUserFree=0;
 	uiTotalSize=0;
 	uiTotalFree=0;
-	NTPath strPath(Path);
+	string strPath(NTPath(Path).Get());
 	AddEndSlash(strPath);
 	ExitCode=GetDiskFreeSpaceEx(strPath,(PULARGE_INTEGER)&uiUserFree,(PULARGE_INTEGER)&uiTotalSize,(PULARGE_INTEGER)&uiTotalFree);
 
@@ -922,8 +903,8 @@ BOOL apiCreateDirectory(LPCWSTR lpPathName,LPSECURITY_ATTRIBUTES lpSecurityAttri
 
 BOOL apiCreateDirectoryEx(LPCWSTR TemplateDirectory, LPCWSTR NewDirectory, LPSECURITY_ATTRIBUTES SecurityAttributes)
 {
-	NTPath strNtTemplateDirectory(TemplateDirectory);
-	NTPath strNtNewDirectory(NewDirectory);
+	string strNtTemplateDirectory(NTPath(TemplateDirectory).Get());
+	string strNtNewDirectory(NTPath(NewDirectory).Get());
 	BOOL Result = TemplateDirectory?CreateDirectoryEx(strNtTemplateDirectory, strNtNewDirectory, SecurityAttributes):CreateDirectory(strNtNewDirectory, SecurityAttributes);
 	if(!Result && ElevationRequired(ELEVATION_MODIFY_REQUEST))
 	{
@@ -934,7 +915,7 @@ BOOL apiCreateDirectoryEx(LPCWSTR TemplateDirectory, LPCWSTR NewDirectory, LPSEC
 
 DWORD apiGetFileAttributes(LPCWSTR lpFileName)
 {
-	NTPath strNtName(lpFileName);
+	string strNtName(NTPath(lpFileName).Get());
 	DWORD Result = GetFileAttributes(strNtName);
 	if(Result == INVALID_FILE_ATTRIBUTES && ElevationRequired(ELEVATION_READ_REQUEST))
 	{
@@ -945,7 +926,7 @@ DWORD apiGetFileAttributes(LPCWSTR lpFileName)
 
 BOOL apiSetFileAttributes(LPCWSTR lpFileName,DWORD dwFileAttributes)
 {
-	NTPath strNtName(lpFileName);
+	string strNtName(NTPath(lpFileName).Get());
 	BOOL Result = SetFileAttributes(strNtName, dwFileAttributes);
 	if(!Result && ElevationRequired(ELEVATION_MODIFY_REQUEST))
 	{
@@ -965,7 +946,7 @@ bool CreateSymbolicLinkInternal(LPCWSTR Object,LPCWSTR Target, DWORD dwFlags)
 bool apiCreateSymbolicLink(LPCWSTR lpSymlinkFileName,LPCWSTR lpTargetFileName,DWORD dwFlags)
 {
 	bool Result=false;
-	NTPath strSymlinkFileName(lpSymlinkFileName);
+	string strSymlinkFileName(NTPath(lpSymlinkFileName).Get());
 	Result=CreateSymbolicLinkInternal(strSymlinkFileName, lpTargetFileName, dwFlags);
 	if (!Result)
 	{
@@ -1040,7 +1021,7 @@ HANDLE apiFindFirstStream(LPCWSTR lpFileName,STREAM_INFO_LEVELS InfoLevel,LPVOID
 						if (Handle->BufferBase)
 						{
 							// sometimes for directories NtQueryInformationFile returns STATUS_SUCCESS but doesn't fill the buffer
-							PFILE_STREAM_INFORMATION StreamInfo = static_cast<PFILE_STREAM_INFORMATION>(Handle->BufferBase);
+							PFILE_STREAM_INFORMATION StreamInfo = reinterpret_cast<PFILE_STREAM_INFORMATION>(Handle->BufferBase);
 							StreamInfo->StreamNameLength = 0;
 
 							IO_STATUS_BLOCK IoStatusBlock;
@@ -1051,8 +1032,8 @@ HANDLE apiFindFirstStream(LPCWSTR lpFileName,STREAM_INFO_LEVELS InfoLevel,LPVOID
 
 					if (Result == STATUS_SUCCESS)
 					{
-						PWIN32_FIND_STREAM_DATA pFsd=static_cast<PWIN32_FIND_STREAM_DATA>(lpFindStreamData);
-						PFILE_STREAM_INFORMATION StreamInfo = static_cast<PFILE_STREAM_INFORMATION>(Handle->BufferBase);
+						PWIN32_FIND_STREAM_DATA pFsd=reinterpret_cast<PWIN32_FIND_STREAM_DATA>(lpFindStreamData);
+						PFILE_STREAM_INFORMATION StreamInfo = reinterpret_cast<PFILE_STREAM_INFORMATION>(Handle->BufferBase);
 						Handle->NextOffset = StreamInfo->NextEntryOffset;
 						if (StreamInfo->StreamNameLength)
 						{
@@ -1097,12 +1078,12 @@ BOOL apiFindNextStream(HANDLE hFindStream,LPVOID lpFindStreamData)
 	{
 		if (ifn.pfnNtQueryInformationFile)
 		{
-			PSEUDO_HANDLE* Handle = static_cast<PSEUDO_HANDLE*>(hFindStream);
+			PSEUDO_HANDLE* Handle = reinterpret_cast<PSEUDO_HANDLE*>(hFindStream);
 
 			if (Handle->NextOffset)
 			{
 				PFILE_STREAM_INFORMATION pStreamInfo=reinterpret_cast<PFILE_STREAM_INFORMATION>(reinterpret_cast<LPBYTE>(Handle->BufferBase)+Handle->NextOffset);
-				PWIN32_FIND_STREAM_DATA pFsd=static_cast<PWIN32_FIND_STREAM_DATA>(lpFindStreamData);
+				PWIN32_FIND_STREAM_DATA pFsd=reinterpret_cast<PWIN32_FIND_STREAM_DATA>(lpFindStreamData);
 				Handle->NextOffset = pStreamInfo->NextEntryOffset?Handle->NextOffset+pStreamInfo->NextEntryOffset:0;
 
 				if (pStreamInfo->StreamNameLength && pStreamInfo->StreamNameLength < sizeof(pFsd->cStreamName))
@@ -1133,7 +1114,7 @@ BOOL apiFindStreamClose(HANDLE hFindStream)
 	}
 	else
 	{
-		PSEUDO_HANDLE* Handle = static_cast<PSEUDO_HANDLE*>(hFindStream);
+		PSEUDO_HANDLE* Handle = reinterpret_cast<PSEUDO_HANDLE*>(hFindStream);
 		xf_free(Handle->BufferBase);
 		delete Handle;
 		Ret=TRUE;
@@ -1168,13 +1149,13 @@ bool internalNtQueryGetFinalPathNameByHandle(HANDLE hFile, string& FinalFilePath
 	{
 		ULONG RetLen;
 		ULONG BufSize = NT_MAX_PATH;
-		OBJECT_NAME_INFORMATION* oni = static_cast<OBJECT_NAME_INFORMATION*>(xf_malloc(BufSize));
+		OBJECT_NAME_INFORMATION* oni = reinterpret_cast<OBJECT_NAME_INFORMATION*>(xf_malloc(BufSize));
 		NTSTATUS Res = ifn.pfnNtQueryObject(hFile, ObjectNameInformation, oni, BufSize, &RetLen);
 
 		if (Res == STATUS_BUFFER_OVERFLOW || Res == STATUS_BUFFER_TOO_SMALL)
 		{
 			BufSize = RetLen;
-			oni = static_cast<OBJECT_NAME_INFORMATION*>(xf_realloc_nomove(oni, BufSize));
+			oni = reinterpret_cast<OBJECT_NAME_INFORMATION*>(xf_realloc_nomove(oni, BufSize));
 			Res = ifn.pfnNtQueryObject(hFile, ObjectNameInformation, oni, BufSize, &RetLen);
 		}
 
@@ -1192,7 +1173,7 @@ bool internalNtQueryGetFinalPathNameByHandle(HANDLE hFile, string& FinalFilePath
 		if (Res == STATUS_SUCCESS)
 		{
 			// simple way to handle network paths
-			if (NtPath.IsSubStrAt(0, L"\\Device\\LanmanRedirector"))
+			if (NtPath.Equal(0, L"\\Device\\LanmanRedirector"))
 				FinalFilePath = NtPath.Replace(0, 24, L'\\');
 
 			if (FinalFilePath.IsEmpty())
@@ -1212,7 +1193,7 @@ bool internalNtQueryGetFinalPathNameByHandle(HANDLE hFile, string& FinalFilePath
 
 						if (Len)
 						{
-							if (NtPath.IsSubStrAt(0, L"\\Device\\WinDfs"))
+							if (NtPath.Equal(0, L"\\Device\\WinDfs"))
 								FinalFilePath = NtPath.Replace(0, Len, L'\\');
 							else
 								FinalFilePath = NtPath.Replace(0, Len, DiskName);
@@ -1334,7 +1315,7 @@ bool apiGetVolumeNameForVolumeMountPoint(LPCWSTR VolumeMountPoint,string& strVol
 {
 	bool Result=false;
 	WCHAR VolumeName[50];
-	NTPath strVolumeMountPoint(VolumeMountPoint);
+	string strVolumeMountPoint(NTPath(VolumeMountPoint).Get());
 	AddEndSlash(strVolumeMountPoint);
 	if(GetVolumeNameForVolumeMountPoint(strVolumeMountPoint,VolumeName,ARRAYSIZE(VolumeName)))
 	{

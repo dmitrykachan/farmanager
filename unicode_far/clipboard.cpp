@@ -4,8 +4,8 @@ clipboard.cpp
 Работа с буфером обмена.
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -249,11 +249,13 @@ BOOL Clipboard::IsFormatAvailable(UINT Format)
 // Перед вставкой производится очистка буфера
 bool Clipboard::Copy(const wchar_t *Data)
 {
+	Empty();
+
 	if (Data && *Data)
 	{
 		HGLOBAL hData;
 		void *GData;
-		size_t BufferSize=(StrLength(Data)+1)*sizeof(wchar_t);
+		int BufferSize=(StrLength(Data)+1)*sizeof(wchar_t);
 
 		if ((hData=GlobalAlloc(GMEM_MOVEABLE,BufferSize)))
 		{
@@ -261,7 +263,7 @@ bool Clipboard::Copy(const wchar_t *Data)
 			{
 				memcpy(GData,Data,BufferSize);
 				GlobalUnlock(hData);
-				Empty();
+
 				if (!SetData(CF_UNICODETEXT,(HANDLE)hData))
 					GlobalFree(hData);
 			}
@@ -318,7 +320,7 @@ bool Clipboard::CopyHDROP(LPVOID NamesArray, size_t NamesArraySize)
 		HGLOBAL hMemory=GlobalAlloc(GMEM_MOVEABLE, sizeof(DROPFILES)+NamesArraySize);
 		if (hMemory)
 		{
-			LPDROPFILES Drop = static_cast<LPDROPFILES>(GlobalLock(hMemory));
+			LPDROPFILES Drop = reinterpret_cast<LPDROPFILES>(GlobalLock(hMemory));
 			if(Drop)
 			{
 				Drop->pFiles=sizeof(DROPFILES);
@@ -328,7 +330,7 @@ bool Clipboard::CopyHDROP(LPVOID NamesArray, size_t NamesArraySize)
 				Drop->fWide = TRUE;
 				memcpy(Drop+1,NamesArray,NamesArraySize);
 				GlobalUnlock(hMemory);
-				EmptyClipboard();
+
 				if(SetClipboardData(CF_HDROP, hMemory))
 				{
 					Result = true;
@@ -373,7 +375,7 @@ wchar_t *Clipboard::Paste()
 		hClipData=GetData(CF_HDROP);
 		if (hClipData)
 		{
-			LPDROPFILES Files=static_cast<LPDROPFILES>(GlobalLock(hClipData));
+			LPDROPFILES Files=reinterpret_cast<LPDROPFILES>(GlobalLock(hClipData));
 			if (Files)
 			{
 				LPCSTR StartA=reinterpret_cast<LPCSTR>(Files)+Files->pFiles;
@@ -409,7 +411,7 @@ wchar_t *Clipboard::Paste()
 				}
 				if(!strClipText.IsEmpty())
 				{
-					ClipText=static_cast<LPWSTR>(xf_malloc((strClipText.GetLength()+1)*sizeof(WCHAR)));
+					ClipText=reinterpret_cast<LPWSTR>(xf_malloc((strClipText.GetLength()+1)*sizeof(WCHAR)));
 					wcscpy(ClipText, strClipText);
 				}
 				GlobalUnlock(hClipData);

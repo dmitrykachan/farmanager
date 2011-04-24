@@ -4,8 +4,8 @@ mkdir.cpp
 Создание каталога
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -61,7 +61,7 @@ enum
 	MKDIR_CANCEL,
 };
 
-INT_PTR WINAPI MkDirDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
+LONG_PTR WINAPI MkDirDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2)
 {
 	switch (Msg)
 	{
@@ -99,8 +99,6 @@ INT_PTR WINAPI MkDirDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
 			}
 		}
 		break;
-	default:
-		break;
 	}
 
 	return DefDlgProc(hDlg,Msg,Param1,Param2);
@@ -112,19 +110,19 @@ void ShellMakeDir(Panel *SrcPanel)
 	string strOriginalDirName;
 	wchar_t *lpwszDirName;
 	UserDefinedList DirList(0,0,ULF_UNIQUE);
-	FarDialogItem MkDirDlgData[]=
+	DialogDataEx MkDirDlgData[]=
 	{
-		{DI_DOUBLEBOX,3,1,72,8,0,nullptr,nullptr,0,MSG(MMakeFolderTitle)},
-		{DI_TEXT,     5,2, 0,2,0,nullptr,nullptr,0,MSG(MCreateFolder)},
-		{DI_EDIT,     5,3,70,3,0,L"NewFolder",nullptr,DIF_FOCUS|DIF_EDITEXPAND|DIF_HISTORY|DIF_USELASTHISTORY|DIF_EDITPATH,L""},
-		{DI_TEXT,     0,4, 0,4,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-		{DI_CHECKBOX, 5,5, 0,5,Opt.MultiMakeDir,nullptr,nullptr,0,MSG(MMultiMakeDir)},
-		{DI_TEXT,     0,6, 0,6,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-		{DI_BUTTON,   0,7, 0,7,0,nullptr,nullptr,DIF_DEFAULTBUTTON|DIF_CENTERGROUP,MSG(MOk)},
-		{DI_BUTTON,   0,7, 0,7,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MCancel)},
+		DI_DOUBLEBOX,3,1,72,8,0,0,MSG(MMakeFolderTitle),
+		DI_TEXT,     5,2, 0,2,0,0,MSG(MCreateFolder),
+		DI_EDIT,     5,3,70,3,(DWORD_PTR)L"NewFolder",DIF_FOCUS|DIF_EDITEXPAND|DIF_HISTORY|DIF_USELASTHISTORY|DIF_EDITPATH,L"",
+		DI_TEXT,     0,4, 0,4,0,DIF_SEPARATOR,L"",
+		DI_CHECKBOX, 5,5, 0,5,Opt.MultiMakeDir,0,MSG(MMultiMakeDir),
+		DI_TEXT,     0,6, 0,6,0,DIF_SEPARATOR,L"",
+		DI_BUTTON,   0,7, 0,7,0,DIF_DEFAULT|DIF_CENTERGROUP,MSG(MOk),
+		DI_BUTTON,   0,7, 0,7,0,DIF_CENTERGROUP,MSG(MCancel),
 	};
 	MakeDialogItemsEx(MkDirDlgData,MkDirDlg);
-	Dialog Dlg(MkDirDlg,ARRAYSIZE(MkDirDlg),MkDirDlgProc,&DirList);
+	Dialog Dlg(MkDirDlg,ARRAYSIZE(MkDirDlg),MkDirDlgProc,reinterpret_cast<LONG_PTR>(&DirList));
 	Dlg.SetPosition(-1,-1,76,10);
 	Dlg.SetHelp(L"MakeFolder");
 	Dlg.SetId(MakeFolderId);

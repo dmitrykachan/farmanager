@@ -10,4 +10,4 @@ DOCS = CaseEng.hlf CaseRus.hlf CaseEng.lng CaseRus.lng
 
 !include ..\makefile_vc_target_inc
 
-$(OBJDIR)\FileCase.obj: FileCase.cpp filecvt.cpp FileMix.cpp ProcessName.cpp FileCase.hpp FileLng.hpp version.hpp guid.hpp $(COMINC)\plugin.hpp $(COMINC)\PluginSettings.hpp $(COMINC)\DlgBuilder.hpp
+$(OBJDIR)\FileCase.obj: FileCase.cpp filecvt.cpp FileMix.cpp FileReg.cpp ProcessName.cpp FileCase.hpp FileLng.hpp $(COMINC)\plugin.hpp

@@ -6,8 +6,8 @@ headers.hpp
 Стандартные заголовки
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -61,8 +61,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #ifdef __GNUC__
 #include <w32api.h>
-#if __W32API_MAJOR_VERSION<3 || (__W32API_MAJOR_VERSION==3 && (__W32API_MINOR_VERSION<17))
-#error w32api-3.17 (or higher) required
+#if __W32API_MAJOR_VERSION<3 || (__W32API_MAJOR_VERSION==3 && (__W32API_MINOR_VERSION<15))
+#error w32api-3.15 (or higher) required
 #endif
 #endif // __GNUC__
 
@@ -85,7 +85,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <winspool.h>
 #include <setupapi.h>
 #include <aclapi.h>
-#include <sddl.h>
 #include <dbt.h>
 #define SECURITY_WIN32
 #include <security.h>
@@ -146,8 +145,6 @@ inline const T&Max(const T &a, const T &b) { return a>b?a:b; }
 template <class T>
 inline const T Round(const T &a, const T &b) { return a/b+(a%b*2>b?1:0); }
 
-inline void* ToPtr(INT_PTR T){ return reinterpret_cast<void*>(T); }
-
 #define IsPtr(x) ((DWORD_PTR)x>(DWORD_PTR)SystemInfo.lpMinimumApplicationAddress && (DWORD_PTR)x<(DWORD_PTR)SystemInfo.lpMaximumApplicationAddress)
 
 #define SIGN_UNICODE    0xFEFF
@@ -158,12 +155,12 @@ inline void* ToPtr(INT_PTR T){ return reinterpret_cast<void*>(T); }
 #define nullptr NULL
 #endif
 
-#include "noncopyable.hpp"
 #include "farrtl.hpp"
 #include "UnicodeString.hpp"
 #include "format.hpp"
 #include "global.hpp"
 #include "local.hpp"
+#include "plugin.hpp"
 #include "farwinapi.hpp"
 #include "cvtname.hpp"
 

@@ -1,2 +1,2 @@
 m4_include(`farversion.m4')m4_dnl
-const VersionInfo FAR_VERSION=m4_format(`{%d,%d,%d,%d};',MAJOR,MINOR,REVISION,BUILD)
+const DWORD FAR_VERSION=m4_format(`0x%04X%02X%02X;',BUILD,MAJOR,MINOR)

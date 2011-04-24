@@ -6,8 +6,8 @@ filefilter.hpp
 Файловый фильтр
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -70,7 +70,7 @@ class FileFilter
 		void UpdateCurrentTime();
 		bool FileInFilter(const FileListItem& fli,enumFileInFilterType *foundType=nullptr);
 		bool FileInFilter(const FAR_FIND_DATA_EX& fde,enumFileInFilterType *foundType=nullptr);
-		bool FileInFilter(const PluginPanelItem& fd,enumFileInFilterType *foundType=nullptr);
+		bool FileInFilter(const FAR_FIND_DATA& fd,enumFileInFilterType *foundType=nullptr);
 		bool IsEnabledOnPanel();
 
 		static void InitFilter();

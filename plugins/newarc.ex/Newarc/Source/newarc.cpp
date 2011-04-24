@@ -4,9 +4,8 @@ FARSTANDARDFUNCTIONS FSF;
 PluginStartupInfo Info;
 
 ArchiveModuleManager* pManager;
-Configuration cfg;
 
-//string strIniFileName;
+string strIniFileName;
 
 
 const TCHAR *pCommandNames[11] = {
@@ -225,13 +224,10 @@ int __stdcall EXP_NAME(PutFiles) (
 		int OpMode
 		)
 {
-	return pPanel->pPutFiles(
+	return pPanel->pPutFiles (
 			PanelItem,
 			ItemsNumber,
 			Move,
-#ifdef UNICODE
-			SrcPath,
-#endif
 			OpMode
 			);
 }
@@ -243,7 +239,7 @@ int __stdcall EXP_NAME(DeleteFiles) (
 		int OpMode
 		)
 {
-	return pPanel->pDeleteFiles(
+	return pPanel->pDeleteFiles (
 			PanelItem,
 			ItemsNumber,
 			OpMode
@@ -263,7 +259,11 @@ void __stdcall EXP_NAME(SetStartupInfo) (
 
 	pManager = new ArchiveModuleManager(strLanguage);
 
-	cfg.uArchiverOutput = ARCHIVER_OUTPUT_SHOW_ALWAYS;
+	strIniFileName = Info.ModuleName;
+
+	CutToSlash (strIniFileName);
+	strIniFileName += _T("templates.ini");
+
 }
 
 int __stdcall EXP_NAME(ProcessHostFile) (
@@ -343,7 +343,7 @@ void __stdcall EXP_NAME(GetPluginInfo) (
 #include "mnu/mnuCommandLinesAndParams.cpp"
 #include "mnu/mnuConfigSelect.cpp"
 
-int __stdcall EXP_NAME(Configure)(
+int __stdcall EXP_NAME(Configure) (
 		int nItem
 		)
 {
@@ -352,18 +352,8 @@ int __stdcall EXP_NAME(Configure)(
 	return FALSE;
 }
 
-int __stdcall EXP_NAME(GetMinFarVersion)()
-{
-#ifdef _UNICODE
-// PCTL_FORCEDLOADPLUGIN
-	return MAKEFARVERSION(2,0,1807);
-#else
-	return FARMANAGERVERSION;
-#endif
-}
 
-
-BOOL __stdcall DllMain(
+BOOL __stdcall DllMain (
 		HINSTANCE hinstDLL,
 		DWORD fdwReason,
 		LPVOID lpvReserved

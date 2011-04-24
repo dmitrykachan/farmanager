@@ -4,8 +4,8 @@ global.cpp
 Глобальные переменные
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -38,6 +38,11 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   берем char *CopyRight из inc файла */
 #include "bootstrap/copyright.inc"
 
+/* $ 07.12.2000 SVS
+   + Версия берется из файла farversion.inc
+*/
+#include "bootstrap/farversion.inc"
+
 OSVERSIONINFO WinVer={sizeof(WinVer)};
 
 // идет процесс назначения клавиши в макросе?
@@ -58,7 +63,6 @@ int WaitInMainLoop=FALSE;
 clock_t StartIdleTime=0;
 
 string g_strFarModuleName;
-string g_strFarINI;
 string g_strFarPath;
 
 string strGlobalSearchString;
@@ -69,7 +73,7 @@ int GlobalSearchReverse=FALSE;
 
 int ScreenSaverActive=FALSE;
 
-int CloseFAR=FALSE,CloseFARMenu=FALSE, AllowCancelExit=TRUE;
+int CloseFAR=FALSE,CloseFARMenu=FALSE;
 
 int DisablePluginsOutput=FALSE;
 

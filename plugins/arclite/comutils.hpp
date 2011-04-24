@@ -59,10 +59,6 @@ public:
   STDMETHOD_(ULONG, AddRef)() { return ++ref_cnt; } \
   STDMETHOD_(ULONG, Release)() { if (--ref_cnt == 0) { delete this; return 0; } else return ref_cnt; }
 
-#define UNKNOWN_IMPL \
-  UNKNOWN_IMPL_BEGIN \
-  UNKNOWN_IMPL_END
-
 template<class Itf> class ComObject {
 private:
   Itf* obj;
@@ -91,7 +87,7 @@ public:
   operator bool() const {
     return obj != nullptr;
   }
-  Itf** ref() {
+  Itf** operator&() {
     Release();
     return &obj;
   }

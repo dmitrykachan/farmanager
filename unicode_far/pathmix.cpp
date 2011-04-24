@@ -4,8 +4,8 @@ pathmix.cpp
 Misc functions for processing of path names
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,37 +37,41 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pathmix.hpp"
 #include "strmix.hpp"
 #include "imports.hpp"
-#include "vmenu.hpp"
 
 const wchar_t *ReservedFilenameSymbols = L"<>|";
 
-void NTPath::Transform()
+NTPath::NTPath(LPCWSTR Src)
 {
-	string& Data = *this;
-	if (!HasPathPrefix(Data))
+	if (Src&&*Src)
 	{
-		ConvertNameToFull(Data,Data);
-
-		if (!HasPathPrefix(Data))
+		Str=Src;
+		if (!HasPathPrefix(Src))
 		{
-			ReplaceSlashToBSlash(Data);
-			if (IsLocalPath(Data))
+			ConvertNameToFull(Str,Str);
+
+			if (!HasPathPrefix(Str))
 			{
-				while(ReplaceStrings(Data,L"\\\\",L"\\"));
-				Data=string(L"\\\\?\\")+Data;
-			}
-			else
-			{
-				while(ReplaceStrings(Data,L"\\\\",L"\\"));
-				Data=string(L"\\\\?\\UNC")+Data;
+				ReplaceSlashToBSlash(Str);
+				if (IsLocalPath(Str))
+				{
+					while(ReplaceStrings(Str,L"\\\\",L"\\"));
+					Str=string(L"\\\\?\\")+Str;
+				}
+				else
+				{
+					while(ReplaceStrings(Str,L"\\\\",L"\\"));
+					Str=string(L"\\\\?\\UNC")+Str.CPtr();
+				}
 			}
 		}
-	}
-	// \\?\C: -> \\?\c:
-	// Some file operations fails on Win2k if a drive letter is in upper case
-	if(Data.At(5) == L':')
-	{
-		Lower(4,1);
+		// \\?\C: -> \\?\c:
+		// Some file operations fails on Win2k if a drive letter is in upper case
+		if(Str.At(5) == L':')
+		{
+			LPWSTR Buffer = Str.GetBuffer();
+			Buffer[4] = Lower(Buffer[4]);
+			Str.ReleaseBuffer(Str.GetLength());
+		}
 	}
 }
 
@@ -623,22 +627,22 @@ size_t GetPathRootLength(const string &Path)
 	unsigned PrefixLen = 0;
 	bool IsUNC = false;
 
-	if (Path.IsSubStrAt(0,8,L"\\\\?\\UNC\\",8))
+	if (Path.Equal(0,8,L"\\\\?\\UNC\\",8))
 	{
 		PrefixLen = 8;
 		IsUNC = true;
 	}
-	else if (Path.IsSubStrAt(0,4,L"\\\\?\\",4) || Path.IsSubStrAt(0,4,L"\\??\\",4) || Path.IsSubStrAt(0,4,L"\\\\.\\",4))
+	else if (Path.Equal(0,4,L"\\\\?\\",4) || Path.Equal(0,4,L"\\??\\",4) || Path.Equal(0,4,L"\\\\.\\",4))
 	{
 		PrefixLen = 4;
 	}
-	else if (Path.IsSubStrAt(0,2,L"\\\\",2))
+	else if (Path.Equal(0,2,L"\\\\",2))
 	{
 		PrefixLen = 2;
 		IsUNC = true;
 	}
 
-	if (!PrefixLen && !Path.IsSubStrAt(1, L':'))
+	if (!PrefixLen && !Path.Equal(1, L':'))
 		return 0;
 
 	size_t p;
@@ -712,7 +716,7 @@ bool PathStartsWith(const string &Path, const string &Start)
 {
 	string PathPart(Start);
 	DeleteEndSlash(PathPart, true);
-	return Path.IsSubStrAt(0, PathPart) && (Path.GetLength() == PathPart.GetLength() || IsSlash(Path[PathPart.GetLength()]));
+	return Path.Equal(0, PathPart) && (Path.GetLength() == PathPart.GetLength() || IsSlash(Path[PathPart.GetLength()]));
 }
 
 int MatchNtPathRoot(const string &NtPath, const wchar_t *DeviceName)
@@ -833,92 +837,3 @@ SELF_TEST(
     assert(PathStartsWith(L"\\", L""));
     assert(!PathStartsWith(L"C:\\path\\file", L""));
 )
-
-void EnumFiles(VMenu& Menu, const wchar_t* Str)
-{
-	if(Str && *Str)
-	{
-		string strStr(Str);
-
-		bool OddQuote = false;
-		for(size_t i=0; i<strStr.GetLength(); i++)
-		{
-			if(strStr.At(i) == L'"')
-			{
-				OddQuote = !OddQuote;
-			}
-		}
-
-		size_t Pos = 0;
-		if(OddQuote)
-		{
-			strStr.RPos(Pos, L'"');
-		}
-		else
-		{
-			for(Pos=strStr.GetLength()-1; Pos!=static_cast<size_t>(-1); Pos--)
-			{
-				if(strStr.At(Pos)==L'"')
-				{
-					Pos--;
-					while(strStr.At(Pos)!=L'"' && Pos!=static_cast<size_t>(-1))
-					{
-						Pos--;
-					}
-				}
-				else if(strStr.At(Pos)==L' ')
-				{
-					Pos++;
-					break;
-				}
-			}
-		}
-		if(Pos==static_cast<size_t>(-1))
-		{
-			Pos=0;
-		}
-		bool StartQuote=false;
-		if(strStr.At(Pos)==L'"')
-		{
-			Pos++;
-			StartQuote=true;
-		}
-		string strStart(strStr,Pos);
-		strStr.LShift(Pos);
-		Unquote(strStr);
-		if(!strStr.IsEmpty())
-		{
-			FAR_FIND_DATA_EX d;
-			string strExp;
-			apiExpandEnvironmentStrings(strStr,strExp);
-			FindFile Find(strExp+L"*");
-			bool Separator=false;
-			while(Find.Get(d))
-			{
-				const wchar_t* FileName=PointToName(strStr);
-				bool NameMatch=!StrCmpNI(FileName,d.strFileName,StrLength(FileName)),AltNameMatch=NameMatch?false:!StrCmpNI(FileName,d.strAlternateFileName,StrLength(FileName));
-				if(NameMatch || AltNameMatch)
-				{
-					strStr.SetLength(FileName-strStr);
-					string strTmp(strStart+strStr);
-					strTmp+=NameMatch?d.strFileName:d.strAlternateFileName;
-					if(!Separator)
-					{
-						if(Menu.GetItemCount())
-						{
-							MenuItemEx Item={0};
-							Item.Flags=LIF_SEPARATOR;
-							Menu.AddItem(&Item);
-						}
-						Separator=true;
-					}
-					if(StartQuote)
-					{
-						strTmp+=L'"';
-					}
-					Menu.AddItem(strTmp);
-				}
-			}
-		}
-	}
-}

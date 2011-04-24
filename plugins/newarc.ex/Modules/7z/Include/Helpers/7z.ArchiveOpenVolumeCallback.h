@@ -9,8 +9,6 @@ private:
 	SevenZipArchive* m_pArchive;
 	CInFile* m_pVolumeFile;
 
-	unsigned int m_uOpenedVolumes;
-
 public:
 
 	CArchiveOpenVolumeCallback(SevenZipArchive* pArchive);

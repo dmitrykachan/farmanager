@@ -1,5 +1,4 @@
 #include "msg.h"
-#include "guids.hpp"
 #include "utils.hpp"
 #include "farutils.hpp"
 #include "sysutils.hpp"
@@ -38,7 +37,7 @@ public:
 };
 
 void replace_icon(const wstring& pe_path, const wstring& ico_path);
-void replace_ver_info(const wstring& pe_path, const SfxVersionInfo& ver_info);
+void replace_ver_info(const wstring& pe_path, const VersionInfo& ver_info);
 
 ByteVector generate_install_config(const SfxInstallConfig& config) {
   wstring text;
@@ -100,10 +99,10 @@ void attach_sfx_module(const wstring& file_path, const SfxOptions& sfx_options) 
     options.arc_path = file_path;
     options.detect = false;
     options.arc_types.push_back(c_7z);
-    Archives archives = Archive::open(options);
+    vector<Archive> archives = Archive::open(options);
     if (archives.empty())
       FAIL_MSG(Far::get_msg(MSG_ERROR_SFX_CONVERT));
-    if (!archives.front()->is_pure_7z())
+    if (!archives.front().is_pure_7z())
       FAIL_MSG(Far::get_msg(MSG_ERROR_SFX_CONVERT));
   }
 
@@ -143,6 +142,13 @@ struct SfxProfile {
 };
 
 typedef vector<SfxProfile> SfxProfiles;
+
+const GUID c_sfx_options_dialog_guid = { /* 0DCE48E5-B205-44A0-B8BF-96B28E2FD3B3 */
+  0x0DCE48E5,
+  0xB205,
+  0x44A0,
+  {0xB8, 0xBF, 0x96, 0xB2, 0x8E, 0x2F, 0xD3, 0xB3}
+};
 
 class SfxOptionsDialog: public Far::Dialog {
 private:
@@ -289,7 +295,7 @@ private:
     set_text(install_config_execute_parameters_ctrl_id, options.install_config.execute_parameters);
   }
 
-  INT_PTR dialog_proc(int msg, int param1, void* param2) {
+  LONG_PTR dialog_proc(int msg, int param1, LONG_PTR param2) {
     if (msg == DN_CLOSE && param1 >= 0 && param1 != cancel_ctrl_id) {
       options = read_controls();
     }

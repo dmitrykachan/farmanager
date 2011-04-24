@@ -6,8 +6,8 @@ edit.hpp
 Реализация одиночной строки редактирования
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -36,7 +36,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "scrobj.hpp"
 #include "colors.hpp"
 #include "bitflags.hpp"
-#include "plugin.hpp"
 
 // Младший байт (маска 0xFF) юзается классом ScreenObject!!!
 enum FLAGS_CLASS_EDITLINE
@@ -65,7 +64,6 @@ struct ColorItem
 	int StartPos;
 	int EndPos;
 	int Color;
-	unsigned __int64 Flags;
 };
 
 enum SetCPFlags

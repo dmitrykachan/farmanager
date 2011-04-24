@@ -2,20 +2,23 @@
 #define _PLUGIN_H_
 
 #include <CRT/crt.hpp>
-#include <plugin.hpp>
+#include "plugin.hpp"
 #include <shlobj.h>
+#include <tchar.h>
 #include "auto_sz.h"
 
-#define PFX_RCLK L"rclk"
-#define PFX_RCLK_TXT L"rclk_txt"
-#define PFX_RCLK_GUI L"rclk_gui"
-#define PFX_RCLK_CMD L"rclk_cmd"
-#define PFX_RCLK_ITEM L"rclk_item"
+#define PFX_RCLK _T("rclk")
+#define PFX_RCLK_TXT _T("rclk_txt")
+#define PFX_RCLK_GUI _T("rclk_gui")
+#define PFX_RCLK_CMD _T("rclk_cmd")
+#define PFX_RCLK_ITEM _T("rclk_item")
 
 class CPlugin : public PluginStartupInfo
 {
+#ifdef UNICODE
   PluginPanelItem **SelectedItems;
   int SelectedItemsCount;
+#endif
   CPlugin();
 
 public:
@@ -35,12 +38,34 @@ public:
   EDoMenu OpenPluginBkg(int nOpenFrom, INT_PTR nItem);
   int Configure();
   void ExitFAR();
+  int Menu(int nX, int nY, int nMaxHeight, DWORD nFlags
+          , LPCTSTR szTitle, LPCTSTR szBottom, LPCTSTR szHelpTopic
+          , const int* pnBreakKeys, int* pnBreakCode
+          , const FarMenuItem* pItems, int nItemsNumber);
+#ifndef UNICODE
+  int DialogEx(int X1, int Y1, int X2, int Y2, LPCTSTR szHelpTopic
+    , FarDialogItem* pItem, int nItemsNumber, DWORD nReserved, DWORD nFlags
+    , FARWINDOWPROC DlgProc, LONG_PTR pParam);
+#else
+  HANDLE DialogInit(int X1, int Y1, int X2, int Y2, LPCTSTR szHelpTopic
+    , FarDialogItem* pItem, int nItemsNumber, DWORD nReserved, DWORD nFlags
+    , FARWINDOWPROC DlgProc, LONG_PTR pParam);
+  int DialogRun(HANDLE hDlg);
+  void DialogFree(HANDLE hDlg);
+#endif
+  INT_PTR AdvControl(int nCommand, void *pParam);
   HINSTANCE m_hModule;
   IMalloc* m_pMalloc;
 protected:
-  LPCWSTR GetMsg(int nMsgId);
-  int Message(DWORD nFlags, LPCWSTR szHelpTopic, const LPCWSTR* pItems, int nItemsNumber, int nButtonsNumber);
-  EDoMenu DoMenu(LPWSTR szCmdLine);
+  LPCTSTR GetMsg(int nMsgId);
+  int Message(DWORD nFlags, LPCTSTR szHelpTopic, const LPCTSTR* pItems
+    , int nItemsNumber, int nButtonsNumber);
+#ifndef UNICODE
+  int Control(int nCommand, void* pParam);
+#else
+  int Control(int nCommand, int Param1,INT_PTR Param2);
+#endif
+  EDoMenu DoMenu(LPTSTR szCmdLine);
   EDoMenu SelectDrive();
   enum EAutoItem
   {
@@ -48,22 +73,35 @@ protected:
     AI_VERB,
     AI_ITEM
   };
-  EDoMenu MenuForPanelOrCmdLine(LPWSTR szCmdLine=NULL, EAutoItem enAutoItem=AI_NONE);
-  EDoMenu DoMenu(LPSHELLFOLDER pCurFolder, LPCITEMIDLIST* pPiids, LPCWSTR pFiles[], unsigned nFiles, unsigned nFolders, LPCWSTR szCommand=NULL, EAutoItem enAutoItem=AI_NONE);
-  bool ShowGuiMenu(HMENU hMenu, LPCONTEXTMENU pMenu1, LPCONTEXTMENU2 pMenu2, LPCONTEXTMENU3 pMenu, int* pnCmd);
-  bool ShowTextMenu(HMENU hMenu, LPCONTEXTMENU pPreferredMenu, LPCONTEXTMENU2 pMenu2, LPCONTEXTMENU3 pMenu3, int* pnCmd, LPCWSTR szTitle, LPSHELLFOLDER pCurFolder, LPCITEMIDLIST* ppiid, unsigned nPiidCnt);
-  bool ShowFolder(LPSHELLFOLDER pParentFolder, LPCITEMIDLIST piid, int* pnCmd, LPCWSTR szTitle, LPDROPTARGET* ppDropTarget);
-  static LRESULT CALLBACK WindowProc(HWND hwnd, UINT nMsg, WPARAM wParam, LPARAM lParam);
+  EDoMenu MenuForPanelOrCmdLine(LPTSTR szCmdLine=NULL
+    , EAutoItem enAutoItem=AI_NONE);
+  EDoMenu DoMenu(LPSHELLFOLDER pCurFolder, LPCITEMIDLIST* pPiids
+    , LPCTSTR pFiles[], unsigned nFiles, unsigned nFolders, LPCTSTR szCommand=NULL
+    , EAutoItem enAutoItem=AI_NONE);
+  bool ShowGuiMenu(HMENU hMenu, LPCONTEXTMENU pMenu1, LPCONTEXTMENU2 pMenu2
+    , LPCONTEXTMENU3 pMenu, int* pnCmd);
+  bool ShowTextMenu(HMENU hMenu, LPCONTEXTMENU pPreferredMenu
+    , LPCONTEXTMENU2 pMenu2, LPCONTEXTMENU3 pMenu3
+    , int* pnCmd, LPCTSTR szTitle, LPSHELLFOLDER pCurFolder
+    , LPCITEMIDLIST* ppiid, unsigned nPiidCnt);
+  bool ShowFolder(LPSHELLFOLDER pParentFolder, LPCITEMIDLIST piid
+    , int* pnCmd, LPCTSTR szTitle, LPDROPTARGET* ppDropTarget);
+  static LRESULT CALLBACK WindowProc(HWND hwnd, UINT nMsg, WPARAM wParam
+    , LPARAM lParam);
   void Init();
-  bool GetFilesFromParams(LPWSTR szCmdLine, LPCWSTR** ppFiles, unsigned* pnFiles, unsigned* pnFolders, auto_sz* pstrCurDir, bool bSkipFirst);
-  bool GetFilesFromPanel(LPCWSTR** ppFiles, unsigned* pnFiles, unsigned* pnFolders, auto_sz* pstrCurDir);
-  static bool IsSpace(wchar_t ch) {return L' '==ch || L'\t'==ch;}
-  unsigned ParseParams(LPWSTR szParams, LPCWSTR* pFiles=NULL);
+  bool GetFilesFromParams(LPTSTR szCmdLine, LPCTSTR** ppFiles
+    , unsigned* pnFiles, unsigned* pnFolders, auto_sz* pstrCurDir
+    , bool bSkipFirst);
+  bool GetFilesFromPanel(LPCTSTR** ppFiles, unsigned* pnFiles
+    , unsigned* pnFolders, auto_sz* pstrCurDir);
+  static bool IsSpace(TCHAR ch) {return _T(' ')==ch || _T('\t')==ch;}
+  unsigned ParseParams(LPTSTR szParams, LPCTSTR* pFiles=NULL);
   void ReadRegValues();
-  static INT_PTR WINAPI CfgDlgProcStatic(HANDLE hDlg, int Msg, int Param1, INT_PTR Param2);
-  void CfgDlgProc(HANDLE hDlg, int Msg, int Param1, INT_PTR Param2);
+  static LONG_PTR WINAPI CfgDlgProcStatic(HANDLE hDlg, int Msg, int Param1, LONG_PTR Param2);
+  void CfgDlgProc(HANDLE hDlg, int Msg, int Param1, LONG_PTR Param2);
   enum EAdditionalStr {AS_NONE=0, AS_HELPTEXT=1, AS_VERB=2};
-  bool GetAdditionalString(IContextMenu* pContextMenu, UINT nID, EAdditionalStr enAdditionalString, auto_sz* pstr);
+  bool GetAdditionalString(IContextMenu* pContextMenu, UINT nID
+    , EAdditionalStr enAdditionalString, auto_sz* pstr, BOOL bToOEM=TRUE);
 protected:
   enum
   {
@@ -98,14 +136,15 @@ protected:
   };
   HWND NULL_HWND;
   FarStandardFunctions m_fsf;
-  LPCWSTR REG_WaitToContinue;
-  LPCWSTR REG_UseGUI;
-  LPCWSTR REG_DelUsingFar;
-  LPCWSTR REG_ClearSel;
-  LPCWSTR REG_Silent;
-  LPCWSTR REG_Helptext;
-  LPCWSTR REG_DifferentOnly;
-  LPCWSTR REG_GuiPos;
+  LPCTSTR REG_Key;
+  LPCTSTR REG_WaitToContinue;
+  LPCTSTR REG_UseGUI;
+  LPCTSTR REG_DelUsingFar;
+  LPCTSTR REG_ClearSel;
+  LPCTSTR REG_Silent;
+  LPCTSTR REG_Helptext;
+  LPCTSTR REG_DifferentOnly;
+  LPCTSTR REG_GuiPos;
   int m_UseGUI;
   int m_WaitToContinue;
   int m_DelUsingFar;
@@ -125,9 +164,14 @@ protected:
     MENUID_SENDTO_WIN98=MENUID_CMDOFFSET+27,
     MENUID_SENDTO_WINME=MENUID_CMDOFFSET+28,
   };
+  bool m_bWin95;
+  bool m_bWin98;
+  bool m_bWinME;
+  bool m_bWin9x;
+  bool m_bWinNT;
   bool m_bWin2K;
-  LPCWSTR m_PluginMenuString;
-  LPCWSTR m_PluginConfigString;
+  LPCTSTR m_PluginMenuString;
+  LPCTSTR m_PluginConfigString;
   int m_nShowMessId;
   int m_nSilentId;
   int m_nDifferentId;

@@ -294,7 +294,6 @@
     <ClCompile Include="..\..\..\Framework\Src\FarApi.cpp" />
     <ClCompile Include="..\..\..\Framework\Src\FarDialog.cpp" />
     <ClCompile Include="..\..\..\Framework\Src\FarLng.cpp" />
-    <ClCompile Include="..\..\..\Framework\Src\farlng2.cpp" />
     <ClCompile Include="..\..\..\Framework\Src\FarPagedDialog.cpp" />
     <ClCompile Include="..\..\..\Framework\Src\FarRegistry.cpp" />
     <ClCompile Include="..\..\..\Framework\Src\makeguid.cpp" />
@@ -382,7 +381,6 @@
     <ClCompile Include="..\..\Source\newarc.Format.cpp" />
     <ClCompile Include="..\..\Source\newarc.Module.cpp" />
     <ClCompile Include="..\..\Source\newarc.ModuleManager.cpp" />
-    <ClCompile Include="..\..\Source\newarc.OperationDialog.cpp" />
     <ClCompile Include="..\..\Source\newarc.Panel.cpp" />
     <ClCompile Include="..\..\Source\newarc.Plugin.cpp" />
   </ItemGroup>

@@ -23,9 +23,6 @@ SevenZipArchive::SevenZipArchive(
 	m_bOpened = false;
 
 	m_pFile = NULL;
-
-	m_bSolid = false;
-	m_nNumberOfVolumes = -1;
 }
 
 struct PropertyToName {
@@ -162,9 +159,6 @@ void SevenZipArchive::QueryArchiveInfo()
 					item = m_pArchiveInfo.add();
 					item->lpValue = StrDuplicate(strValue);
 					item->lpName = StrDuplicate(strName);
-
-					if ( propId == kpidSolid ) 
-						m_bSolid = (value.boolVal == VARIANT_TRUE);
 				}
 			}
 
@@ -185,11 +179,6 @@ bool SevenZipArchive::Open()
 
 		if ( m_pFile->Open() )
 		{
-			//CPropVariant value;
-
-			//if ( m_pArchive->GetArchiveProperty(kpidNumVolumes, &value) == S_OK )
-			//	m_nNumberOfVolumes = (int)value.uintVal;
-
 			unsigned __int64 max = Info.AdvControl(Info.ModuleNumber, ACTL_GETPLUGINMAXREADDATA, 0);
 			//unsigned __int64 max = 1 << 16;
 
@@ -228,10 +217,6 @@ void SevenZipArchive::Close()
 	}
 }
 
-bool SevenZipArchive::IsSolid()
-{
-	return m_bSolid;
-}
 
 const GUID& SevenZipArchive::GetUID()
 {
@@ -241,16 +226,6 @@ const GUID& SevenZipArchive::GetUID()
 const TCHAR* SevenZipArchive::GetFileName()
 {
 	return m_strFileName;
-}
-
-int SevenZipArchive::GetNumberOfVolumes()
-{
-	return m_nNumberOfVolumes;
-}
-
-CInFile* SevenZipArchive::GetFile()
-{
-	return m_pFile;
 }
 
 IInArchive* SevenZipArchive::GetArchive()
@@ -265,7 +240,6 @@ SevenZipArchive::~SevenZipArchive()
 		StrFree((void*)m_pArchiveInfo[i].lpName);
 		StrFree((void*)m_pArchiveInfo[i].lpValue);
 	}
-
 
 	Close();
 }
@@ -312,11 +286,18 @@ unsigned __int64 VariantToInt64 (CPropVariant *value)
 }
 
 
-bool SevenZipArchive::GetArchiveItem(unsigned int uIndex, ArchiveItem* pItem)
+int SevenZipArchive::GetArchiveItem(ArchiveItem* pItem)
 {
+	if ( m_uItemsCount == 0 )
+		return E_EOF;
+
+	int nResult = E_BROKEN;
+
 	CPropVariant value;
 
-	if ( m_pArchive->GetProperty(uIndex, kpidPath, &value) == S_OK )
+	int nIndex = m_uItemsCount-1;
+
+	if ( m_pArchive->GetProperty(nIndex, kpidPath, &value) == S_OK )
 	{
 		string strFileName;
 
@@ -334,13 +315,13 @@ bool SevenZipArchive::GetArchiveItem(unsigned int uIndex, ArchiveItem* pItem)
 			CutTo(strFileName, _T('.'), true);
 		}
 
-		if ( m_pArchive->GetProperty(uIndex, kpidAttrib, &value) == S_OK )
+		if ( m_pArchive->GetProperty(nIndex, kpidAttrib, &value) == S_OK )
 		{
 			if ( value.vt == VT_UI4 )
 				pItem->dwFileAttributes = value.ulVal;
 		}
 
-		if ( m_pArchive->GetProperty(uIndex, kpidIsDir, &value) == S_OK )
+		if ( m_pArchive->GetProperty(nIndex, kpidIsDir, &value) == S_OK )
 		{
 			if ( value.vt == VT_BOOL )
 			{
@@ -349,37 +330,37 @@ bool SevenZipArchive::GetArchiveItem(unsigned int uIndex, ArchiveItem* pItem)
 			}
 		}
 
-		if ( m_pArchive->GetProperty(uIndex, kpidSize, &value) == S_OK )
+		if ( m_pArchive->GetProperty(nIndex, kpidSize, &value) == S_OK )
 		{
 			unsigned __int64 size = VariantToInt64(&value);
 			pItem->nFileSize = size;
 		}
 
-		if ( m_pArchive->GetProperty(uIndex, kpidPackSize, &value) == S_OK )
+		if ( m_pArchive->GetProperty(nIndex, kpidPackSize, &value) == S_OK )
 		{
 			unsigned __int64 size = VariantToInt64 (&value);
 			pItem->nPackSize = size;
 		}
 
-		if ( m_pArchive->GetProperty(uIndex, kpidCRC, &value) == S_OK )
+		if ( m_pArchive->GetProperty(nIndex, kpidCRC, &value) == S_OK )
 		{
 			if ( value.vt == VT_UI4 )
 				pItem->dwCRC32 = value.ulVal;
 		}
 
-		if ( m_pArchive->GetProperty(uIndex, kpidCTime, &value) == S_OK )
+		if ( m_pArchive->GetProperty(nIndex, kpidCTime, &value) == S_OK )
 		{
 			if ( value.vt == VT_FILETIME )
 				memcpy (&pItem->ftCreationTime, &value.filetime, sizeof (FILETIME));
 		}
 
-		if ( m_pArchive->GetProperty(uIndex, kpidATime, &value) == S_OK )
+		if ( m_pArchive->GetProperty(nIndex, kpidATime, &value) == S_OK )
 		{
 			if ( value.vt == VT_FILETIME )
 				memcpy (&pItem->ftLastAccessTime, &value.filetime, sizeof (FILETIME));
 		}
 
-		if ( m_pArchive->GetProperty(uIndex, kpidMTime, &value) == S_OK )
+		if ( m_pArchive->GetProperty(nIndex, kpidMTime, &value) == S_OK )
 		{
 			if ( value.vt == VT_FILETIME )
 				memcpy (&pItem->ftLastWriteTime, &value.filetime, sizeof (FILETIME));
@@ -387,23 +368,10 @@ bool SevenZipArchive::GetArchiveItem(unsigned int uIndex, ArchiveItem* pItem)
 
 		pItem->lpFileName = StrDuplicate(strFileName);
 		pItem->lpAlternateFileName = NULL;
-		pItem->UserData = uIndex;
+		pItem->UserData = nIndex+1; //to skip 0
 
-		return true;
-	}
-
-	return false;
-}
-
-int SevenZipArchive::GetArchiveItem(ArchiveItem* pItem)
-{
-	if ( m_uItemsCount == 0 )
-		return E_EOF;
-
-	int nResult = E_BROKEN;
-
-	if ( GetArchiveItem(m_uItemsCount-1, pItem) )
 		nResult = E_SUCCESS;
+	}
 
 	m_uItemsCount--;
 
@@ -447,7 +415,7 @@ int SevenZipArchive::Delete(const ArchiveItem* pItems, int nItemsNumber)
 
 			for (int j = 0; j < nItemsNumber; j++)
 			{
-				if ( i == (pItems[j].UserData) )
+				if ( i == (pItems[j].UserData-1) )
 				{
 					bFound = true;
 					break;
@@ -540,28 +508,42 @@ int SevenZipArchive::Extract(
 	int nResult = RESULT_ERROR;
 
 	unsigned int* indices = new unsigned int[nItemsNumber];
+	ArchiveItemEx* items = new ArchiveItemEx[nItemsNumber];
+
+	int lastitem = 0;
 
 	for (int i = 0; i < nItemsNumber; i++)
-		indices[i] = (unsigned int)pItems[i].UserData;
+	{
+		if ( pItems[i].UserData )
+		{
+			indices[lastitem] = (unsigned int)pItems[i].UserData-1; //GetIndex (m_pArchive, pItems[i].FindData.cFileName);
 
-	FSF.qsort(indices, nItemsNumber, sizeof(unsigned int), CompareIndicies);
+			items[lastitem].nIndex = indices[lastitem];
+			items[lastitem].pItem = &pItems[i];
 
-	CArchiveExtractCallback Callback(this, pItems, nItemsNumber, lpDestDiskPath, lpPathInArchive);
+			lastitem++;
+		}
+	}
+
+	FSF.qsort(indices, lastitem, sizeof(unsigned int), CompareIndicies);
+
+	CArchiveExtractCallback Callback(this, items, lastitem, lpDestDiskPath, lpPathInArchive);
 
 	if ( m_pArchive->Extract(
 			indices,
-			(unsigned int)nItemsNumber,
+			(unsigned int)lastitem,
 			0,
 			&Callback
 			) == S_OK )
 		nResult = Callback.GetResult();
 
 	delete [] indices;
+	delete [] items;
 
 	return nResult;
 }
 
-//#include "7z.Properties.cpp"
+#include "7z.Properties.cpp"
 
 int SevenZipArchive::AddFiles(
 		const ArchiveItem* pItems,
@@ -777,9 +759,6 @@ LONG_PTR SevenZipArchive::OnStartOperation(
 		SO.uTotalFiles = uTotalFiles;
 	}
 
-	if ( !m_bSolid )
-		SO.dwFlags |= OS_FLAG_SUPPORT_SINGLE_FILE_PROGRESS;
-
 	return Callback(AM_START_OPERATION, nOperation, (LONG_PTR)&SO);
 }
 
@@ -797,21 +776,11 @@ LONG_PTR SevenZipArchive::OnProcessFile(
 }
 
 
-LONG_PTR SevenZipArchive::OnProcessData(
-		unsigned __int64 uProcessedBytesFile,
-		unsigned __int64 uTotalBytesFile,
-		unsigned __int64 uProcessedBytesTotal,
-		unsigned __int64 uTotalBytes
-		)
+LONG_PTR SevenZipArchive::OnProcessData(unsigned __int64 uSize)
 {
 	ProcessDataStruct DS;
 
-	DS.nMode = PROGRESS_DETAILS;
-
-	DS.uProcessedBytesFile = uProcessedBytesFile;
-	DS.uTotalBytesFile = uTotalBytesFile;
-	DS.uProcessedBytesTotal = uProcessedBytesTotal;
-	DS.uTotalBytes = uTotalBytes;
+	DS.uProcessedSize = uSize;
 
 	return Callback(AM_PROCESS_DATA, 0, (LONG_PTR)&DS);
 }
@@ -840,21 +809,6 @@ LONG_PTR SevenZipArchive::OnReportError(const ArchiveItem* pItem, int nError)
 	return Callback(AM_REPORT_ERROR, 0, (LONG_PTR)&RE);
 }
 
-LONG_PTR SevenZipArchive::OnEnterStage(int nStage)
-{
-	return Callback(AM_ENTER_STAGE, nStage, (LONG_PTR)nullptr);
-}
-
-LONG_PTR SevenZipArchive::OnNeedVolume(const TCHAR* lpSuggestedName, DWORD dwBufferSize, TCHAR* lpBuffer)
-{
-	VolumeStruct VS;
-
-	VS.lpSuggestedName = lpSuggestedName;
-	VS.dwBufferSize = dwBufferSize;
-	VS.lpBuffer = lpBuffer;
-
-	return Callback(AM_NEED_VOLUME, 0, (LONG_PTR)&VS);
-}
 
 int SevenZipArchive::GetArchiveInfo(const ArchiveInfoItem** pItems)
 {

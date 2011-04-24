@@ -100,6 +100,7 @@ RES_FILE = "$(INTDIR)\far.res"
 PCH_FILE = "$(INTDIR)\headers.pch"
 
 LINK_OBJS = \
+	"$(INTDIR)\elevation.obj" \
 	"$(INTDIR)\cache.obj" \
 	"$(INTDIR)\cddrv.obj" \
 	"$(INTDIR)\CFileMask.obj" \
@@ -108,9 +109,7 @@ LINK_OBJS = \
 	"$(INTDIR)\clipboard.obj" \
 	"$(INTDIR)\cmdline.obj" \
 	"$(INTDIR)\codepage.obj" \
-	"$(INTDIR)\colormix.obj" \
 	"$(INTDIR)\config.obj" \
-	"$(INTDIR)\configdb.obj" \
 	"$(INTDIR)\console.obj" \
 	"$(INTDIR)\constitle.obj" \
 	"$(INTDIR)\copy.obj" \
@@ -130,14 +129,12 @@ LINK_OBJS = \
 	"$(INTDIR)\edit.obj" \
 	"$(INTDIR)\editor.obj" \
 	"$(INTDIR)\eject.obj" \
-	"$(INTDIR)\elevation.obj" \
 	"$(INTDIR)\execute.obj" \
 	"$(INTDIR)\farexcpt.obj" \
-	"$(INTDIR)\FarGuid.obj" \
 	"$(INTDIR)\farqueue.obj" \
 	"$(INTDIR)\farrtl.obj" \
-	"$(INTDIR)\farversion.obj" \
 	"$(INTDIR)\farwinapi.obj" \
+	"$(INTDIR)\ffolders.obj" \
 	"$(INTDIR)\fileattr.obj" \
 	"$(INTDIR)\fileedit.obj" \
 	"$(INTDIR)\filefilter.obj" \
@@ -192,14 +189,12 @@ LINK_OBJS = \
 	"$(INTDIR)\panel.obj" \
 	"$(INTDIR)\panelmix.obj" \
 	"$(INTDIR)\pathmix.obj" \
-	"$(INTDIR)\plclass.obj" \
 	"$(INTDIR)\plist.obj" \
 	"$(INTDIR)\plognmn.obj" \
 	"$(INTDIR)\plugapi.obj" \
 	"$(INTDIR)\PluginA.obj" \
 	"$(INTDIR)\plugins.obj" \
 	"$(INTDIR)\PluginW.obj" \
-	"$(INTDIR)\plugsettings.obj" \
 	"$(INTDIR)\poscache.obj" \
 	"$(INTDIR)\print.obj" \
 	"$(INTDIR)\privilege.obj" \
@@ -209,6 +204,7 @@ LINK_OBJS = \
 	"$(INTDIR)\RefreshFrameManager.obj" \
 	"$(INTDIR)\RegExp.obj" \
 	"$(INTDIR)\registry.obj" \
+	"$(INTDIR)\savefpos.obj" \
 	"$(INTDIR)\savescr.obj" \
 	"$(INTDIR)\scantree.obj" \
 	"$(INTDIR)\scrbuf.obj" \
@@ -216,11 +212,10 @@ LINK_OBJS = \
 	"$(INTDIR)\scrsaver.obj" \
 	"$(INTDIR)\setattr.obj" \
 	"$(INTDIR)\setcolor.obj" \
-	"$(INTDIR)\shortcuts.obj" \
 	"$(INTDIR)\stddlg.obj" \
 	"$(INTDIR)\strmix.obj" \
 	"$(INTDIR)\synchro.obj" \
-	"$(INTDIR)\macrocompiler.obj" \
+	"$(INTDIR)\syntax.obj" \
 	"$(INTDIR)\syslog.obj" \
 	"$(INTDIR)\TaskBar.obj" \
 	"$(INTDIR)\TPreRedrawFunc.obj" \
@@ -274,9 +269,7 @@ UCD_OBJS=\
 	"$(INTDIR)\nsUniversalDetector.obj" \
 	"$(INTDIR)\nsUTF8Prober.obj"
 
-SQLITE_OBJS="$(INTDIR)\sqlite.obj"
-
-LINK_LIBS=kernel32.lib user32.lib winspool.lib advapi32.lib shell32.lib mpr.lib ole32.lib psapi.lib secur32.lib setupapi.lib rpcrt4.lib
+LINK_LIBS=kernel32.lib user32.lib winspool.lib advapi32.lib shell32.lib mpr.lib ole32.lib psapi.lib secur32.lib setupapi.lib
 
 DEFINES=\
 	/D "UNICODE"\
@@ -296,13 +289,11 @@ DEFINES=\
 MINVER=,5.0
 !endif
 
-DISABLED_WARNINGS=/wd4054 /wd4061 /wd4100 /wd4127 /wd4191 /wd4242 /wd4244 /wd4245 /wd4255 /wd4365 /wd4512 /wd4514 /wd4625 /wd4626 /wd4640 /wd4668 /wd4706 /wd4710 /wd4711 /wd4738 /wd4820 /wd4917
-
 # common
-CPPFLAGS=/nologo $(MP) /Wall $(DISABLED_WARNINGS) $(FARSYSLOG) /EHs-c- $(DEFINES) /GS- /GR- /Gy /GF /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /J /c
+CPPFLAGS=/nologo $(MP) /W3 $(FARSYSLOG) /EHs-c- $(DEFINES) /GS- /GR- /Gy /GF /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /J /c
 LINKFLAGS=/nologo /subsystem:console$(MINVER) /release /nxcompat /largeaddressaware /dynamicbase /def:"$(DEF_FILE)" /map:"$(OUTDIR)\far.map" /pdb:"$(OUTDIR)\far.pdb" /out:"$(OUTDIR)\Far.exe"
 ULINKFLAGS=-q -m- -ap -Gz -O- -o- -Gh -Gh- -GF:LARGEADDRESSAWARE -d*kernel32
-RFLAGS=/l 0x409 /fo"$(RES_FILE)" /d $(USEDEBUG)
+RFLAGS=/D__FARBIT__=$(DIRBIT) /l 0x409 /fo"$(RES_FILE)" /d $(USEDEBUG)
 
 # config-cpecific
 !ifdef DEBUG
@@ -323,14 +314,17 @@ CPPFLAGS=$(CPPFLAGS) /FAcs /Fa"$(CODDIR)\\"
 
 # platform-cpecific
 !ifdef X86
+CPPFLAGS=$(CPPFLAGS) /Zp4
 !ifndef DEBUG
 CPPFLAGS=$(CPPFLAGS) /Oy-
 !endif
 LINKFLAGS=$(LINKFLAGS) /machine:i386
 !elseifdef AMD64
+CPPFLAGS=$(CPPFLAGS) /Zp8
 LINKFLAGS=$(LINKFLAGS) /machine:amd64
 ULINKFLAGS=$(ULINKFLAGS) -Tpe+
 !elseifdef IA64
+CPPFLAGS=$(CPPFLAGS) /Zp8
 LINKFLAGS=$(LINKFLAGS) /machine:IA64
 !endif
 
@@ -340,13 +334,6 @@ CPPFLAGS=$(CPPFLAGS) /Wp64
 LINKFLAGS=$(LINKFLAGS) /opt:nowin98
 !else
 RFLAGS=$(RFLAGS) /nologo
-!endif
-
-!ifdef ICL
-CPP = icl
-LINK = xilink
-DEFINES = $(DEFINES) /D"nullptr=NULL"
-CPPFLAGS = $(CPPFLAGS) /Qvec-report0 -wd672,869,1552,1879
 !endif
 
 ALL: AllDirs lng depfile
@@ -362,7 +349,7 @@ depfile:
 	$(GAWK) -f .\scripts\mkdep.awk mkdep.list > $(DEPFILE)
 
 .PHONY: build
-build: "$(OUTDIR)\Far.exe" "$(OUTDIR)\FarEng.hlf" "$(OUTDIR)\FarRus.hlf" "$(OUTDIR)\FarHun.hlf" "$(OUTDIR)\File_id.diz" "$(OUTDIR)\Far.exe.ini" "$(FARINCLUDE)\PluginW.pas" "$(FARINCLUDE)\FarColorW.pas" "$(FARINCLUDE)\FarKeysW.pas" "$(FARINCLUDE)\farcolor.hpp" "$(FARINCLUDE)\farkeys.hpp" "$(FARINCLUDE)\plugin.hpp"
+build: "$(OUTDIR)\Far.exe" "$(OUTDIR)\FarEng.hlf" "$(OUTDIR)\FarRus.hlf" "$(OUTDIR)\FarHun.hlf" "$(OUTDIR)\File_id.diz" "$(FARINCLUDE)\PluginW.pas" "$(FARINCLUDE)\FarColorW.pas" "$(FARINCLUDE)\FarKeysW.pas" "$(FARINCLUDE)\farcolor.hpp" "$(FARINCLUDE)\farkeys.hpp" "$(FARINCLUDE)\plugin.hpp"
 
 .PHONY: AllDirs
 AllDirs:
@@ -374,15 +361,15 @@ AllDirs:
 	if not exist "$(CODDIR)\" mkdir "$(CODDIR)"
 !endif
 
-"$(OUTDIR)\Far.exe": $(DEF_FILE) $(PCH_FILE) $(LINK_OBJS) $(UCD_OBJS) $(SQLITE_OBJS) $(RES_FILE) bootstrap\Far.exe.manifest bootstrap\far.rc bootstrap\copyright.inc bootstrap\farversion.inc
+"$(OUTDIR)\Far.exe": $(DEF_FILE) $(PCH_FILE) $(LINK_OBJS) $(UCD_OBJS) $(RES_FILE) bootstrap\Far.exe.manifest bootstrap\far.rc bootstrap\copyright.inc bootstrap\farversion.inc
 	echo linking $@
 !ifndef LINK_ULINK
 	$(LINK) @<<
-	$(LINKFLAGS) $(LINK_OBJS) $(UCD_OBJS) $(SQLITE_OBJS) $(RES_FILE) $(LINK_LIBS)
+	$(LINKFLAGS) $(LINK_OBJS) $(UCD_OBJS) $(RES_FILE) $(LINK_LIBS)
 <<
 !else
 	$(ULINK) +- @+<<
-	$(ULINKFLAGS) $(LINK_OBJS) $(UCD_OBJS) $(SQLITE_OBJS)
+	$(ULINKFLAGS) $(LINK_OBJS) $(UCD_OBJS)
 	,"$(OUTDIR)\Far.exe","$(OUTDIR)\Far.map"
 	,$(LINK_LIBS)
 	,"$(DEF_FILE)","$(RES_FILE)"
@@ -416,11 +403,6 @@ $(PCH_FILE): headers.cpp headers.hpp
 	$(CPPFLAGS) $<
 <<
 
-{sqlite}.c{$(INTDIR)}.obj::
-	$(CPP) @<<
-	$(CPPFLAGS) $<
-<<
-
 $(RES_FILE): bootstrap\far.rc res.hpp Far.ico
 	echo compiling resource file
 	$(RC) $(RFLAGS) bootstrap\far.rc
@@ -433,7 +415,7 @@ MSG=echo generating $@
 
 bootstrap\copyright.inc: $(@F).m4 farversion.m4 tools.m4 vbuild.m4
 	$(MSG)
-	$(M4) $(@F).m4 > $@
+	$(M4) $(@F).m4 | $(GAWK) -f .\scripts\enc.awk > $@
 
 bootstrap\farversion.inc: $(@F).m4 farversion.m4 tools.m4 vbuild.m4
 	$(MSG)
@@ -479,10 +461,6 @@ $(OUTDIR)\File_id.diz: $(@F).m4 farversion.m4 tools.m4 vbuild.m4
 	$(MSG)
 	$(M4) $(@F).m4 > $@
 
-$(OUTDIR)\Far.exe.ini: $(@F)
-	$(MSG)
-	copy /Y $(@F) $@ > nul
-
 $(FARINCLUDE)\PluginW.pas: $(@F) farversion.m4 tools.m4 vbuild.m4
 	$(MSG)
 	$(M4) -DINPUT=$(@F) headers.m4 > $@
@@ -498,4 +476,4 @@ $(FARINCLUDE)\FarKeysW.pas: $(@F) farversion.m4 tools.m4 vbuild.m4
 .PHONY: CLEAN
 CLEAN:
 	echo cleaning
-	for %%i in ("$(INTDIR)\*.*" "$(CODDIR)\*.*" "bootstrap\*.*" "$(OUTDIR)\Far.exe" "$(OUTDIR)\Far.exp" "$(OUTDIR)\Far.lib" "$(OUTDIR)\Far.map" "$(OUTDIR)\Far.pdb" "$(OUTDIR)\*.hlf" "$(OUTDIR)\*.lng" "$(OUTDIR)\File_id.diz" "$(OUTDIR)\Far.exe.ini") do @if exist %%i del /q /f %%i
+	for %%i in ("$(INTDIR)\*.*" "$(CODDIR)\*.*" "bootstrap\*.*" "$(OUTDIR)\Far.exe" "$(OUTDIR)\Far.exp" "$(OUTDIR)\Far.lib" "$(OUTDIR)\Far.map" "$(OUTDIR)\Far.pdb" "$(OUTDIR)\*.hlf" "$(OUTDIR)\*.lng" "$(OUTDIR)\File_id.diz") do @if exist %%i del /q /f %%i

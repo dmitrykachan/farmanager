@@ -4,7 +4,7 @@ DlgBuilder.cpp
 Динамическое построение диалогов
 */
 /*
-Copyright © 2009 Far Group
+Copyright (c) 2009 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "headers.hpp"
 #pragma hdrstop
 
-#include "plugin.hpp"
 #include "lang.hpp"
 #include "FarDlgBuilder.hpp"
 #include "dialog.hpp"
@@ -59,7 +58,7 @@ struct EditFieldBinding: public DialogItemBinding<DialogItemEx>
 struct EditFieldIntBinding: public DialogItemBinding<DialogItemEx>
 {
 	int *IntValue;
-	wchar_t Mask[32];
+	TCHAR Mask[32];
 
 	EditFieldIntBinding(int *aIntValue, int Width)
 		: IntValue(aIntValue)
@@ -76,7 +75,7 @@ struct EditFieldIntBinding: public DialogItemBinding<DialogItemEx>
 		*IntValue = wcstoul(Item->strData, &endptr, 10);
 	}
 
-	const wchar_t *GetMask()
+	const TCHAR *GetMask() 
 	{
 		return Mask;
 	}
@@ -99,7 +98,7 @@ DialogBuilder::~DialogBuilder()
 {
 }
 
-void DialogBuilder::InitDialogItem(DialogItemEx *Item, const wchar_t *Text)
+void DialogBuilder::InitDialogItem(DialogItemEx *Item, const TCHAR *Text)
 {
 	Item->Clear();
 	Item->ID = DialogItemsCount-1;
@@ -111,7 +110,7 @@ int DialogBuilder::TextWidth(const DialogItemEx &Item)
 	return static_cast<int>(Item.strData.GetLength());
 }
 
-const wchar_t *DialogBuilder::GetLangString(int MessageID)
+const TCHAR *DialogBuilder::GetLangString(int MessageID)
 {
 	return MSG(MessageID);
 }
@@ -126,7 +125,7 @@ DialogItemBinding<DialogItemEx> *DialogBuilder::CreateRadioButtonBinding(int *Va
 	return new RadioButtonBinding<DialogItemEx>(Value);
 }
 
-DialogItemEx *DialogBuilder::AddEditField(string *Value, int Width, const wchar_t *HistoryID, FARDIALOGITEMFLAGS Flags)
+DialogItemEx *DialogBuilder::AddEditField(string *Value, int Width, const wchar_t *HistoryID, int Flags)
 {
 	DialogItemEx *Item = AddDialogItem(DI_EDIT, *Value);
 	SetNextY(Item);
@@ -160,7 +159,7 @@ DialogItemEx *DialogBuilder::AddIntEditField(int *Value, int Width)
 
 DialogItemEx *DialogBuilder::AddComboBox(int *Value, int Width,
 										 DialogBuilderListItem *Items, int ItemCount,
-										 FARDIALOGITEMFLAGS Flags)
+										 DWORD Flags)
 {
 	DialogItemEx *Item = AddDialogItem(DI_COMBOBOX, L"");
 	SetNextY(Item);
@@ -183,7 +182,7 @@ DialogItemEx *DialogBuilder::AddComboBox(int *Value, int Width,
 	return Item;
 }
 
-void DialogBuilder::LinkFlags(DialogItemEx *Parent, DialogItemEx *Target, FARDIALOGITEMFLAGS Flags, bool LinkLabels)
+void DialogBuilder::LinkFlags(DialogItemEx *Parent, DialogItemEx *Target, FarDialogItemFlags Flags, bool LinkLabels)
 {
 	Parent->Flags |= DIF_AUTOMATION;
 	Parent->AddAutomation(Target->ID, Flags, DIF_NONE, DIF_NONE, Flags, DIF_NONE, DIF_NONE);
@@ -201,7 +200,7 @@ void DialogBuilder::LinkFlags(DialogItemEx *Parent, DialogItemEx *Target, FARDIA
 	}
 }
 
-void DialogBuilder::LinkFlagsByID(DialogItemEx *Parent, int TargetID, FARDIALOGITEMFLAGS Flags)
+void DialogBuilder::LinkFlagsByID(DialogItemEx *Parent, int TargetID, FarDialogItemFlags Flags)
 {
 	if (TargetID >= 0)
 	{

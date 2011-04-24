@@ -4,8 +4,8 @@ UnicodeString.hpp
 Unicode строки
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -169,7 +169,7 @@ UnicodeString& UnicodeString::Copy(const char *lpszData, UINT CodePage)
 	{
 		size_t nSize = MultiByteToWideChar(CodePage,0,lpszData,-1,nullptr,0);
 		m_pData = new UnicodeStringData(nSize);
-		MultiByteToWideChar(CodePage,0,lpszData,-1,m_pData->GetData(),(int)m_pData->GetSize());
+		MultiByteToWideChar(CodePage,0,lpszData,(int)nSize,m_pData->GetData(),(int)m_pData->GetSize());
 		m_pData->SetLength(nSize - 1);
 	}
 
@@ -184,7 +184,7 @@ UnicodeString UnicodeString::SubStr(size_t Pos, size_t Len) {
 	return UnicodeString(m_pData->GetData() + Pos, Len);
 }
 
-bool UnicodeString::IsSubStrAt(size_t Pos, size_t Len, const wchar_t* Data, size_t DataLen) const
+bool UnicodeString::Equal(size_t Pos, size_t Len, const wchar_t* Data, size_t DataLen) const
 {
 	if (Pos >= m_pData->GetLength())
 		Len = 0;

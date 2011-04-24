@@ -6,8 +6,8 @@ keybar.hpp
 Keybar
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "scrobj.hpp"
-#include "plugin.hpp"
+
 
 //   Группы меток
 enum
@@ -110,8 +110,6 @@ class KeyBar: public ScreenObject
 
 		// Изменение любого Label
 		void Change(int Group,const wchar_t *NewStr,int Pos);
-
-		size_t Change(const KeyBarTitles *);
 
 		void RedrawIfChanged();
 		virtual void ResizeConsole();

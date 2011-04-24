@@ -5,8 +5,8 @@ dlgedit.cpp
 Мультиредактор
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -59,7 +59,7 @@ DlgEdit::DlgEdit(Dialog* pOwner,unsigned Index,DLGEDITTYPE Type):
 		case DLGEDIT_SINGLELINE:
 		{
 			Edit::Callback callback={true,EditChange,this};
-
+			
 			iHistory=0;
 			FarList* iList=0;
 			DWORD iFlags=0;
@@ -72,7 +72,10 @@ DlgEdit::DlgEdit(Dialog* pOwner,unsigned Index,DLGEDITTYPE Type):
 				}
 				if(CurItem->Flags&DIF_HISTORY && !CurItem->strHistory.IsEmpty())
 				{
-					iHistory=new History(HISTORYTYPE_DIALOG, CurItem->strHistory, Opt.DialogsHistoryCount, &Opt.Dialogs.EditHistory, false);
+					string strHistory = fmtSavedDialogHistory;
+					strHistory+=CurItem->strHistory;
+					iHistory=new History(HISTORYTYPE_DIALOG, Opt.DialogsHistoryCount, strHistory, &Opt.Dialogs.EditHistory, false);
+					iHistory->ReadHistory(true);
 				}
 				if(CurItem->Type == DI_COMBOBOX)
 				{

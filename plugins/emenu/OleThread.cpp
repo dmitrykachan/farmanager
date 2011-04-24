@@ -14,7 +14,7 @@ namespace OleThread
   namespace OpenPluginArgs
   {
     int nOpenFrom;
-    INT_PTR nItem;
+    int nItem;
     CPlugin::EDoMenu enRes;
   }
 
@@ -106,7 +106,7 @@ namespace OleThread
     return (NULL!=hThread);
   }
 
-  CPlugin::EDoMenu OpenPlugin(int nOpenFrom, INT_PTR nItem)
+  CPlugin::EDoMenu OpenPlugin(int nOpenFrom, int nItem)
   {
     OpenPluginArgs::nOpenFrom=nOpenFrom;
     OpenPluginArgs::nItem=nItem;

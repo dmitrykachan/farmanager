@@ -17,9 +17,10 @@ private:
 	MODULEENTRY m_pfnModuleEntry;
 
 	HMODULE m_hModule;
-	TCHAR* m_pCommands[11];
+	TCHAR *m_pCommands[11];
 
-	Language* m_pLanguage;
+	TCHAR **m_pLanguageStrings;
+	int m_nStringsCount;
 
 	ObjectArray<ArchivePlugin*> m_pPlugins;
 
@@ -66,10 +67,7 @@ public:
 
 	void ReloadLanguage(const TCHAR *lpLanguage);
 
-	void Configure();
-	void ConfigureFormat(const GUID& uidPlugin, const GUID& uidFormat);
-
-
+	void Configure(const GUID& uid);
 	bool GetDefaultCommand(const GUID& uidPlugin, const GUID& uidArchive, int nCommand, string& strCommand, bool& bEnabledByDefault);
 
 //new

@@ -4,8 +4,8 @@ flupdate.cpp
 Файловая панель - чтение имен файлов
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -79,8 +79,8 @@ void FileList::Update(int Mode)
 				break;
 			case PLUGIN_PANEL:
 			{
-				OpenPanelInfo Info;
-				CtrlObject->Plugins.GetOpenPanelInfo(hPlugin,&Info);
+				OpenPluginInfo Info;
+				CtrlObject->Plugins.GetOpenPluginInfo(hPlugin,&Info);
 				ProcessPluginCommand();
 
 				if (PanelMode!=PLUGIN_PANEL)
@@ -259,7 +259,8 @@ void FileList::ReadFileNames(int KeepSelection, int IgnoreVisible, int DrawMessa
 	bool bCurDirRoot=IsLocalRootPath(strCurDir)||IsLocalPrefixRootPath(strCurDir)||IsLocalVolumeRootPath(strCurDir);
 
 	FileCount = 0;
-	::FindFile Find(strCurDir+L"\\"+L"*",true);
+	//BUGBUG!!! // что это?
+	::FindFile Find(L"*",true);
 	DWORD FindErrorCode = ERROR_SUCCESS;
 	bool UseFilter=Filter->IsEnabledOnPanel();
 	bool ReadCustomData=IsColumnDisplayed(CUSTOM_COLUMN0)!=0;
@@ -470,15 +471,15 @@ void FileList::ReadFileNames(int KeepSelection, int IgnoreVisible, int DrawMessa
 				for (int i=0; i < PanelCount; i++)
 				{
 					CurPtr = ListData[FileCount+i];
-					PluginPanelItem &fdata=PanelData[i];
+					FAR_FIND_DATA &fdata=PanelData[i].FindData;
 					PluginToFileListItem(&PanelData[i],CurPtr);
 					CurPtr->Position=FileCount;
-					TotalFileSize += fdata.FileSize;
+					TotalFileSize += fdata.nFileSize;
 					CurPtr->PrevSelected=CurPtr->Selected=0;
 					CurPtr->ShowFolderSize=0;
 					CurPtr->SortGroup=CtrlObject->HiFiles->GetGroup(CurPtr);
 
-					if (!TestParentFolderName(fdata.FileName) && !(CurPtr->FileAttr & FILE_ATTRIBUTE_DIRECTORY))
+					if (!TestParentFolderName(fdata.lpwszFileName) && !(CurPtr->FileAttr & FILE_ATTRIBUTE_DIRECTORY))
 						TotalFileCount++;
 				}
 
@@ -668,20 +669,15 @@ void FileList::UpdatePlugin(int KeepSelection, int IgnoreVisible)
 	int OldFileCount=0;
 	CloseChangeNotification();
 	LastCurFile=-1;
-	OpenPanelInfo Info;
-	CtrlObject->Plugins.GetOpenPanelInfo(hPlugin,&Info);
+	OpenPluginInfo Info;
+	CtrlObject->Plugins.GetOpenPluginInfo(hPlugin,&Info);
 
-	FreeDiskSize=0;
-	if (Opt.ShowPanelFree)
+	if (Opt.ShowPanelFree && (Info.Flags & OPIF_REALNAMES))
 	{
-		if (Info.Flags & OPIF_REALNAMES)
-		{
-			unsigned __int64 TotalSize,TotalFree;
-			if (!apiGetDiskSize(strCurDir,&TotalSize,&TotalFree,&FreeDiskSize))
-				FreeDiskSize=0;
-		}
-		else if (Info.Flags & OPIF_USEFREESIZE)
-			FreeDiskSize=Info.FreeSize;
+		unsigned __int64 TotalSize,TotalFree;
+
+		if (!apiGetDiskSize(strCurDir,&TotalSize,&TotalFree,&FreeDiskSize))
+			FreeDiskSize=0;
 	}
 
 	PluginPanelItem *PanelData=nullptr;
@@ -768,19 +764,19 @@ void FileList::UpdatePlugin(int KeepSelection, int IgnoreVisible)
 		FileListItem *CurListData=ListData[FileListCount];
 		CurListData->Clear();
 
-		if (UseFilter && !(Info.Flags & OPIF_DISABLEFILTER))
+		if (UseFilter && (Info.Flags & OPIF_USEFILTER))
 			//if (!(CurPanelData->FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-			if (!Filter->FileInFilter(PanelData[i]))
+			if (!Filter->FileInFilter(PanelData[i].FindData))
 				continue;
 
-		if (!Opt.ShowHidden && (PanelData[i].FileAttributes & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
+		if (!Opt.ShowHidden && (PanelData[i].FindData.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_SYSTEM)))
 			continue;
 
 		//memset(CurListData,0,sizeof(*CurListData));
 		PluginToFileListItem(&PanelData[i],CurListData);
 		CurListData->Position=i;
 
-		if (!(Info.Flags & OPIF_DISABLESORTGROUPS)/* && !(CurListData->FileAttr & FILE_ATTRIBUTE_DIRECTORY)*/)
+		if ((Info.Flags & OPIF_USESORTGROUPS)/* && !(CurListData->FileAttr & FILE_ATTRIBUTE_DIRECTORY)*/)
 			CurListData->SortGroup=CtrlObject->HiFiles->GetGroup(CurListData);
 		else
 			CurListData->SortGroup=DEFAULT_SORT_GROUP;
@@ -805,7 +801,7 @@ void FileList::UpdatePlugin(int KeepSelection, int IgnoreVisible)
 		FileListCount++;
 	}
 
-	if (!(Info.Flags & OPIF_DISABLEHIGHLIGHTING) || (Info.Flags & OPIF_USEATTRHIGHLIGHTING))
+	if ((Info.Flags & OPIF_USEHIGHLIGHTING) || (Info.Flags & OPIF_USEATTRHIGHLIGHTING))
 		CtrlObject->HiFiles->GetHiColor(ListData,FileListCount,(Info.Flags&OPIF_USEATTRHIGHLIGHTING)!=0);
 
 	FileCount=FileListCount;
@@ -817,7 +813,7 @@ void FileList::UpdatePlugin(int KeepSelection, int IgnoreVisible)
 		CurPtr->Clear();
 		AddParentPoint(CurPtr,FileCount);
 
-		if (!(Info.Flags & OPIF_DISABLEHIGHLIGHTING) || (Info.Flags & OPIF_USEATTRHIGHLIGHTING))
+		if ((Info.Flags & OPIF_USEHIGHLIGHTING) || (Info.Flags & OPIF_USEATTRHIGHLIGHTING))
 			CtrlObject->HiFiles->GetHiColor(&CurPtr,1,(Info.Flags&OPIF_USEATTRHIGHLIGHTING)!=0);
 
 		if (Info.HostFile && *Info.HostFile)
@@ -885,8 +881,8 @@ void FileList::ReadDiz(PluginPanelItem *ItemList,int ItemLength,DWORD dwFlags)
 	{
 		PluginPanelItem *PanelData=nullptr;
 		int PluginFileCount=0;
-		OpenPanelInfo Info;
-		CtrlObject->Plugins.GetOpenPanelInfo(hPlugin,&Info);
+		OpenPluginInfo Info;
+		CtrlObject->Plugins.GetOpenPluginInfo(hPlugin,&Info);
 
 		if (!Info.DescrFilesNumber)
 			return;
@@ -907,13 +903,13 @@ void FileList::ReadDiz(PluginPanelItem *ItemList,int ItemLength,DWORD dwFlags)
 
 		if (GetCode)
 		{
-			for (size_t I=0; I<Info.DescrFilesNumber; I++)
+			for (int I=0; I<Info.DescrFilesNumber; I++)
 			{
 				PluginPanelItem *CurPanelData=PanelData;
 
 				for (int J=0; J < PluginFileCount; J++, CurPanelData++)
 				{
-					string strFileName = CurPanelData->FileName;
+					string strFileName = CurPanelData->FindData.lpwszFileName;
 
 					if (!StrCmpI(strFileName,Info.DescrFiles[I]))
 					{

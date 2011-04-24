@@ -16,4 +16,3 @@ EXPORTS
 	ProcessHostFile
 	ProcessKey
 	OpenPlugin
-	GetMinFarVersion

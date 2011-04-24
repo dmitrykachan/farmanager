@@ -4,8 +4,8 @@ fileowner.cpp
 Кэш SID`ов и функция GetOwner
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -71,16 +71,6 @@ struct SIDCacheItem
 							strUserName=string(DomainName).Append(L"\\").Append(AccountName);
 						}
 					}
-				}
-				else
-				{
-					LPWSTR Sid;
-					if(ConvertSidToStringSid(SID, &Sid))
-					{
-						strUserName = Sid;
-						LocalFree(Sid);
-					}
-
 				}
 			}
 		}
@@ -156,7 +146,7 @@ bool WINAPI GetFileOwner(const wchar_t *Computer,const wchar_t *Name, string &st
 	strOwner.Clear();
 	SECURITY_INFORMATION si=OWNER_SECURITY_INFORMATION|GROUP_SECURITY_INFORMATION;;
 	DWORD LengthNeeded=0;
-	NTPath strName(Name);
+	string strName(NTPath(Name).Get());
 	PSECURITY_DESCRIPTOR sd=reinterpret_cast<PSECURITY_DESCRIPTOR>(sddata);
 
 	if (GetFileSecurity(strName,si,sd,sizeof(sddata),&LengthNeeded) && LengthNeeded<=sizeof(sddata))
@@ -223,7 +213,7 @@ bool SetOwnerInternal(LPCWSTR Object, LPCWSTR Owner)
 
 bool SetOwner(LPCWSTR Object, LPCWSTR Owner)
 {
-	NTPath strNtObject(Object);
+	string strNtObject(NTPath(Object).Get());
 	bool Result = SetOwnerInternal(strNtObject, Owner);
 	if(!Result && ElevationRequired(ELEVATION_MODIFY_REQUEST))
 	{

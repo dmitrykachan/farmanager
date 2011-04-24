@@ -4,8 +4,8 @@ hotplug.cpp
 Отключение Hotplug-устройств
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -108,7 +108,7 @@ DeviceInfo *EnumHotPlugDevice(LPARAM lParam)
 			}
 
 			if (!ListItem.strName.IsEmpty())
-				HotPlugList->SetUserData(&I,sizeof(I),HotPlugList->AddItem(&ListItem));
+				HotPlugList->SetUserData((void*)(INT_PTR)I,sizeof(I),HotPlugList->AddItem(&ListItem));
 		}
 	}
 
@@ -313,7 +313,7 @@ DWORD DriveMaskFromVolumeName(const wchar_t *lpwszVolumeName)
 	for (wchar_t Letter = L'A'; Letter <= L'Z'; Letter++)
 	{
 		wszMountPoint[4] = Letter;
-		if(apiGetVolumeNameForVolumeMountPoint(wszMountPoint,strCurrentVolumeName) && strCurrentVolumeName.IsSubStrAt(0,lpwszVolumeName))
+		if(apiGetVolumeNameForVolumeMountPoint(wszMountPoint,strCurrentVolumeName) && strCurrentVolumeName.Equal(0,lpwszVolumeName))
 			return (1 << (Letter-L'A'));
 	}
 
@@ -340,7 +340,7 @@ DWORD GetDriveMaskFromMountPoints(DEVINST hDevInst)
 					SetupDiGetDeviceInterfaceDetail(Info, &sdid, nullptr, 0, &RequiredSize, nullptr);
 					if(RequiredSize)
 					{
-						PSP_DEVICE_INTERFACE_DETAIL_DATA DData = static_cast<PSP_DEVICE_INTERFACE_DETAIL_DATA>(xf_malloc(RequiredSize));
+						PSP_DEVICE_INTERFACE_DETAIL_DATA DData = reinterpret_cast<PSP_DEVICE_INTERFACE_DETAIL_DATA>(xf_malloc(RequiredSize));
 						if(DData)
 						{
 							DData->cbSize = sizeof(*DData);

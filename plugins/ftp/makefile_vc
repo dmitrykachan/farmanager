@@ -2,7 +2,6 @@
 !include ../make_vc_defs
 !endif
 
-ANSI = 1
 NAME = FarFtp
 DOCS = FtpEng.hlf FtpRus.hlf FtpEng.lng FtpRus.lng TechInfo.reg TechInfo_rus.reg FtpCmds.txt FtpCmds_rus.txt Notes.txt Notes_rus.txt
 
@@ -182,10 +181,16 @@ FICTIVE=_fictive_
 _fictive_:
 !endif
 
+!ifdef __MAKE__
+_MKOPT=-s
+!else
+_MKOPT=/nologo
+!endif
+
 $(FLLLIST): $(FICTIVE)
 !ifndef INSTALL
-	@$(MAKE) $(_MKHIDE) /f makefile_vc_fll $(_MKDO_)FLL=$@ $(_MDEFS)
+	@$(MAKE) $(_MKOPT) /f makefile_vc_fll $(_MKDO_)FLL=$@ $(_MDEFS)
 !else
-	@$(MAKE) $(_MKHIDE) /f makefile_vc_fll $(_MKDO_)FLL=$@ $(_MDEFS) INSTALL=$(INSTALL)
+	@$(MAKE) $(_MKOPT) /f makefile_vc_fll $(_MKDO_)FLL=$@ $(_MDEFS) INSTALL=$(INSTALL)
 !endif
 

@@ -4,8 +4,8 @@ imports.cpp
 импортируемые функции
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -59,7 +59,7 @@ ImportedFunctions::ImportedFunctions()
 		pfnGetPhysicallyInstalledSystemMemory = reinterpret_cast<GETPHYSICALLYINSTALLEDSYSTEMMEMORY>(GetProcAddress(hKernel, "GetPhysicallyInstalledSystemMemory"));
 		pfnHeapSetInformation = reinterpret_cast<HEAPSETINFORMATION>(GetProcAddress(hKernel, "HeapSetInformation"));
 		pfnIsWow64Process = reinterpret_cast<ISWOW64PROCESS>(GetProcAddress(hKernel, "IsWow64Process"));
-		pfnGetNamedPipeServerProcessId = reinterpret_cast<GETNAMEDPIPESERVERPROCESSID>(GetProcAddress(hKernel, "GetNamedPipeServerProcessId"));
+		pGetNamedPipeServerProcessId = reinterpret_cast<GETNAMEDPIPESERVERPROCESSID>(GetProcAddress(hKernel, "GetNamedPipeServerProcessId"));
 	}
 
 	if (hNtdll)

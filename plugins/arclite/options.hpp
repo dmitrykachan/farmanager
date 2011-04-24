@@ -11,7 +11,6 @@ struct Options {
   bool extract_ignore_errors;
   OverwriteAction extract_overwrite;
   TriState extract_separate_dir;
-  bool extract_open_dir;
   // update
   wstring update_arc_format_name;
   unsigned update_level;
@@ -25,7 +24,7 @@ struct Options {
   OverwriteAction update_overwrite;
   // panel mode
   unsigned panel_view_mode;
-  OPENPANELINFO_SORTMODES panel_sort_mode;
+  unsigned panel_sort_mode;
   bool panel_reverse_sort;
   // masks
   bool use_include_masks;
@@ -37,7 +36,6 @@ struct Options {
   wstring enabled_formats;
   bool use_disabled_formats;
   wstring disabled_formats;
-  Options();
   // profiles
   void load();
   void save() const;

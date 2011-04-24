@@ -106,11 +106,10 @@ struct ExtractOptions {
   wstring password;
   TriState separate_dir;
   bool delete_archive;
-  bool open_dir;
   ExtractOptions();
 };
 
-struct SfxVersionInfo {
+struct VersionInfo {
   wstring version;
   wstring comments;
   wstring company_name;
@@ -134,7 +133,7 @@ struct SfxOptions {
   bool replace_icon;
   wstring icon_path;
   bool replace_version;
-  SfxVersionInfo ver_info;
+  VersionInfo ver_info;
   bool append_install_config;
   SfxInstallConfig install_config;
   SfxOptions();
@@ -189,7 +188,6 @@ struct Attr {
 };
 typedef list<Attr> AttrList;
 
-int round(double d);
 unsigned calc_percent(unsigned __int64 completed, unsigned __int64 total);
 unsigned __int64 get_module_version(const wstring& file_path);
 unsigned __int64 parse_size_string(const wstring& str);

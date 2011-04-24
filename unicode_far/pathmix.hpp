@@ -6,8 +6,8 @@ pathmix.hpp
 Misc functions for processing of path names
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,12 +37,21 @@ extern const wchar_t *ReservedFilenameSymbols;
 
 const size_t cVolumeGuidLen = 48;
 
-class NTPath:public string
+class NTPath
 {
-	void Transform();
-public:
-	NTPath(const string& Src):string(Src) {Transform();}
-	NTPath(LPCWSTR Src):string(Src) {Transform();}
+		string Str;
+	public:
+		NTPath(LPCWSTR Src);
+
+		operator LPCWSTR() const
+		{
+			return Str;
+		}
+
+		const string Get() const
+		{
+			return Str;
+		}
 };
 
 inline int IsSlash(wchar_t x) { return x==L'\\' || x==L'/'; }
@@ -96,6 +105,3 @@ string ExtractFileName(const string &Path);
 string ExtractFilePath(const string &Path);
 
 int MatchNtPathRoot(const string &NtPath, const wchar_t *DeviceName);
-
-class VMenu;
-void EnumFiles(VMenu& Menu, const wchar_t* Str);

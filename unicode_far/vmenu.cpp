@@ -8,8 +8,8 @@ vmenu.cpp
     * ...
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -151,19 +151,19 @@ void VMenu::ResetCursor()
 }
 
 //может иметь фокус
-bool VMenu::ItemCanHaveFocus(UINT64 Flags)
+bool VMenu::ItemCanHaveFocus(DWORD Flags)
 {
 	return !(Flags&(LIF_DISABLE|LIF_HIDDEN|LIF_SEPARATOR));
 }
 
 //может быть выбран
-bool VMenu::ItemCanBeEntered(UINT64 Flags)
+bool VMenu::ItemCanBeEntered(DWORD Flags)
 {
 	return !(Flags&(LIF_DISABLE|LIF_HIDDEN|LIF_GRAYED|LIF_SEPARATOR));
 }
 
 //видимый
-bool VMenu::ItemIsVisible(UINT64 Flags)
+bool VMenu::ItemIsVisible(DWORD Flags)
 {
 	return !(Flags&(LIF_HIDDEN));
 }
@@ -175,7 +175,7 @@ bool VMenu::UpdateRequired()
 	return CheckFlags(VMENU_UPDATEREQUIRED)!=0;
 }
 
-void VMenu::UpdateInternalCounters(UINT64 OldFlags, UINT64 NewFlags)
+void VMenu::UpdateInternalCounters(DWORD OldFlags, DWORD NewFlags)
 {
 	if (OldFlags&MIF_SUBMENU)
 		ItemSubMenusCount--;
@@ -190,7 +190,7 @@ void VMenu::UpdateInternalCounters(UINT64 OldFlags, UINT64 NewFlags)
 		ItemHiddenCount++;
 }
 
-void VMenu::UpdateItemFlags(int Pos, UINT64 NewFlags)
+void VMenu::UpdateItemFlags(int Pos, DWORD NewFlags)
 {
 	UpdateInternalCounters(Item[Pos]->Flags, NewFlags);
 
@@ -245,7 +245,6 @@ int VMenu::SetSelectPos(int Pos, int Direct)
 			else
 			{
 				Pos = 0;
-				TopPos = 0;
 				Pass++;
 			}
 		}
@@ -255,7 +254,6 @@ int VMenu::SetSelectPos(int Pos, int Direct)
 			if (CheckFlags(VMENU_WRAPMODE))
 			{
 				Pos = 0;
-				TopPos = 0;
 			}
 			else
 			{
@@ -402,7 +400,7 @@ int VMenu::AddItem(const FarList *List)
 	{
 		MenuItemEx MItem;
 
-		for (size_t i=0; i<List->ItemsNumber; i++)
+		for (int i=0; i<List->ItemsNumber; i++)
 		{
 			AddItem(FarList2MenuItem(&List->Items[i], &MItem));
 		}
@@ -560,10 +558,6 @@ int VMenu::DeleteItem(int ID, int Count)
 	// коррекция текущей позиции
 	if (SelectPos >= ID && SelectPos < ID+Count)
 	{
-		if(SelectPos==ItemCount)
-		{
-			ID--;
-		}
 		SelectPos = -1;
 		SetSelectPos(ID,1);
 	}
@@ -932,11 +926,6 @@ bool VMenu::AddToFilter(const wchar_t *str)
 	return false;
 }
 
-void VMenu::SetFilterString(const wchar_t *str)
-{
-	strFilter=str;
-}
-
 int VMenu::ProcessKey(int Key)
 {
 	CriticalSectionLock Lock(CS);
@@ -1235,7 +1224,7 @@ int VMenu::ProcessKey(int Key)
 				}
 			}
 
-			if (ParentDialog && SendDlgMessage((HANDLE)ParentDialog,DN_LISTHOTKEY,DialogItemID,ToPtr(SelectPos)))
+			if (ParentDialog && SendDlgMessage((HANDLE)ParentDialog,DN_LISTHOTKEY,DialogItemID,SelectPos))
 			{
 				UpdateItemFlags(OldSelectPos,Item[OldSelectPos]->Flags|LIF_SELECTED);
 				ShowMenu(true);
@@ -2607,13 +2596,13 @@ BOOL VMenu::GetVMenuInfo(FarListInfo* Info)
 }
 
 // функция обработки меню (по умолчанию)
-INT_PTR WINAPI VMenu::DefMenuProc(HANDLE hVMenu, int Msg, int Param1, void* Param2)
+LONG_PTR WINAPI VMenu::DefMenuProc(HANDLE hVMenu, int Msg, int Param1, LONG_PTR Param2)
 {
 	return 0;
 }
 
 // функция посылки сообщений меню
-INT_PTR WINAPI VMenu::SendMenuMessage(HANDLE hVMenu, int Msg, int Param1, void* Param2)
+LONG_PTR WINAPI VMenu::SendMenuMessage(HANDLE hVMenu, int Msg, int Param1, LONG_PTR Param2)
 {
 	CriticalSectionLock Lock(((VMenu*)hVMenu)->CS);
 
@@ -2639,7 +2628,7 @@ MenuItemEx *VMenu::GetItemPtr(int Position)
 void *VMenu::_GetUserData(MenuItemEx *PItem, void *Data, int Size)
 {
 	int DataSize = PItem->UserDataSize;
-	void *PtrData = PItem->UserData; // PtrData содержит: либо указатель на что-то либо sizeof(void*)!
+	char *PtrData = PItem->UserData; // PtrData содержит: либо указатель на что-то либо sizeof(void*)!
 
 	if (Size > 0 && Data )
 	{
@@ -2652,12 +2641,9 @@ void *VMenu::_GetUserData(MenuItemEx *PItem, void *Data, int Size)
 			}
 			else if (DataSize > 0) // а данные то вообще есть? Т.е. если в UserData
 			{                      // есть строка из sizeof(void*) байт (UserDataSize при этом > 0)
-				memmove(Data,&PItem->UserData, Min(Size,DataSize));
+				memmove(Data,PItem->Str4,Min(Size,DataSize));
 			}
-			else
-			{
-				*reinterpret_cast<PINT_PTR>(Data) = reinterpret_cast<INT_PTR>(PtrData);
-			}
+			// else а иначе... в PtrData уже указатель сидит!
 		}
 		else // ... данных нет, значит лудим имя пункта!
 		{
@@ -2714,15 +2700,13 @@ int VMenu::_SetUserData(MenuItemEx *PItem,
 			else // ЭТА СТРОКА ПОМЕЩАЕТСЯ В sizeof(void*)!
 			{
 				PItem->UserDataSize=SizeReal;
-				memcpy(&PItem->UserData,Data,SizeReal);
+				memcpy(PItem->Str4,Data,SizeReal);
 			}
 		}
 		else // Ок. данные помещаются в sizeof(void*)...
 		{
-			// признак того, что данных либо нет, либо они помещаются в sizeof(void*)
-			PItem->UserDataSize = 0;
-			void** DataAddress = &PItem->UserData; // to supress gcc strict-aliasing warning
-			*reinterpret_cast<PINT_PTR>(DataAddress) = *reinterpret_cast<const INT_PTR*>(Data);
+			PItem->UserDataSize = 0;         // признак того, что данных либо нет, либо
+			PItem->UserData = (char*)Data;   // они помещаются в 4 байта
 		}
 	}
 
@@ -2798,7 +2782,7 @@ int VMenu::FindItem(const FarListFind *FItem)
 	return FindItem(FItem->StartIndex,FItem->Pattern,FItem->Flags);
 }
 
-int VMenu::FindItem(int StartIndex,const wchar_t *Pattern,UINT64 Flags)
+int VMenu::FindItem(int StartIndex,const wchar_t *Pattern,DWORD Flags)
 {
 	CriticalSectionLock Lock(CS);
 
@@ -2827,6 +2811,12 @@ int VMenu::FindItem(int StartIndex,const wchar_t *Pattern,UINT64 Flags)
 
 	return -1;
 }
+
+struct SortItemParam
+{
+	int Direction;
+	int Offset;
+};
 
 static int __cdecl SortItem(const MenuItemEx **el1, const MenuItemEx **el2, const SortItemParam *Param)
 {
@@ -2869,18 +2859,18 @@ void VMenu::SortItems(int Direction, int Offset, BOOL SortForDataDWORD)
 	if (!SortForDataDWORD) // обычная сортировка
 	{
 		qsortex((char *)Item,
-				ItemCount,
-				sizeof(*Item),
-				(qsortex_fn)SortItem,
-				&Param);
+		        ItemCount,
+		        sizeof(*Item),
+		        (qsortex_fn)SortItem,
+		        &Param);
 	}
 	else
 	{
 		qsortex((char *)Item,
-				ItemCount,
-				sizeof(*Item),
-				(qsortex_fn)SortItemDataDWORD,
-				&Param);
+		        ItemCount,
+		        sizeof(*Item),
+		        (qsortex_fn)SortItemDataDWORD,
+		        &Param);
 	}
 
 	// скорректируем SelectPos
@@ -2889,45 +2879,91 @@ void VMenu::SortItems(int Direction, int Offset, BOOL SortForDataDWORD)
 	SetFlags(VMENU_UPDATEREQUIRED);
 }
 
-void VMenu::SortItems(TMENUITEMEXCMPFUNC user_cmp_func,int Direction,int Offset)
+void EnumFiles(VMenu& Menu, const wchar_t* Str)
 {
-	CriticalSectionLock Lock(CS);
-
-	typedef int (__cdecl *qsortex_fn)(const void*,const void*,void*);
-
-	SortItemParam Param;
-	Param.Direction=Direction;
-	Param.Offset=Offset;
-
-	qsortex((char *)Item,
-			ItemCount,
-			sizeof(*Item),
-			(qsortex_fn)user_cmp_func,
-			&Param);
-
-	// скорректируем SelectPos
-	UpdateSelectPos();
-
-	SetFlags(VMENU_UPDATEREQUIRED);
-}
-
-bool VMenu::Pack()
-{
-	int OldItemCount=ItemCount;
-	int FirstIndex=0;
-
-	while (FirstIndex<ItemCount)
+	if(Str && *Str)
 	{
-		int LastIndex=ItemCount-1;
-		while (LastIndex>FirstIndex)
+		string strStr(Str);
+
+		bool OddQuote = false;
+		for(size_t i=0; i<strStr.GetLength(); i++)
 		{
-			if (StrCmp(Item[FirstIndex]->strName,Item[LastIndex]->strName)==0)
+			if(strStr.At(i) == L'"')
 			{
-				DeleteItem(LastIndex);
+				OddQuote = !OddQuote;
 			}
-			LastIndex--;
 		}
-		FirstIndex++;
+
+		size_t Pos = 0;
+		if(OddQuote)
+		{
+			strStr.RPos(Pos, L'"');
+		}
+		else
+		{
+			for(Pos=strStr.GetLength()-1; Pos!=static_cast<size_t>(-1); Pos--)
+			{
+				if(strStr.At(Pos)==L'"')
+				{
+					Pos--;
+					while(strStr.At(Pos)!=L'"' && Pos!=static_cast<size_t>(-1))
+					{
+						Pos--;
+					}
+				}
+				else if(strStr.At(Pos)==L' ')
+				{
+					Pos++;
+					break;
+				}
+			}
+		}
+		if(Pos==static_cast<size_t>(-1))
+		{
+			Pos=0;
+		}
+		bool StartQuote=false;
+		if(strStr.At(Pos)==L'"')
+		{
+			Pos++;
+			StartQuote=true;
+		}
+		string strStart(strStr,Pos);
+		strStr.LShift(Pos);
+		Unquote(strStr);
+		if(!strStr.IsEmpty())
+		{
+			FAR_FIND_DATA_EX d;
+			string strExp;
+			apiExpandEnvironmentStrings(strStr,strExp);
+			FindFile Find(strExp+L"*");
+			bool Separator=false;
+			while(Find.Get(d))
+			{
+				const wchar_t* FileName=PointToName(strStr);
+				bool NameMatch=!StrCmpNI(FileName,d.strFileName,StrLength(FileName)),AltNameMatch=NameMatch?false:!StrCmpNI(FileName,d.strAlternateFileName,StrLength(FileName));
+				if(NameMatch || AltNameMatch)
+				{
+					strStr.SetLength(FileName-strStr);
+					string strTmp(strStart+strStr);
+					strTmp+=NameMatch?d.strFileName:d.strAlternateFileName;
+					if(!Separator)
+					{
+						if(Menu.GetItemCount())
+						{
+							MenuItemEx Item={0};
+							Item.Flags=LIF_SEPARATOR;
+							Menu.AddItem(&Item);
+						}
+						Separator=true;
+					}
+					if(StartQuote)
+					{
+						strTmp+=L'"';
+					}
+					Menu.AddItem(strTmp);
+				}
+			}
+		}
 	}
-	return (OldItemCount!=ItemCount);
 }

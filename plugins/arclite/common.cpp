@@ -7,18 +7,6 @@
 
 Error g_com_error;
 
-int round(double d) {
-  double a = fabs(d);
-  int res = static_cast<int>(a);
-  double frac = a - res;
-  if (frac >= 0.5)
-    res++;
-  if (d >= 0)
-    return res;
-  else
-    return -res;
-}
-
 unsigned calc_percent(unsigned __int64 completed, unsigned __int64 total) {
   unsigned percent;
   if (total == 0)
@@ -82,8 +70,12 @@ wstring expand_macros(const wstring& text) {
       break;
 
     wstring macro = L"print(" + text.substr(b_pos + 1, e_pos - b_pos - 1) + L") Enter";
+    ActlKeyMacro akm;
+    akm.Command = MCMD_POSTMACROSTRING;
+    akm.Param.PlainText.SequenceText = macro.c_str();
+    akm.Param.PlainText.Flags = 0;
     wstring mresult;
-    if (Far::post_macro(macro))
+    if (Far::adv_control(ACTL_KEYMACRO, &akm))
       Far::input_dlg(wstring(), wstring(), mresult);
     else
       FAIL(E_ABORT);

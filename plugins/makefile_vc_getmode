@@ -1,12 +1,9 @@
 !ifdef __MAKE__
 _MKDO_=/D
-_MKHIDE=-s
-!else
-_MKHIDE=/nologo
 !endif
 
-!ifdef ANSI
-_MDEFS=$(_MDEFS) $(_MKDO_)ANSI=1
+!ifdef WIDE
+_MDEFS=$(_MDEFS) $(_MKDO_)WIDE=1
 !endif
 
 !ifdef DEBUG

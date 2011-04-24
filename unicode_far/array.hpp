@@ -16,8 +16,8 @@ array.hpp
  Класс для тупой но прозрачной работы с массивом понтеров на класс Object
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -75,7 +75,7 @@ class TArray
 
 		Object *setItem(size_t index, const Object &newItem);
 		Object *getItem(size_t index);
-		size_t getIndex(const Object &item, int start=-1);
+		int getIndex(const Object &item, int start=-1);
 
 		// сортировка массива. Offset - сколько первых пунктов пропустить
 		void Sort(TARRAYCMPFUNC user_cmp_func=nullptr,size_t Offset=0);
@@ -277,7 +277,7 @@ TArray<Object>& TArray<Object>::operator=(const TArray<Object> &rhs)
 
 	if (setSize(rhs.Count))
 	{
-		for (size_t i=0; i<Count; ++i)
+		for (unsigned i=0; i<Count; ++i)
 		{
 			if (rhs.items[i])
 			{
@@ -313,9 +313,9 @@ void TArray<Object>::setDelta(size_t newDelta)
 }
 
 template <class Object>
-size_t TArray<Object>::getIndex(const Object &item, int start)
+int TArray<Object>::getIndex(const Object &item, int start)
 {
-	size_t rc=-1;
+	int rc=-1;
 
 	if (start==-1)
 		start=0;

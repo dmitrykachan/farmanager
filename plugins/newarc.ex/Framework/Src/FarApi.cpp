@@ -21,15 +21,6 @@ DWORD farGetFullPathName(const TCHAR* lpFileName, string& strResult)
 #endif		
 }
 
-void farQuoteSpaceOnly(string& strStr)
-{
-	TCHAR* pBuffer = strStr.GetBuffer(strStr.GetLength()+2);
-
-	FSF.QuoteSpaceOnly(pBuffer);
-
-	strStr.ReleaseBuffer();
-}
-
 void farUnquote(string& strStr)
 {
 	TCHAR* pBuffer = strStr.GetBuffer();
@@ -60,13 +51,4 @@ void farPrepareFileName(string& strFileName)
 		strFileName = _T(".");
 
 	farGetFullPathName(strFileName, strFileName);
-}
-
-void farTruncPathStr(string& strFileName, int nLength)
-{
-	TCHAR* pBuffer = strFileName.GetBuffer();
-
-	FSF.TruncPathStr(pBuffer, nLength);
-
-	strFileName.ReleaseBuffer();
 }

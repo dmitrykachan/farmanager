@@ -6,8 +6,8 @@ help.hpp
 Помощь
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@ class CallBackStack;
 
 struct StackHelpData
 {
-	UINT64 Flags;                  // флаги
+	DWORD Flags;                  // флаги
 	int   TopStr;                 // номер верхней видимой строки темы
 	int   CurX,CurY;              // координаты (???)
 
@@ -168,7 +168,7 @@ class Help:public Frame
 		const HelpRecord* GetHelpItem(int Pos);
 
 	public:
-		Help(const wchar_t *Topic,const wchar_t *Mask=nullptr,UINT64 Flags=0);
+		Help(const wchar_t *Topic,const wchar_t *Mask=nullptr,DWORD Flags=0);
 		virtual ~Help();
 
 	public:

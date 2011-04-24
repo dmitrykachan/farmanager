@@ -43,8 +43,6 @@
 #define COMMAND_RECOVER					9
 #define COMMAND_ADD						10
 
-#define MAX_COMMANDS 11
-
 #define AIF_CRYPTED		1
 #define AIF_SOLID		2
 
@@ -71,11 +69,9 @@ struct ArchiveItem
 
 #define AM_NEED_PASSWORD		1
 #define AM_START_OPERATION		2
-#define AM_ENTER_STAGE			3
-#define AM_PROCESS_FILE			4
-#define AM_PROCESS_DATA			5
-#define AM_REPORT_ERROR			6
-#define AM_NEED_VOLUME			7
+#define AM_PROCESS_FILE			3
+#define AM_PROCESS_DATA			4
+#define AM_REPORT_ERROR			5
 
 #define OPERATION_LIST			1
 #define OPERATION_EXTRACT		2
@@ -83,16 +79,8 @@ struct ArchiveItem
 #define OPERATION_DELETE		4
 #define OPERATION_TEST			5
 
-#define STAGE_EXTRACTING		1
-#define STAGE_ADDING			2
-#define STAGE_DELETING			3
-#define STAGE_TESTING			4
-#define STAGE_SKIPPING			5
-#define STAGE_UPDATING			6
-
 #define OS_FLAG_TOTALSIZE	1
 #define OS_FLAG_TOTALFILES	2
-#define OS_FLAG_SUPPORT_SINGLE_FILE_PROGRESS	4
 
 struct StartOperationStruct {
 	DWORD dwFlags;
@@ -107,21 +95,12 @@ struct StartOperationStruct {
 
 struct PasswordStruct {
 	DWORD dwBufferSize;
-	TCHAR* lpBuffer;
+	TCHAR *lpBuffer;
 };
 
-struct VolumeStruct {
-
-	const TCHAR* lpSuggestedName;
-
-	DWORD dwBufferSize;
-	TCHAR* lpBuffer;
-};
-
-#define PROGRESS_PROCESSED_DIFF	1  //UNSUPPORTED
-#define PROGRESS_PROCESSED_SIZE	2  //UNSUPPORTED
-#define PROGRESS_PERCENTS		3  //UNSUPPORTED
-#define PROGRESS_DETAILS		4
+#define PROGRESS_PROCESSED_DIFF	1
+#define PROGRESS_PROCESSED_SIZE	2
+#define PROGRESS_PERCENTS		3
 
 struct ProcessDataStruct {
 
@@ -133,12 +112,6 @@ struct ProcessDataStruct {
 		struct {
 			char cPercents;
 			char cTotalPercents;
-		};
-		struct {
-			unsigned __int64 uProcessedBytesFile;
-			unsigned __int64 uTotalBytesFile;
-			unsigned __int64 uProcessedBytesTotal;
-			unsigned __int64 uTotalBytes;
 		};
 	};
 };
@@ -179,7 +152,7 @@ struct ArchiveQueryResult {
 #define AFF_SUPPORT_INTERNAL_CREATE		16
 #define AFF_SUPPORT_INTERNAL_CONFIG		32
 
-#define AFF_SUPPORT_DEFAULT_COMMANDS	256
+#define AFF_HAS_NO_DEFAULT_COMMANDS		256
 #define AFF_NEED_EXTERNAL_NOTIFICATIONS 512
 
 struct ArchiveFormatInfo {
@@ -378,13 +351,11 @@ struct AddStruct {
 
 	HANDLE hArchive;
 
-	const TCHAR* lpSourcePath;
-	const TCHAR* lpCurrentPath;
+	const TCHAR *lpSourcePath;
+	const TCHAR *lpCurrentPath;
 	
 	const ArchiveItem* pItems;
 	unsigned int uItemsNumber;
-
-	const TCHAR* pConfig;
 	
 	int nResult;
 };
@@ -428,11 +399,7 @@ struct ConfigureFormatStruct {
 	GUID uidFormat;
 	GUID uidPlugin;
 	
-	TCHAR* pResult;
-};
-
-struct FreeConfigResultStruct {
-	TCHAR* pResult;
+	char *lpResult;
 };
 
 
@@ -459,9 +426,8 @@ struct StartupInfo {
 #define FID_DELETE				18 //param - DeleteStruct
 #define FID_ADD					19 //param - AddStruct
 
-#define FID_CONFIGURE			20 //param - ConfigureStruct
-#define FID_CONFIGUREFORMAT		21
-#define FID_FREECONFIGRESULT	22
+#define FID_CONFIGURE			20 //param - ConfigureFormatStruct
+#define FID_DELETECONFIGUREDATA 21
 
 #define FID_GETARCHIVEINFO  200
 #define FID_GETARCHIVEFILEINFO 300

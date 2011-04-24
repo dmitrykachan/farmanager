@@ -6,7 +6,7 @@ TaskBar.hpp
 Windows 7 taskbar support
 */
 /*
-Copyright © 2009 Far Group
+Copyright (c) 2009 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -32,59 +32,43 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-class TaskBarCore: private NonCopyable
+class TaskBarCore
 {
-public:
-	TaskBarCore();
-	~TaskBarCore();
-	TBPFLAG GetProgressState();
-	void SetProgressState(TBPFLAG tbpFlags);
-	void SetProgressValue(UINT64 Completed, UINT64 Total);
-	void Flash();
-
-private:
-	bool CoInited;
-	TBPFLAG State;
-	ITaskbarList3* pTaskbarList;
+		bool CoInited;
+		TBPFLAG State;
+		ITaskbarList3* pTaskbarList;
+	public:
+		TaskBarCore();
+		~TaskBarCore();
+		TBPFLAG GetProgressState();
+		void SetProgressState(TBPFLAG tbpFlags);
+		void SetProgressValue(UINT64 Completed, UINT64 Total);
+		void Flash();
 };
 
 extern TaskBarCore TBC;
 
 class TaskBar
 {
-public:
-	TaskBar(bool EndFlash=true);
-	~TaskBar();
-
-private:
-	bool EndFlash;
+	public:
+		TaskBar(bool EndFlash=true);
+		~TaskBar();
+	private:
+		bool EndFlash;
 };
 
-template<TBPFLAG T>
-class TaskBarState: private NonCopyable
+class TaskBarPause
 {
-public:
-	TaskBarState():PrevState(TBC.GetProgressState())
-	{
-		if (PrevState!=TBPF_ERROR && PrevState!=TBPF_PAUSED)
-		{
-			if (PrevState==TBPF_INDETERMINATE||PrevState==TBPF_NOPROGRESS)
-			{
-				TBC.SetProgressValue(1,1);
-			}
-			TBC.SetProgressState(T);
-			TBC.Flash();
-		}
-	}
-
-	~TaskBarState()
-	{
-		TBC.SetProgressState(PrevState);
-	}
-
-private:
-	TBPFLAG PrevState;
+		TBPFLAG PrevState;
+	public:
+		TaskBarPause();
+		~TaskBarPause();
 };
 
-typedef TaskBarState<TBPF_PAUSED> TaskBarPause;
-typedef TaskBarState<TBPF_ERROR> TaskBarError;
+class TaskBarError
+{
+		TBPFLAG PrevState;
+	public:
+		TaskBarError();
+		~TaskBarError();
+};

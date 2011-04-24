@@ -1,9 +1,26 @@
 #include "newarc.h"
 
+bool IsFileInFolder(const TCHAR *lpCurrentPath, const TCHAR *lpFileName)
+{
+	int nLength = StrLength(lpCurrentPath);
+
+	bool bResult = nLength && !_tcsncmp(lpCurrentPath, lpFileName, nLength); //ў®Їа®б, ­г¦­® «Ё §¤Ґбм в®¦Ґ ЁЈ­®аЁа®ў вм аҐЈЁбва
+	
+	return bResult && ((
+			(lpFileName[nLength] == 0) || 
+			(lpFileName[nLength] == '/') || 
+			(lpFileName[nLength] == '\\')
+			) || (
+			(lpCurrentPath[nLength-1] == '\\') ||
+			(lpCurrentPath[nLength-1] == '/')
+			));
+}
+
+
 bool CheckForEsc ()
 {
 	bool EC = false;
-/*
+
 	INPUT_RECORD rec;
 	DWORD ReadCount;
 
@@ -22,7 +39,7 @@ bool CheckForEsc ()
 				 rec.Event.KeyEvent.bKeyDown )
 				EC = true;
 		}
-	}*/
+	}
 
 	return EC;
 }
@@ -100,8 +117,16 @@ int ArchivePanel::pGetFindData(
 
 #pragma message("check if pArchive exists!!")
 
-	if ( !m_pArchive->ReadArchiveItems() )
-		return FALSE; //??? в ¬ ­Ґв FALSE
+	if ( m_pArchive->WasUpdated() )
+	{
+		for (unsigned int i = 0; i < m_pArchiveFiles.count(); i++)
+			m_pArchive->FreeArchiveItem(&m_pArchiveFiles[i]);
+
+		m_pArchiveFiles.reset();
+
+		if ( !m_pArchive->ReadArchive(m_pArchiveFiles) )
+			return FALSE;
+	}
 
 	const ArchiveInfoItem* pInfoItems;
 
@@ -125,38 +150,103 @@ int ArchivePanel::pGetFindData(
 	}
 
 	ConstArray<PluginPanelItem> pPanelItems(100);
-	Array<ArchiveTreeNode*> items;
 
-	m_pArchive->GetArchiveTreeItems(items, false); //no recursive
+	bool bIsFolder;
 
-	for (unsigned int i = 0; i < items.count(); i++)
+	for (unsigned int i = 0; i < m_pArchiveFiles.count(); i++)
 	{
-		PluginPanelItem item;
-		memset(&item, 0, sizeof(PluginPanelItem));
+		ArchiveItem* pItem = &m_pArchiveFiles[i];
 
-		ArchiveTree* node = items.at(i);
-		const ArchiveItem* src = node->GetOriginalItem();
+		bIsFolder = false;
 
-		item.FindData.lpwszFileName = StrDuplicate(node->GetFileName());
-		item.FindData.lpwszAlternateFileName = StrDuplicate(node->GetFileName());
-		item.UserData = (DWORD_PTR)node;
+		bool bFileInFolder = IsFileInFolder(m_strPathInArchive, pItem->lpFileName);
 
-		if ( node->IsDummy() )
-			item.FindData.dwFileAttributes = FILE_ATTRIBUTE_DIRECTORY;
-		else
+		if ( m_strPathInArchive.IsEmpty() || bFileInFolder ) 
 		{
-			item.FindData.dwFileAttributes = src->dwFileAttributes;
-			item.FindData.nFileSize = src->nFileSize;
-			item.FindData.nPackSize = src->nPackSize;
+			const TCHAR* lpRealName = pItem->lpFileName+m_strPathInArchive.GetLength();
 
-			memcpy(&item.FindData.ftCreationTime, &src->ftCreationTime, sizeof(FILETIME));
-			memcpy(&item.FindData.ftLastAccessTime, &src->ftLastAccessTime, sizeof(FILETIME));
-			memcpy(&item.FindData.ftLastWriteTime, &src->ftLastWriteTime, sizeof(FILETIME));
+			if ( bFileInFolder )
+				lpRealName++;
 
-			item.CRC32 = src->dwCRC32;
+			if ( !*lpRealName )
+				continue;
+
+			TCHAR* lpFileName = StrDuplicate(lpRealName);
+
+			TCHAR* p = _tcschr(lpFileName, _T('\\'));
+
+			if ( p )
+			{
+				bIsFolder = true;
+				*p = 0;
+			}
+
+			bool bSkip = false;
+
+			for (unsigned int j = 0; j < pPanelItems.count(); j++)
+			{
+				PluginPanelItem* item = &pPanelItems[j];
+
+				if ( (item->FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY )
+				{
+#ifdef UNICODE
+					if ( IsFileInFolder(item->FindData.lpwszFileName, lpFileName) )
+					//if ( !_tcscmp(item->FindData.lpwszFileName, lpFileName) )
+#else
+					if ( IsFileInFolder(item->FindData.cFileName, lpFileName) )
+					//if ( !_tcscmp(item->FindData.cFileName, lpFileName) )
+#endif
+					{
+						bSkip = true;
+						break;
+					}
+				}
+			}
+
+			if ( bSkip )
+				continue;
+
+			PluginPanelItem *item = pPanelItems.add();
+
+			//CHECK!!!
+			item->FindData.dwFileAttributes = pItem->dwFileAttributes;
+
+#ifdef UNICODE
+			item->FindData.nFileSize = pItem->nFileSize;
+			item->FindData.nPackSize = pItem->nPackSize;
+#else
+			item->FindData.nFileSizeHigh = (DWORD)(pItem->nFileSize >> 32);
+			item->FindData.nFileSizeLow = (DWORD)(pItem->nFileSize);
+
+			item->FindData.dwReserved0 = (DWORD)(pItem->nPackSize >> 32);
+			item->FindData.dwReserved1 = (DWORD)(pItem->nPackSize);
+#endif
+
+			item->CRC32 = pItem->dwCRC32;
+				
+			memcpy(&item->FindData.ftCreationTime, &pItem->ftCreationTime, sizeof(FILETIME));
+			memcpy(&item->FindData.ftLastAccessTime, &pItem->ftLastAccessTime, sizeof(FILETIME));
+			memcpy(&item->FindData.ftLastWriteTime, &pItem->ftLastWriteTime, sizeof(FILETIME));
+
+
+			if ( item )
+			{
+#ifdef UNICODE
+				item->FindData.lpwszFileName = StrDuplicate(lpFileName); 
+#else
+				_tcscpy (item->FindData.cFileName, lpFileName);
+#endif
+				if ( bIsFolder )
+				{
+					item->FindData.dwFileAttributes |= FILE_ATTRIBUTE_DIRECTORY;
+					item->UserData = 0;
+				}
+				else
+					item->UserData = (DWORD_PTR)pItem;
+			}
+
+			StrFree(lpFileName);
 		}
-
-		pPanelItems.add(item);
 	}
 
 	*pPanelItem = pPanelItems.data();
@@ -165,19 +255,17 @@ int ArchivePanel::pGetFindData(
 	return TRUE;
 }
 
-void ArchivePanel::pGetOpenPluginInfo(
+void ArchivePanel::pGetOpenPluginInfo (
 		OpenPluginInfo *pInfo
 		)
 {
-	pInfo->StructSize = sizeof(OpenPluginInfo);
+	pInfo->StructSize = sizeof (OpenPluginInfo);
 
 	pInfo->Flags = OPIF_USEFILTER | OPIF_USEHIGHLIGHTING | OPIF_USESORTGROUPS | OPIF_ADDDOTS;
 	pInfo->CurDir = m_strPathInArchive;
 
 	if ( m_pArchive )
 	{
-		
-
 		ArchiveFormat *pFormat = m_pArchive->GetFormat();
 
 		m_strPanelTitle.Format(
@@ -207,46 +295,83 @@ void ArchivePanel::pGetOpenPluginInfo(
 }
 
 
-unsigned __int64 GetArchiveItemsToProcessFromNode(ArchiveTreeNode* node, ArchiveItemArray& items)
-{
-	unsigned __int64 uTotalSize = 0;
 
-	if ( !node->IsDummy() )
-	{
-		const ArchiveItem* item = node->GetOriginalItem();
-		uTotalSize = item->nFileSize;
-
-		items.add(*item);
-	}
-
-	for (ArchiveTreeNodesIterator itr = node->children.begin(); itr != node->children.end(); ++itr)
-		uTotalSize += GetArchiveItemsToProcessFromNode(itr->second, items);
-
-	return uTotalSize;
-}
-
-void ArchivePanel::GetArchiveItemsToProcess(
+void ArchivePanel::GetArchiveItemsToProcess (
 		const PluginPanelItem *pPanelItems,
 		int nItemsNumber,
 		ArchiveItemArray &items
 		)
 {
+	ArchiveItem *dest = NULL;
+
 	m_OS.uTotalFiles = 0;
 	m_OS.uTotalSize = 0;
 
 	for (int i = 0; i < nItemsNumber; i++)
 	{
 		const FAR_FIND_DATA *data = &pPanelItems[i].FindData;
+		ArchiveItem *src = (ArchiveItem*)pPanelItems[i].UserData;
 
-		ArchiveTreeNode* node = (ArchiveTreeNode*)pPanelItems[i].UserData;
+		if ( src )
+		{
+			dest = items.add(*src);
 
-		//ад и кромешный пиздец. отдаем обратно модулю то, что он сам и навыделял. т.е. хоть эти ArchiveItem и новые, данные в них 
-		//старые. т.е. удалять их нельзя ни при каких обстоятельствах!
+			dest->lpFileName = StrDuplicate(src->lpFileName);
+			dest->lpAlternateFileName = StrDuplicate(src->lpAlternateFileName);
+		}
+		else
+		{
+			dest = items.add();
+			//если мы сюда попали - у нас похоже проблемы.
 
-		m_OS.uTotalSize += GetArchiveItemsToProcessFromNode(node, items);
+			string strFullName;
+
+			if ( !m_strPathInArchive.IsEmpty() )
+			{
+				strFullName = m_strPathInArchive;
+				AddEndSlash(strFullName);
+			}
+
+			strFullName += FINDDATA_GET_NAME_PTR(data);
+
+			FindDataToArchiveItem(data, dest);
+
+			StrFree((void*)dest->lpFileName);
+			dest->lpFileName = StrDuplicate(strFullName);
+
+			dest->UserData = 0;
+		}
+
+		m_OS.uTotalSize += FINDDATA_GET_SIZE_PTR(data);
+
+		if ( OptionIsOn(data->dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY) )
+		{
+			string strPath = m_strPathInArchive;
+
+			if ( !m_strPathInArchive.IsEmpty() )
+				strPath += _T("\\");
+
+			strPath += FINDDATA_GET_NAME_PTR(data);
+			strPath += _T("\\");
+
+			for (unsigned int k = 0; k < m_pArchiveFiles.count(); k++)
+			{
+				ArchiveItem *src = &m_pArchiveFiles[k];
+
+				if ( IsFileInFolder (strPath, src->lpFileName) )
+				{
+					dest = items.add(*src);
+
+					dest->lpFileName = StrDuplicate(src->lpFileName);
+					dest->lpAlternateFileName = StrDuplicate(src->lpAlternateFileName);
+
+					m_OS.uTotalSize += src->nFileSize;
+				}
+			}
+		}
 	}
 
-	m_OS.uTotalFiles = items.count(); 
+	m_OS.uTotalFiles = items.count();
 }
 
 
@@ -339,9 +464,6 @@ int ArchivePanel::pPutFiles(
 		const PluginPanelItem *PanelItem,
 		int ItemsNumber,
 		int Move,
-#ifdef UNICODE
-		const wchar_t* SrcPath,
-#endif
 		int OpMode
 		)
 {
@@ -434,12 +556,7 @@ int ArchivePanel::pPutFiles(
 	else
 	{
 		GetPanelItemsToProcess(PanelItem, ItemsNumber, items);
-
-#ifdef UNICODE
-		bResult = AddFiles(items, SrcPath ? SrcPath : info.GetCurrentDirectory());
-#else
 		bResult = AddFiles(items, info.GetCurrentDirectory());
-#endif
 	}
 
 	return bResult;
@@ -462,18 +579,17 @@ int ArchivePanel::pGetFiles(
 	DestPath = *(TCHAR**)DestPath;
 #endif
 
-	if ( OpMode & (OPM_VIEW | OPM_EDIT | OPM_FIND | OPM_QUICKVIEW) ) //hmm...
-		m_strLastDestPath = DestPath;
+	string strDestPath = DestPath;
 
-	if ( ((OpMode & OPM_SILENT) == OPM_SILENT) || dlgUnpackFiles(DestPath, Move, m_strLastDestPath) )
+	if ( ((OpMode & OPM_SILENT) == OPM_SILENT) || dlgUnpackFiles(DestPath, Move, strDestPath) )
 	{
-		farPrepareFileName(m_strLastDestPath);
+		farPrepareFileName(strDestPath);
 
 		ArchiveItemArray items; //100??
 
 		GetArchiveItemsToProcess(PanelItem, ItemsNumber, items);
 
-		bResult = Extract(items, m_strLastDestPath, (OpMode == OPM_VIEW) || (OpMode == OPM_EDIT));
+		bResult = Extract(items, strDestPath, (OpMode == OPM_VIEW) || (OpMode == OPM_EDIT));
 
 		if ( Move && bResult )
 			bResult = Delete(items);
@@ -515,10 +631,7 @@ void ArchivePanel::pFreeFindData(
 #ifdef UNICODE
 
 	for (int i = 0; i < nItemsNumber; i++)
-	{
 		StrFree((void*)pPanelItem[i].FindData.lpwszFileName);
-		StrFree((void*)pPanelItem[i].FindData.lpwszAlternateFileName);
-	}
 #endif
 }
 
@@ -527,30 +640,72 @@ int ArchivePanel::pSetDirectory(
 		int nOpMode
 		)
 {
-//	MessageBox(0, _T("SET DIR 1"), 0, MB_OK);
+	bool bResult = FALSE;
 
-	if ( m_pArchive->SetCurrentDirectory(Dir) )
+	if ( !_tcscmp (Dir, _T("..")) )
 	{
-		m_strPathInArchive = m_pArchive->GetCurrentDirectory();
+		if ( _tcschr (m_strPathInArchive, _T('\\')) )
+			CutToSlash(m_strPathInArchive, true);
+		else
+			m_strPathInArchive = NULL;
 
-//	MessageBox(0, _T("SET DIR 2"), 0, MB_OK);
+		bResult = TRUE;
+	}
+	else
 
-		return TRUE;
+	if ( !_tcscmp (Dir, _T("\\")) )
+	{
+		m_strPathInArchive = NULL;
+
+		bResult = TRUE;
+	}
+	else
+	{
+		int nCurDirLength = m_strPathInArchive.GetLength();
+		int nDirLength = StrLength(Dir);
+
+		if ( nCurDirLength )
+			nCurDirLength++;
+
+		for (unsigned int i = 0; i < m_pArchiveFiles.count(); i++)
+		{
+			ArchiveItem *item = &m_pArchiveFiles[i];
+
+			const TCHAR *lpCurName = item->lpFileName;
+
+			if ( ((int)StrLength(lpCurName) >= nCurDirLength+nDirLength) &&
+					!_tcsncmp(Dir, lpCurName+nCurDirLength, nDirLength) )
+			{
+				const TCHAR *p = lpCurName+nCurDirLength+nDirLength;
+
+				if ( (*p == _T('\\')) || (*p == _T('/')) || !*p )
+				{
+					if ( !m_strPathInArchive.IsEmpty() )
+						m_strPathInArchive += _T("\\");
+
+					m_strPathInArchive += Dir;
+
+					bResult = TRUE;
+
+					break;
+				}
+			}
+		}
 	}
 
-	return FALSE;
+	m_pArchive->SetCurrentDirectory(m_strPathInArchive);
+
+	return bResult;
 }
 
 
 void ArchivePanel::pClosePlugin()
 {
-//		MessageBox(0, _T("Close 1"), 0, MB_OK);
+	for (unsigned int i = 0; i < m_pArchiveFiles.count(); i++)
+		m_pArchive->FreeArchiveItem(&m_pArchiveFiles[i]);
 
 	if ( m_pArchive )
 		m_pManager->CloseArchive(m_pArchive);
-
-//		MessageBox(0, _T("Close11"), 0, MB_OK);
-
 
 	if ( m_pArchiveInfo )
 	{
@@ -563,9 +718,6 @@ void ArchivePanel::pClosePlugin()
 #endif
 		delete m_pArchiveInfo;
 	}
-
-//		MessageBox(0, _T("Close 2"), 0, MB_OK);
-
 }
 
 #include "mnu\\mnuChooseOperation.cpp"
@@ -647,7 +799,7 @@ int ArchivePanel::pProcessHostFile(
 		GetArchiveItemsToProcess(PanelItem, ItemsNumber, items);
 
 		m_pArchive->SetPassword(strPassword);
-		m_pArchive->ExecuteCommand(0, items, nCommand); 
+		m_pArchive->ExecuteCommand(items, nCommand); 
 
 	}
 
@@ -716,9 +868,6 @@ LONG_PTR __stdcall ArchivePanel::Callback(HANDLE hPanel, int nMsg, int nParam1, 
 		if ( nMsg == AM_START_OPERATION )
 			nResult = pPanel->OnStartOperation(nParam1, (StartOperationStruct*)nParam2);
 
-		if ( nMsg == AM_ENTER_STAGE )
-			nResult = pPanel->OnEnterStage(nParam1);
-
 		if ( nMsg == AM_PROCESS_FILE )
 			nResult = pPanel->OnProcessFile((ProcessFileStruct*)nParam2);
 
@@ -727,9 +876,6 @@ LONG_PTR __stdcall ArchivePanel::Callback(HANDLE hPanel, int nMsg, int nParam1, 
 
 		if ( nMsg == AM_REPORT_ERROR )
 			nResult = pPanel->OnReportError((ReportErrorStruct*)nParam2);
-
-		if ( nMsg == AM_NEED_VOLUME )
-			nResult = pPanel->OnNeedVolume((VolumeStruct*)nParam2);
 		//if ( nMsg == AM_FILE_ALREADY_EXISTS )
 		//	nResult = pPanel->OnFileAlreadyExists((OverwriteStruct*)nParam2);
 	}
@@ -768,28 +914,6 @@ int ArchivePanel::OnFileAlreadyExists(OverwriteStruct* pOS)
 	return PROCESS_OVERWRITE;
 }
 
-int ArchivePanel::OnNeedVolume(VolumeStruct* pVS)
-{
-	return Info.InputBox(
-			_T("Enter volume"), 
-			_T("Volume file name"),
-			nullptr,
-			pVS->lpSuggestedName,
-			pVS->lpBuffer,
-			pVS->dwBufferSize,
-			nullptr,
-			0
-			);
-}
-
-int ArchivePanel::OnEnterStage(int nStage)
-{
-	m_OS.nStage = nStage;
-	m_OS.Dlg.SetOperation(m_OS.nOperation, m_OS.nStage);
-
-	return 1;
-}
-
 int ArchivePanel::OnStartOperation(int nOperation, StartOperationStruct *pOS)
 {
 	if ( pOS )
@@ -799,28 +923,11 @@ int ArchivePanel::OnStartOperation(int nOperation, StartOperationStruct *pOS)
 
 		if ( OptionIsOn(pOS->dwFlags, OS_FLAG_TOTALFILES) )
 			m_OS.uTotalFiles = pOS->uTotalFiles;
-
-		m_OS.Dlg.SetShowSingleFileProgress(OptionIsOn(pOS->dwFlags, OS_FLAG_SUPPORT_SINGLE_FILE_PROGRESS));
 	}
 
 	m_OS.nOperation = nOperation;
-
-	if ( m_OS.nOperation == OPERATION_EXTRACT )
-		m_OS.nStage = STAGE_EXTRACTING;
-
-	if ( m_OS.nOperation == OPERATION_ADD )
-		m_OS.nStage = STAGE_ADDING;
-
-	if ( m_OS.nOperation == OPERATION_TEST )
-		m_OS.nStage = STAGE_TESTING;
-
-	if ( m_OS.nOperation == OPERATION_DELETE )
-		m_OS.nStage = STAGE_DELETING;
-
 	m_OS.bFirstFile = true;
 	m_OS.overwrite = PROCESS_UNKNOWN;
-
-	m_OS.Dlg.SetOperation(m_OS.nOperation, m_OS.nStage);
 
 	return 1;
 }
@@ -894,17 +1001,41 @@ int ArchivePanel::OnProcessFile(ProcessFileStruct *pfs)
 	{
 		m_OS.pCurrentItem = pfs?pfs->pItem:NULL;
 
-		m_OS.Dlg.SetSrcFileName(pfs->pItem->lpFileName);
-		m_OS.Dlg.SetDestFileName(pfs->lpDestFileName);
-
-		/*if ( m_OS.bFirstFile )
+		if ( m_OS.bFirstFile )
 		{
+			//if ( !OptionIsOn (m_OS.nMode, OPM_SILENT) )
+			{
+				if ( m_OS.nOperation == OPERATION_EXTRACT )
+					m_OS.Dlg.Show(_M(MProcessFileExtractionTitle)/*, _M(MProcessFileExtraction)*/);
+				else
+				{
+					if ( m_OS.nOperation == OPERATION_ADD )
+						m_OS.Dlg.Show(_M(MProcessFileAdditionTitle)/*, _M(MProcessFileAddition)*/);
+					else
+					{
+						if ( m_OS.nOperation == OPERATION_DELETE )
+							m_OS.Dlg.Show(_M(MProcessFileDeletionTitle)/*, _M(MProcessFileDeletion)*/);
+						else
+							__debug(_T("BAD OPERATION"));
+					}
+				}
+
+				Info.Text(0, 0, 0, 0); //BUGBUG
+			}
+
 			m_OS.bFirstFile = false;
 			m_OS.uTotalProcessedSize = 0;
-		}*/
+		}
 
 		//if ( !OptionIsOn(m_OS.nMode, OPM_SILENT) )
-			m_OS.Dlg.Show();
+		{
+			m_OS.Dlg.SetFileName(false, m_OS.pCurrentItem->lpFileName);
+
+			if ( pfs && pfs->lpDestFileName )
+				m_OS.Dlg.SetFileName(true, pfs->lpDestFileName);
+
+			Info.Text(0, 0, 0, 0);
+		}
 
 		if ( m_OS.pCurrentItem )
 			m_OS.uFileSize = m_OS.pCurrentItem->nFileSize;
@@ -928,42 +1059,37 @@ int ArchivePanel::OnReportError(ReportErrorStruct* pRE)
 
 int ArchivePanel::OnProcessData(ProcessDataStruct* pDS)
 {
-	double dPercent, dTotalPercent;
+	m_OS.uTotalProcessedSize += pDS->uProcessedSize;
+	m_OS.uProcessedSize += pDS->uProcessedSize;
 
-	if ( pDS->nMode == PROGRESS_PROCESSED_SIZE )
+	double div;
+
+	if ( m_OS.uFileSize )
+		div = (double)m_OS.uProcessedSize/(double)m_OS.uFileSize;
+	else
+		div = 1;
+
+	m_OS.Dlg.SetIndicator(false, div);
+
+	if ( m_OS.uTotalSize )
+		div = (double)m_OS.uTotalProcessedSize/(double)m_OS.uTotalSize;
+	else
+		div = 1;
+
+	m_OS.Dlg.SetIndicator(true, div);
+
+	Info.Text(0, 0, 0, 0);
+
+	if ( CheckForEsc () )
 	{
-		m_OS.uTotalProcessedSize += pDS->uProcessedSize;
-		m_OS.uProcessedSize += pDS->uProcessedSize;
-
-		if ( m_OS.uFileSize )
-			dPercent = (double)m_OS.uProcessedSize/(double)m_OS.uFileSize;
-		else
-			dPercent = 1;
-
-		if ( m_OS.uTotalSize )
-			dTotalPercent = (double)m_OS.uTotalProcessedSize/(double)m_OS.uTotalSize;
-		else
-			dTotalPercent = 1;
-
-		m_OS.Dlg.SetPercent(dPercent, dTotalPercent);
+	/*	if ( !OptionIsOn(m_OS.nMode, OPM_SILENT) )
+		{
+			Info.Text(m_OS.Dlg.Coord.X+5, m_OS.Dlg.Coord.Y+2, FarGetColor (COL_DIALOGTEXT), _M(MProcessDataOperationCanceled));
+			Info.Text(0, 0, 0, 0);
+		}
+	*/
+		return FALSE;
 	}
-
-	if ( pDS->nMode == PROGRESS_DETAILS )
-	{
-		m_OS.uTotalProcessedSize = pDS->uProcessedBytesTotal;
-		m_OS.uProcessedSize += pDS->uProcessedBytesFile;
-
-		dPercent = (double)pDS->uProcessedBytesFile/(double)pDS->uTotalBytesFile;
-		dTotalPercent = (double)pDS->uProcessedBytesTotal/(double)pDS->uTotalBytes;
-
-		m_OS.Dlg.SetPercent(dPercent, dTotalPercent);
-	}
-
-	//if ( !OptionIsOn(m_OS.nMode, OPM_SILENT) )
-		m_OS.Dlg.Show();
-
-	//if ( CheckForEsc () ) //clear screen?
-		//return FALSE;
 
 	return TRUE;
 }

@@ -6,8 +6,8 @@ CFileMask.hpp
 Основной класс для работы с масками файлов. Использовать нужно именно его.
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -34,6 +34,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "BaseFileMask.hpp"
+#include "noncopyable.hpp"
 
 enum FM_FLAGS
 {

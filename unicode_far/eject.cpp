@@ -4,8 +4,8 @@ eject.cpp
 Eject съемных носителей
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -40,7 +40,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "imports.hpp"
 #include "cddrv.hpp"
 #include "message.hpp"
-#include "plugin.hpp"
 
 #if 0
 static BOOL DismountVolume(HANDLE hVolume)
@@ -53,7 +52,7 @@ static BOOL DismountVolume(HANDLE hVolume)
 /* Функция by Vadim Yegorov <zg@matrica.apollo.lv>
    Доработанная! Умеет "вставлять" диск :-)
 */
-BOOL EjectVolume(wchar_t Letter,UINT64 Flags)
+BOOL EjectVolume(wchar_t Letter,DWORD Flags)
 {
 	BOOL Retry=TRUE;
 	BOOL fAutoEject=FALSE;

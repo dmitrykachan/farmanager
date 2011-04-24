@@ -6,8 +6,8 @@ macro.hpp
 Макросы
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "macrocompiler.hpp"
+#include "syntax.hpp"
 #include "tvar.hpp"
 #include "macroopcode.hpp"
 
@@ -100,7 +100,7 @@ enum MACROFLAGS_MFLAGS
 	MFLAGS_PNOFILES            =0x08000000, // пассивная: запускать, если текущий объект "папка"
 
 	MFLAGS_REG_MULTI_SZ        =0x10000000, // текст макроса многострочный (REG_MULTI_SZ)
-	MFLAGS_POSTFROMPLUGIN      =0x20000000, // последовательность пришла от АПИ
+
 	MFLAGS_NEEDSAVEMACRO       =0x40000000, // необходимо этот макрос запомнить
 	MFLAGS_DISABLEMACRO        =0x80000000, // этот макрос отключен
 };
@@ -147,7 +147,7 @@ struct TMacroFunction
 
 struct MacroRecord
 {
-	UINT64  Flags;         // Флаги макропоследовательности
+	DWORD  Flags;         // Флаги макропоследовательности
 	int    Key;           // Назначенная клавиша
 	int    BufferSize;    // Размер буфера компилированной последовательности
 	DWORD *Buffer;        // компилированная последовательность (OpCode) макроса
@@ -165,7 +165,6 @@ struct MacroState
 	int MacroPC;
 	int ExecLIBPos;
 	int MacroWORKCount;
-	DWORD HistroyEnable;
 	bool UseInternalClipboard;
 	struct MacroRecord *MacroWORK; // т.н. текущее исполнение
 	INPUT_RECORD cRec; // "описание реально нажатой клавиши"
@@ -238,23 +237,23 @@ class KeyMacro
 		void InitInternalLIBVars();
 		void ReleaseWORKBuffer(BOOL All=FALSE); // удалить временный буфер
 
-		UINT64 SwitchFlags(UINT64& Flags,UINT64 Value);
+		DWORD SwitchFlags(DWORD& Flags,DWORD Value);
 		string &MkRegKeyName(int IdxMacro,string &strRegKeyName);
 
-		BOOL CheckEditSelected(UINT64 CurFlags);
-		BOOL CheckInsidePlugin(UINT64 CurFlags);
-		BOOL CheckPanel(int PanelMode,UINT64 CurFlags, BOOL IsPassivePanel);
-		BOOL CheckCmdLine(int CmdLength,UINT64 Flags);
-		BOOL CheckFileFolder(Panel *ActivePanel,UINT64 CurFlags, BOOL IsPassivePanel);
-		BOOL CheckAll(int CheckMode,UINT64 CurFlags);
+		BOOL CheckEditSelected(DWORD CurFlags);
+		BOOL CheckInsidePlugin(DWORD CurFlags);
+		BOOL CheckPanel(int PanelMode,DWORD CurFlags, BOOL IsPassivePanel);
+		BOOL CheckCmdLine(int CmdLength,DWORD Flags);
+		BOOL CheckFileFolder(Panel *ActivePanel,DWORD CurFlags, BOOL IsPassivePanel);
+		BOOL CheckAll(int CheckMode,DWORD CurFlags);
 		void Sort();
-		TVar FARPseudoVariable(UINT64 Flags,DWORD Code,DWORD& Err);
+		TVar FARPseudoVariable(DWORD Flags,DWORD Code,DWORD& Err);
 		DWORD GetOpCode(struct MacroRecord *MR,int PC);
 		DWORD SetOpCode(struct MacroRecord *MR,int PC,DWORD OpCode);
 
 	private:
-		static INT_PTR WINAPI AssignMacroDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2);
-		static INT_PTR WINAPI ParamMacroDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2);
+		static LONG_PTR WINAPI AssignMacroDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2);
+		static LONG_PTR WINAPI ParamMacroDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2);
 
 	public:
 		KeyMacro();
@@ -283,7 +282,7 @@ class KeyMacro
 		void RunStartMacro();
 
 		// Поместить временное строковое представление макроса
-		int PostNewMacro(const wchar_t *PlainText,UINT64 Flags=0,DWORD AKey=0,BOOL onlyCheck=FALSE);
+		int PostNewMacro(const wchar_t *PlainText,DWORD Flags=0,DWORD AKey=0,BOOL onlyCheck=FALSE);
 		// Поместить временный рекорд (бинарное представление)
 		int PostNewMacro(struct MacroRecord *MRec,BOOL NeedAddSendFlag=0,BOOL IsPluginSend=FALSE);
 
@@ -308,8 +307,6 @@ class KeyMacro
 		// проверить флаги текущего исполняемого макроса.
 		BOOL CheckCurMacroFlags(DWORD Flags);
 
-		bool IsHistroyEnable(int TypeHistory);
-
 		static const wchar_t* GetSubKey(int Mode);
 		static int   GetSubKey(const wchar_t *Mode);
 		static int   GetMacroKeyInfo(bool FromReg,int Mode,int Pos,string &strKeyName,string &strDescription);
@@ -319,7 +316,7 @@ class KeyMacro
 		BOOL GetMacroParseError(DWORD* ErrCode, COORD* ErrPos, string *ErrSrc);
 		BOOL GetMacroParseError(string *Err1, string *Err2, string *Err3, string *Err4);
 
-		static void SetMacroConst(const wchar_t *ConstName, const TVar& Value);
+		static void SetMacroConst(const wchar_t *ConstName, const TVar Value);
 		static DWORD GetNewOpCode();
 
 		static size_t GetCountMacroFunction();

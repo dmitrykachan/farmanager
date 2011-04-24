@@ -4,8 +4,8 @@ help.cpp
 Помощь
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -63,7 +63,7 @@ class CallBackStack
 		{
 			ListNode *Next;
 
-			UINT64 Flags;             // флаги
+			DWORD Flags;             // флаги
 			int   TopStr;            // номер верхней видимой строки темы
 			int   CurX,CurY;         // координаты (???)
 
@@ -112,7 +112,7 @@ static const wchar_t *HelpContents=L"Contents";
 
 static int RunURL(const wchar_t *Protocol, wchar_t *URLPath);
 
-Help::Help(const wchar_t *Topic, const wchar_t *Mask,UINT64 Flags):
+Help::Help(const wchar_t *Topic, const wchar_t *Mask,DWORD Flags):
 	ErrorHelp(TRUE),
 	IsNewTopic(TRUE),
 	MouseDown(FALSE),
@@ -304,7 +304,6 @@ int Help::ReadHelp(const wchar_t *Mask)
 
 	OldGetFileString GetStr(HelpFile);
 	int nStrLength,GetCode;
-	size_t SizeKeyName=20;
 
 	for (;;)
 	{
@@ -344,7 +343,7 @@ int Help::ReadHelp(const wchar_t *Mask)
 			string strKeyName;
 			string strOutTemp;
 
-			if (CtrlObject->Macro.GetMacroKeyInfo(false,CtrlObject->Macro.GetSubKey(strMacroArea),MI,strKeyName,strDescription) == -1)
+			if (CtrlObject->Macro.GetMacroKeyInfo(true,CtrlObject->Macro.GetSubKey(strMacroArea),MI,strKeyName,strDescription) == -1)
 			{
 				MacroProcess=false;
 				MI=0;
@@ -360,6 +359,7 @@ int Help::ReadHelp(const wchar_t *Mask)
 			ReplaceStrings(strKeyName,L"~",L"~~",-1);
 			ReplaceStrings(strKeyName,L"#",L"##",-1);
 			ReplaceStrings(strKeyName,L"@",L"@@",-1);
+			int SizeKeyName=20;
 
 			if (wcschr(strKeyName,L'~')) // корректировка размера
 				SizeKeyName++;
@@ -460,13 +460,6 @@ m1:
 
 					strMacroArea=strReadStr.SubStr(8,PosTab-1-8); //???
 					MacroProcess=true;
-					MI=0;
-					string strDescription,strKeyName;
-					while (CtrlObject->Macro.GetMacroKeyInfo(false,CtrlObject->Macro.GetSubKey(strMacroArea),MI,strKeyName,strDescription) != -1)
-					{
-						SizeKeyName=Max(SizeKeyName,strKeyName.GetLength());
-						MI++;
-					}
 					MI=0;
 					continue;
 				}
@@ -639,7 +632,7 @@ m1:
 		StackData.TopStr=0;
 	}
 
-	return TopicFound;
+	return TopicFound ;
 }
 
 

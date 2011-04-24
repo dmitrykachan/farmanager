@@ -4,8 +4,8 @@ findfile.cpp
 Поиск (Alt-F7)
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -57,6 +57,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "syslog.hpp"
 #include "localOEM.hpp"
 #include "codepage.hpp"
+#include "registry.hpp"
 #include "cddrv.hpp"
 #include "TaskBar.hpp"
 #include "interf.hpp"
@@ -76,8 +77,6 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "panelmix.hpp"
 #include "setattr.hpp"
 #include "udlist.hpp"
-#include "keyboard.hpp"
-#include "configdb.hpp"
 
 const int CHAR_TABLE_SIZE=5;
 const int LIST_DELTA=64;
@@ -101,7 +100,7 @@ struct ARCLIST
 {
 	string strArcName;
 	HANDLE hPlugin;    // Plugin handle
-	UINT64 Flags;       // OpenPanelInfo.Flags
+	DWORD Flags;       // OpenPluginInfo.Flags
 	string strRootPath; // Root path in plugin after opening.
 };
 
@@ -237,7 +236,7 @@ public:
 		CriticalSectionLock Lock(DataCS);
 		bool Result=false;
 		size_t Delta=(FindListCapacity<256)?LIST_DELTA:FindListCapacity/2;
-		FINDLIST** NewList = static_cast<FINDLIST**>(xf_realloc(FindList,(FindListCapacity+Delta)*sizeof(*FindList)));
+		FINDLIST** NewList = reinterpret_cast<FINDLIST**>(xf_realloc(FindList,(FindListCapacity+Delta)*sizeof(*FindList)));
 		if (NewList)
 		{
 			FindList=NewList;
@@ -252,7 +251,7 @@ public:
 		CriticalSectionLock Lock(DataCS);
 		bool Result=false;
 		size_t Delta=(ArcListCapacity<256)?LIST_DELTA:ArcListCapacity/2;
-		ARCLIST** NewList=static_cast<ARCLIST**>(xf_realloc(ArcList,(ArcListCapacity+Delta)*sizeof(*ArcList)));
+		ARCLIST** NewList=reinterpret_cast<ARCLIST**>(xf_realloc(ArcList,(ArcListCapacity+Delta)*sizeof(*ArcList)));
 
 		if (NewList)
 		{
@@ -263,7 +262,7 @@ public:
 		return Result;
 	}
 
-	size_t AddArcListItem(const wchar_t *ArcName,HANDLE hPlugin,UINT64 dwFlags,const wchar_t *RootPath)
+	size_t AddArcListItem(const wchar_t *ArcName,HANDLE hPlugin,DWORD dwFlags,const wchar_t *RootPath)
 	{
 		CriticalSectionLock Lock(DataCS);
 		if ((ArcListCount == ArcListCapacity) && (!ArcListGrow()))
@@ -513,7 +512,7 @@ void InitInFileSearch()
 				bool hasSelected = false;
 
 				// Проверяем наличие выбранных страниц символов
-				for (DWORD i=0; GeneralCfg->EnumValues(FavoriteCodePagesKey, i, codePageName, &data); i++)
+				for (int i=0; EnumRegValue(FavoriteCodePagesKey, i, codePageName, (BYTE *)&data, sizeof(data)); i++)
 				{
 					if (data & CPST_FIND)
 					{
@@ -541,7 +540,7 @@ void InitInFileSearch()
 				}
 
 				// Добавляем стандартные таблицы символов
-				for (DWORD i=0; GeneralCfg->EnumValues(FavoriteCodePagesKey, i, codePageName, &data); i++)
+				for (int i=0; EnumRegValue(FavoriteCodePagesKey, i, codePageName, (BYTE *)&data, sizeof(data)); i++)
 				{
 					if (data & (hasSelected?CPST_FIND:CPST_FAVORITE))
 					{
@@ -762,7 +761,7 @@ void SetPluginDirectory(const wchar_t *DirName,HANDLE hPlugin,bool UpdatePanel=f
 	}
 }
 
-INT_PTR WINAPI AdvancedDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
+LONG_PTR WINAPI AdvancedDlgProc(HANDLE hDlg, int Msg, int Param1, LONG_PTR Param2)
 {
 	switch (Msg)
 	{
@@ -780,8 +779,6 @@ INT_PTR WINAPI AdvancedDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 			}
 
 			break;
-		default:
-			break;
 	}
 
 	return DefDlgProc(hDlg,Msg,Param1,Param2);
@@ -789,20 +786,20 @@ INT_PTR WINAPI AdvancedDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 
 void AdvancedDialog()
 {
-	FarDialogItem AdvancedDlgData[]=
+	DialogDataEx AdvancedDlgData[]=
 	{
-		{DI_DOUBLEBOX,3,1,52,12,0,nullptr,nullptr,0,MSG(MFindFileAdvancedTitle)},
-		{DI_TEXT,5,2,0,2,0,nullptr,nullptr,0,MSG(MFindFileSearchFirst)},
-		{DI_EDIT,5,3,50,3,0,nullptr,nullptr,0,Opt.FindOpt.strSearchInFirstSize},
-		{DI_CHECKBOX,5,4,0,4,Opt.FindOpt.FindAlternateStreams,nullptr,nullptr,0,MSG(MFindAlternateStreams)},
-		{DI_TEXT,3,5,0,5,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-		{DI_TEXT,5,6, 0, 6,0,nullptr,nullptr,0,MSG(MFindAlternateModeTypes)},
-		{DI_EDIT,5,7,35, 7,0,nullptr,nullptr,0,Opt.FindOpt.strSearchOutFormat},
-		{DI_TEXT,5,8, 0, 8,0,nullptr,nullptr,0,MSG(MFindAlternateModeWidths)},
-		{DI_EDIT,5,9,35, 9,0,nullptr,nullptr,0,Opt.FindOpt.strSearchOutFormatWidth},
-		{DI_TEXT,3,10,0,10,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-		{DI_BUTTON,0,11,0,11,0,nullptr,nullptr,DIF_DEFAULTBUTTON|DIF_CENTERGROUP,MSG(MOk)},
-		{DI_BUTTON,0,11,0,11,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MCancel)},
+		DI_DOUBLEBOX,3,1,52,12,0,0,MSG(MFindFileAdvancedTitle),
+		DI_TEXT,5,2,0,2,0,0,MSG(MFindFileSearchFirst),
+		DI_EDIT,5,3,50,3,0,0,Opt.FindOpt.strSearchInFirstSize,
+		DI_CHECKBOX,5,4,0,4,Opt.FindOpt.FindAlternateStreams,0,MSG(MFindAlternateStreams),
+		DI_TEXT,3,5,0,5,0,DIF_SEPARATOR,L"",
+		DI_TEXT,5,6, 0, 6,0,0,MSG(MFindAlternateModeTypes),
+		DI_EDIT,5,7,35, 7,0,0,Opt.FindOpt.strSearchOutFormat,
+		DI_TEXT,5,8, 0, 8,0,0,MSG(MFindAlternateModeWidths),
+		DI_EDIT,5,9,35, 9,0,0,Opt.FindOpt.strSearchOutFormatWidth,
+		DI_TEXT,3,10,0,10,0,DIF_SEPARATOR,L"",
+		DI_BUTTON,0,11,0,11,0,DIF_DEFAULT|DIF_CENTERGROUP,MSG(MOk),
+		DI_BUTTON,0,11,0,11,0,DIF_CENTERGROUP,MSG(MCancel),
 	};
 	MakeDialogItemsEx(AdvancedDlgData,AdvancedDlg);
 	Dialog Dlg(AdvancedDlg,ARRAYSIZE(AdvancedDlg),AdvancedDlgProc);
@@ -838,7 +835,7 @@ void AdvancedDialog()
 	}
 }
 
-INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
+LONG_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, LONG_PTR Param2)
 {
 	Vars* v = reinterpret_cast<Vars*>(SendDlgMessage(hDlg, DM_GETDLGDATA, 0, 0));
 	switch (Msg)
@@ -846,30 +843,30 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 		case DN_INITDIALOG:
 		{
 			bool Hex=(SendDlgMessage(hDlg,DM_GETCHECK,FAD_CHECKBOX_HEX,0)==BSTATE_CHECKED);
-			SendDlgMessage(hDlg,DM_SHOWITEM,FAD_EDIT_TEXT,ToPtr(!Hex));
-			SendDlgMessage(hDlg,DM_SHOWITEM,FAD_EDIT_HEX,ToPtr(Hex));
-			SendDlgMessage(hDlg,DM_ENABLE,FAD_TEXT_CP,ToPtr(!Hex));
-			SendDlgMessage(hDlg,DM_ENABLE,FAD_COMBOBOX_CP,ToPtr(!Hex));
-			SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_CASE,ToPtr(!Hex));
-			SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_WHOLEWORDS,ToPtr(!Hex));
-			SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_DIRS,ToPtr(!Hex));
-			SendDlgMessage(hDlg,DM_EDITUNCHANGEDFLAG,FAD_EDIT_TEXT,ToPtr(1));
-			SendDlgMessage(hDlg,DM_EDITUNCHANGEDFLAG,FAD_EDIT_HEX,ToPtr(1));
-			SendDlgMessage(hDlg,DM_SETTEXTPTR,FAD_TEXT_TEXTHEX,const_cast<wchar_t*>(Hex?MSG(MFindFileHex):MSG(MFindFileText)));
-			SendDlgMessage(hDlg,DM_SETTEXTPTR,FAD_TEXT_CP,const_cast<wchar_t*>(MSG(MFindFileCodePage)));
-			SendDlgMessage(hDlg,DM_SETCOMBOBOXEVENT,FAD_COMBOBOX_CP,ToPtr(CBET_KEY));
+			SendDlgMessage(hDlg,DM_SHOWITEM,FAD_EDIT_TEXT,!Hex);
+			SendDlgMessage(hDlg,DM_SHOWITEM,FAD_EDIT_HEX,Hex);
+			SendDlgMessage(hDlg,DM_ENABLE,FAD_TEXT_CP,!Hex);
+			SendDlgMessage(hDlg,DM_ENABLE,FAD_COMBOBOX_CP,!Hex);
+			SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_CASE,!Hex);
+			SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_WHOLEWORDS,!Hex);
+			SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_DIRS,!Hex);
+			SendDlgMessage(hDlg,DM_EDITUNCHANGEDFLAG,FAD_EDIT_TEXT,1);
+			SendDlgMessage(hDlg,DM_EDITUNCHANGEDFLAG,FAD_EDIT_HEX,1);
+			SendDlgMessage(hDlg,DM_SETTEXTPTR,FAD_TEXT_TEXTHEX,(LONG_PTR)(Hex?MSG(MFindFileHex):MSG(MFindFileText)));
+			SendDlgMessage(hDlg,DM_SETTEXTPTR,FAD_TEXT_CP,(LONG_PTR)MSG(MFindFileCodePage));
+			SendDlgMessage(hDlg,DM_SETCOMBOBOXEVENT,FAD_COMBOBOX_CP,CBET_KEY);
 			FarListTitles Titles={0,nullptr,0,MSG(MFindFileCodePageBottom)};
-			SendDlgMessage(hDlg,DM_LISTSETTITLES,FAD_COMBOBOX_CP,&Titles);
+			SendDlgMessage(hDlg,DM_LISTSETTITLES,FAD_COMBOBOX_CP,reinterpret_cast<LONG_PTR>(&Titles));
 			// Установка запомненных ранее параметров
 			CodePage = Opt.FindCodePage;
 			favoriteCodePages = FillCodePagesList(hDlg, FAD_COMBOBOX_CP, CodePage, false, true);
 			// Текущее значение в в списке выбора кодовых страниц в общем случае модет не совпадать с CodePage,
 			// так что получаем CodePage из списка выбора
 			FarListPos Position;
-			SendDlgMessage(hDlg, DM_LISTGETCURPOS, FAD_COMBOBOX_CP, &Position);
+			SendDlgMessage(hDlg, DM_LISTGETCURPOS, FAD_COMBOBOX_CP, (LONG_PTR)&Position);
 			FarListGetItem Item = { Position.SelectPos };
-			SendDlgMessage(hDlg, DM_LISTGETITEM, FAD_COMBOBOX_CP, &Item);
-			CodePage = (UINT)SendDlgMessage(hDlg, DM_LISTGETDATA, FAD_COMBOBOX_CP, ToPtr(Position.SelectPos));
+			SendDlgMessage(hDlg, DM_LISTGETITEM, FAD_COMBOBOX_CP, (LONG_PTR)&Item);
+			CodePage = (UINT)SendDlgMessage(hDlg, DM_LISTGETDATA, FAD_COMBOBOX_CP, Position.SelectPos);
 			return TRUE;
 		}
 		case DN_CLOSE:
@@ -897,29 +894,29 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 					string strSearchFromRoot;
 					PrepareDriveNameStr(strSearchFromRoot);
 					FarListGetItem item={FADC_ROOT};
-					SendDlgMessage(hDlg,DM_LISTGETITEM,FAD_COMBOBOX_WHERE,&item);
+					SendDlgMessage(hDlg,DM_LISTGETITEM,FAD_COMBOBOX_WHERE,(LONG_PTR)&item);
 					item.Item.Text=strSearchFromRoot;
-					SendDlgMessage(hDlg,DM_LISTUPDATE,FAD_COMBOBOX_WHERE,&item);
+					SendDlgMessage(hDlg,DM_LISTUPDATE,FAD_COMBOBOX_WHERE,(LONG_PTR)&item);
 					v->PluginMode=CtrlObject->Cp()->ActivePanel->GetMode()==PLUGIN_PANEL;
-					SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_DIRS,ToPtr(v->PluginMode?FALSE:TRUE));
+					SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_DIRS,v->PluginMode?FALSE:TRUE);
 					item.ItemIndex=FADC_ALLDISKS;
-					SendDlgMessage(hDlg,DM_LISTGETITEM,FAD_COMBOBOX_WHERE,&item);
+					SendDlgMessage(hDlg,DM_LISTGETITEM,FAD_COMBOBOX_WHERE,(LONG_PTR)&item);
 
 					if (v->PluginMode)
 						item.Item.Flags|=LIF_GRAYED;
 					else
 						item.Item.Flags&=~LIF_GRAYED;
 
-					SendDlgMessage(hDlg,DM_LISTUPDATE,FAD_COMBOBOX_WHERE,&item);
+					SendDlgMessage(hDlg,DM_LISTUPDATE,FAD_COMBOBOX_WHERE,(LONG_PTR)&item);
 					item.ItemIndex=FADC_ALLBUTNET;
-					SendDlgMessage(hDlg,DM_LISTGETITEM,FAD_COMBOBOX_WHERE,&item);
+					SendDlgMessage(hDlg,DM_LISTGETITEM,FAD_COMBOBOX_WHERE,(LONG_PTR)&item);
 
 					if (v->PluginMode)
 						item.Item.Flags|=LIF_GRAYED;
 					else
 						item.Item.Flags&=~LIF_GRAYED;
 
-					SendDlgMessage(hDlg,DM_LISTUPDATE,FAD_COMBOBOX_WHERE,&item);
+					SendDlgMessage(hDlg,DM_LISTUPDATE,FAD_COMBOBOX_WHERE,(LONG_PTR)&item);
 				}
 				break;
 				case FAD_BUTTON_FILTER:
@@ -951,21 +948,20 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 					SendDlgMessage(hDlg,DM_ENABLEREDRAW,FALSE,0);
 					string strDataStr;
 					Transform(strDataStr,(LPCWSTR)SendDlgMessage(hDlg,DM_GETCONSTTEXTPTR,Param2?FAD_EDIT_TEXT:FAD_EDIT_HEX,0),Param2?L'X':L'S');
-					SendDlgMessage(hDlg,DM_SETTEXTPTR,Param2?FAD_EDIT_HEX:FAD_EDIT_TEXT,const_cast<wchar_t*>(strDataStr.CPtr()));
-					INT_PTR iParam = reinterpret_cast<INT_PTR>(Param2);
-					SendDlgMessage(hDlg,DM_SHOWITEM,FAD_EDIT_TEXT,ToPtr(!iParam));
-					SendDlgMessage(hDlg,DM_SHOWITEM,FAD_EDIT_HEX,ToPtr(iParam));
-					SendDlgMessage(hDlg,DM_ENABLE,FAD_TEXT_CP,ToPtr(!iParam));
-					SendDlgMessage(hDlg,DM_ENABLE,FAD_COMBOBOX_CP,ToPtr(!iParam));
-					SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_CASE,ToPtr(!iParam));
-					SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_WHOLEWORDS,ToPtr(!iParam));
-					SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_DIRS,ToPtr(!iParam));
-					SendDlgMessage(hDlg,DM_SETTEXTPTR,FAD_TEXT_TEXTHEX,const_cast<wchar_t*>(Param2?MSG(MFindFileHex):MSG(MFindFileText)));
+					SendDlgMessage(hDlg,DM_SETTEXTPTR,Param2?FAD_EDIT_HEX:FAD_EDIT_TEXT,(LONG_PTR)strDataStr.CPtr());
+					SendDlgMessage(hDlg,DM_SHOWITEM,FAD_EDIT_TEXT,!Param2);
+					SendDlgMessage(hDlg,DM_SHOWITEM,FAD_EDIT_HEX,Param2);
+					SendDlgMessage(hDlg,DM_ENABLE,FAD_TEXT_CP,!Param2);
+					SendDlgMessage(hDlg,DM_ENABLE,FAD_COMBOBOX_CP,!Param2);
+					SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_CASE,!Param2);
+					SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_WHOLEWORDS,!Param2);
+					SendDlgMessage(hDlg,DM_ENABLE,FAD_CHECKBOX_DIRS,!Param2);
+					SendDlgMessage(hDlg,DM_SETTEXTPTR,FAD_TEXT_TEXTHEX,(LONG_PTR)(Param2?MSG(MFindFileHex):MSG(MFindFileText)));
 
 					if (strDataStr.GetLength()>0)
 					{
-						int UnchangeFlag=(int)SendDlgMessage(hDlg,DM_EDITUNCHANGEDFLAG,FAD_EDIT_TEXT,ToPtr(-1));
-						SendDlgMessage(hDlg,DM_EDITUNCHANGEDFLAG,FAD_EDIT_HEX,ToPtr(UnchangeFlag));
+						int UnchangeFlag=(int)SendDlgMessage(hDlg,DM_EDITUNCHANGEDFLAG,FAD_EDIT_TEXT,-1);
+						SendDlgMessage(hDlg,DM_EDITUNCHANGEDFLAG,FAD_EDIT_HEX,UnchangeFlag);
 					}
 
 					SendDlgMessage(hDlg,DM_ENABLEREDRAW,TRUE,0);
@@ -975,16 +971,13 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 
 			break;
 		}
-		case DN_CONTROLINPUT:
+		case DM_KEY:
 		{
-			const INPUT_RECORD* record=(const INPUT_RECORD *)Param2;
-			if (record->EventType!=KEY_EVENT) break;
-			int key = InputRecordToKey(record);
 			switch (Param1)
 			{
 				case FAD_COMBOBOX_CP:
 				{
-					switch (key)
+					switch (Param2)
 					{
 						case KEY_INS:
 						case KEY_NUMPAD0:
@@ -993,11 +986,11 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 							// Обработка установки/снятия флажков для стандартных и любимых таблиц символов
 							// Получаем текущую позицию в выпадающем списке таблиц символов
 							FarListPos Position;
-							SendDlgMessage(hDlg, DM_LISTGETCURPOS, FAD_COMBOBOX_CP, &Position);
+							SendDlgMessage(hDlg, DM_LISTGETCURPOS, FAD_COMBOBOX_CP, (LONG_PTR)&Position);
 							// Получаем номер выбранной таблицы симолов
 							FarListGetItem Item = { Position.SelectPos };
-							SendDlgMessage(hDlg, DM_LISTGETITEM, FAD_COMBOBOX_CP, &Item);
-							UINT SelectedCodePage = (UINT)SendDlgMessage(hDlg, DM_LISTGETDATA, FAD_COMBOBOX_CP, ToPtr(Position.SelectPos));
+							SendDlgMessage(hDlg, DM_LISTGETITEM, FAD_COMBOBOX_CP, (LONG_PTR)&Item);
+							UINT SelectedCodePage = (UINT)SendDlgMessage(hDlg, DM_LISTGETDATA, FAD_COMBOBOX_CP, Position.SelectPos);
 							// Разрешаем отмечать только стандартные и любимые таблицы символов
 							int FavoritesIndex = 2 + StandardCPCount + 2;
 
@@ -1008,7 +1001,7 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 								strCodePageName.Format(L"%u", SelectedCodePage);
 								// Получаем текущее состояние флага в реестре
 								int SelectType = 0;
-								GeneralCfg->GetValue(FavoriteCodePagesKey, strCodePageName, &SelectType, 0);
+								GetRegKey(FavoriteCodePagesKey, strCodePageName, SelectType, 0);
 
 								// Отмечаем/разотмечаем таблицу символов
 								if (Item.Item.Flags & LIF_CHECKED)
@@ -1016,25 +1009,25 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 									// Для стандартных таблиц символов просто удаляем значение из рееста, для
 									// любимых же оставляем в реестре флаг, что таблица символов любимая
 									if (SelectType & CPST_FAVORITE)
-										GeneralCfg->SetValue(FavoriteCodePagesKey, strCodePageName, CPST_FAVORITE);
+										SetRegKey(FavoriteCodePagesKey, strCodePageName, CPST_FAVORITE);
 									else
-										GeneralCfg->DeleteValue(FavoriteCodePagesKey, strCodePageName);
+										DeleteRegValue(FavoriteCodePagesKey, strCodePageName);
 
 									Item.Item.Flags &= ~LIF_CHECKED;
 								}
 								else
 								{
-									GeneralCfg->SetValue(FavoriteCodePagesKey, strCodePageName, CPST_FIND | (SelectType & CPST_FAVORITE ?  CPST_FAVORITE : 0));
+									SetRegKey(FavoriteCodePagesKey, strCodePageName, CPST_FIND | (SelectType & CPST_FAVORITE ?  CPST_FAVORITE : 0));
 									Item.Item.Flags |= LIF_CHECKED;
 								}
 
 								// Обновляем текущий элемент в выпадающем списке
-								SendDlgMessage(hDlg, DM_LISTUPDATE, FAD_COMBOBOX_CP, &Item);
+								SendDlgMessage(hDlg, DM_LISTUPDATE, FAD_COMBOBOX_CP, (LONG_PTR)&Item);
 
 								if (Position.SelectPos<FavoritesIndex + (favoriteCodePages ? favoriteCodePages + 1 : 0)-2)
 								{
 									FarListPos Pos={Position.SelectPos+1,Position.TopPos};
-									SendDlgMessage(hDlg, DM_LISTSETCURPOS, FAD_COMBOBOX_CP,&Pos);
+									SendDlgMessage(hDlg, DM_LISTSETCURPOS, FAD_COMBOBOX_CP,reinterpret_cast<LONG_PTR>(&Pos));
 								}
 
 								// Обрабатываем случай, когда таблица символов может присутствовать, как в стандартных, так и в любимых,
@@ -1045,19 +1038,19 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 								{
 									// Получаем элемент таблицы симолов
 									FarListGetItem CheckItem = { Index };
-									SendDlgMessage(hDlg, DM_LISTGETITEM, FAD_COMBOBOX_CP, &CheckItem);
+									SendDlgMessage(hDlg, DM_LISTGETITEM, FAD_COMBOBOX_CP, (LONG_PTR)&CheckItem);
 
 									// Обрабатываем только таблицы симовлов
 									if (!(CheckItem.Item.Flags&LIF_SEPARATOR))
 									{
-										if (SelectedCodePage == (UINT)SendDlgMessage(hDlg, DM_LISTGETDATA, FAD_COMBOBOX_CP, ToPtr(Index)))
+										if (SelectedCodePage == (UINT)SendDlgMessage(hDlg, DM_LISTGETDATA, FAD_COMBOBOX_CP, Index))
 										{
 											if (Item.Item.Flags & LIF_CHECKED)
 												CheckItem.Item.Flags |= LIF_CHECKED;
 											else
 												CheckItem.Item.Flags &= ~LIF_CHECKED;
 
-											SendDlgMessage(hDlg, DM_LISTUPDATE, FAD_COMBOBOX_CP, &CheckItem);
+											SendDlgMessage(hDlg, DM_LISTUPDATE, FAD_COMBOBOX_CP, (LONG_PTR)&CheckItem);
 											break;
 										}
 									}
@@ -1083,8 +1076,8 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 						// Строка "Содержащих текст"
 						if (!v->FindFoldersChanged)
 						{
-							BOOL Checked = (Item.Data && *Item.Data)?FALSE:Opt.FindOpt.FindFolders;
-							SendDlgMessage(hDlg, DM_SETCHECK, FAD_CHECKBOX_DIRS, ToPtr(Checked?BSTATE_CHECKED:BSTATE_UNCHECKED));
+							BOOL Checked = (Item.PtrData && *Item.PtrData)?FALSE:Opt.FindOpt.FindFolders;
+							SendDlgMessage(hDlg, DM_SETCHECK, FAD_CHECKBOX_DIRS, Checked?BSTATE_CHECKED:BSTATE_UNCHECKED);
 						}
 
 						return TRUE;
@@ -1094,7 +1087,7 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 				case FAD_COMBOBOX_CP:
 				{
 					// Получаем выбранную в выпадающем списке таблицу символов
-					CodePage = (UINT)SendDlgMessage(hDlg, DM_LISTGETDATA, FAD_COMBOBOX_CP, ToPtr(SendDlgMessage(hDlg, DM_LISTGETCURPOS, FAD_COMBOBOX_CP, 0)));
+					CodePage = (UINT)SendDlgMessage(hDlg, DM_LISTGETDATA, FAD_COMBOBOX_CP, SendDlgMessage(hDlg, DM_LISTGETCURPOS, FAD_COMBOBOX_CP, 0));
 				}
 				return TRUE;
 				case FAD_COMBOBOX_WHERE:
@@ -1113,8 +1106,6 @@ INT_PTR WINAPI MainDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 				return FALSE;
 			}
 		}
-		default:
-			break;
 	}
 
 	return DefDlgProc(hDlg,Msg,Param1,Param2);
@@ -1125,8 +1116,8 @@ bool GetPluginFile(size_t ArcIndex, const FAR_FIND_DATA_EX& FindData, const wcha
 	_ALGO(CleverSysLog clv(L"FindFiles::GetPluginFile()"));
 	ARCLIST ArcItem;
 	itd.GetArcListItem(ArcIndex, ArcItem);
-	OpenPanelInfo Info;
-	CtrlObject->Plugins.GetOpenPanelInfo(ArcItem.hPlugin,&Info);
+	OpenPluginInfo Info;
+	CtrlObject->Plugins.GetOpenPluginInfo(ArcItem.hPlugin,&Info);
 	string strSaveDir = NullToEmpty(Info.CurDir);
 	AddEndSlash(strSaveDir);
 	CtrlObject->Plugins.SetDirectory(ArcItem.hPlugin,L"\\",OPM_SILENT);
@@ -1143,10 +1134,10 @@ bool GetPluginFile(size_t ArcIndex, const FAR_FIND_DATA_EX& FindData, const wcha
 		for (int i=0; i<nItemsNumber; i++)
 		{
 			PluginPanelItem Item = pItems[i];
-			Item.FileName=const_cast<LPWSTR>(PointToName(NullToEmpty(pItems[i].FileName)));
-			Item.AlternateFileName=const_cast<LPWSTR>(PointToName(NullToEmpty(pItems[i].AlternateFileName)));
+			Item.FindData.lpwszFileName=const_cast<LPWSTR>(PointToName(NullToEmpty(pItems[i].FindData.lpwszFileName)));
+			Item.FindData.lpwszAlternateFileName=const_cast<LPWSTR>(PointToName(NullToEmpty(pItems[i].FindData.lpwszAlternateFileName)));
 
-			if (!StrCmp(lpFileNameToFind,Item.FileName) && !StrCmp(lpFileNameToFindShort,Item.AlternateFileName))
+			if (!StrCmp(lpFileNameToFind,Item.FindData.lpwszFileName) && !StrCmp(lpFileNameToFindShort,Item.FindData.lpwszAlternateFileName))
 			{
 				nResult=CtrlObject->Plugins.GetFile(ArcItem.hPlugin,&Item,DestPath,strResultName,OPM_SILENT)!=0;
 				break;
@@ -1245,7 +1236,7 @@ int LookForString(const wchar_t *Name)
 	UINT LastPercents=0;
 
 	// Основной цикл чтения из файла
-	while (!StopEvent.Signaled() && file.Read(readBufferA, (!SearchInFirst || alreadyRead+readBufferSizeA <= SearchInFirst)?readBufferSizeA:static_cast<DWORD>(SearchInFirst-alreadyRead), readBlockSize))
+	while (!StopEvent.Signaled() && file.Read(readBufferA, (!SearchInFirst || alreadyRead+readBufferSizeA <= SearchInFirst)?readBufferSizeA:static_cast<DWORD>(SearchInFirst-alreadyRead), &readBlockSize))
 	{
 		UINT Percents=static_cast<UINT>(FileSize?alreadyRead*100/FileSize:0);
 
@@ -1535,10 +1526,10 @@ bool IsFileIncluded(PluginPanelItem* FileItem, const wchar_t *FullName, DWORD Fi
 	return FileFound;
 }
 
-INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
+LONG_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, LONG_PTR Param2)
 {
 	Vars* v = reinterpret_cast<Vars*>(SendDlgMessage(hDlg, DM_GETDLGDATA, 0, 0));
-	Dialog* Dlg=static_cast<Dialog*>(hDlg);
+	Dialog* Dlg=reinterpret_cast<Dialog*>(hDlg);
 	VMenu *ListBox=Dlg->GetAllItem()[FD_LISTBOX]->ListPtr;
 
 	static bool Recurse=false;
@@ -1555,7 +1546,7 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 			{
 				string strDataStr;
 				strDataStr.Format(MSG(MFindFound), itd.GetFileCount(), itd.GetDirCount());
-				SendDlgMessage(hDlg,DM_SETTEXTPTR,2,const_cast<wchar_t*>(strDataStr.CPtr()));
+				SendDlgMessage(hDlg,DM_SETTEXTPTR,2,(LONG_PTR)strDataStr.CPtr());
 
 				string strSearchStr;
 
@@ -1573,20 +1564,20 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 				string strFM;
 				itd.GetFindMessage(strFM);
 				SMALL_RECT Rect;
-				SendDlgMessage(hDlg, DM_GETITEMPOSITION, FD_TEXT_STATUS, &Rect);
+				SendDlgMessage(hDlg, DM_GETITEMPOSITION, FD_TEXT_STATUS, reinterpret_cast<LONG_PTR>(&Rect));
 				TruncStrFromCenter(strFM, Rect.Right-Rect.Left+1 - static_cast<int>(strSearchStr.GetLength()) - 1);
 				strDataStr=strSearchStr+L" "+strFM;
-				SendDlgMessage(hDlg, DM_SETTEXTPTR, FD_TEXT_STATUS, const_cast<wchar_t*>(strDataStr.CPtr()));
+				SendDlgMessage(hDlg, DM_SETTEXTPTR, FD_TEXT_STATUS, reinterpret_cast<LONG_PTR>(strDataStr.CPtr()));
 
 				strDataStr.Format(L"%3d%%",itd.GetPercent());
-				SendDlgMessage(hDlg, DM_SETTEXTPTR,FD_TEXT_STATUS_PERCENTS,const_cast<wchar_t*>(strDataStr.CPtr()));
+				SendDlgMessage(hDlg, DM_SETTEXTPTR,FD_TEXT_STATUS_PERCENTS,reinterpret_cast<LONG_PTR>(strDataStr.CPtr()));
 
 				if (itd.GetLastFoundNumber())
 				{
 					itd.SetLastFoundNumber(0);
 
 					if (ListBox->UpdateRequired())
-						SendDlgMessage(hDlg,DM_SHOWITEM,1,ToPtr(1));
+						SendDlgMessage(hDlg,DM_SHOWITEM,1,1);
 				}
 			}
 		}
@@ -1598,10 +1589,10 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 		string strMessage;
 		strMessage.Format(MSG(MFindDone),itd.GetFileCount(), itd.GetDirCount());
 		SendDlgMessage(hDlg, DM_ENABLEREDRAW, FALSE, 0);
-		SendDlgMessage(hDlg, DM_SETTEXTPTR, FD_SEPARATOR1, nullptr);
-		SendDlgMessage(hDlg, DM_SETTEXTPTR, FD_TEXT_STATUS, const_cast<wchar_t*>(strMessage.CPtr()));
-		SendDlgMessage(hDlg, DM_SETTEXTPTR, FD_TEXT_STATUS_PERCENTS, nullptr);
-		SendDlgMessage(hDlg, DM_SETTEXTPTR, FD_BUTTON_STOP, const_cast<wchar_t*>(MSG(MFindCancel)));
+		SendDlgMessage(hDlg, DM_SETTEXTPTR, FD_SEPARATOR1, reinterpret_cast<LONG_PTR>(L""));
+		SendDlgMessage(hDlg, DM_SETTEXTPTR, FD_TEXT_STATUS, reinterpret_cast<LONG_PTR>(strMessage.CPtr()));
+		SendDlgMessage(hDlg, DM_SETTEXTPTR, FD_TEXT_STATUS_PERCENTS, reinterpret_cast<LONG_PTR>(L""));
+		SendDlgMessage(hDlg, DM_SETTEXTPTR, FD_BUTTON_STOP, reinterpret_cast<LONG_PTR>(MSG(MFindCancel)));
 		SendDlgMessage(hDlg, DM_ENABLEREDRAW, TRUE, 0);
 		ConsoleTitle::SetFarTitle(strMessage);
 		if(v->TB)
@@ -1628,12 +1619,9 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 		}
 		break;
 
-	case DN_CONTROLINPUT:
+	case DN_KEY:
 		{
-			const INPUT_RECORD* record=(const INPUT_RECORD *)Param2;
-			if (record->EventType!=KEY_EVENT) break;
-			int key = InputRecordToKey(record);
-			switch (key)
+			switch (Param2)
 			{
 			case KEY_ESC:
 			case KEY_F10:
@@ -1659,7 +1647,7 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 			case KEY_F11:
 			case KEY_CTRLW:
 				{
-					FrameManager->ProcessKey((DWORD)key);
+					FrameManager->ProcessKey((DWORD)Param2);
 					return TRUE;
 				}
 				break;
@@ -1719,7 +1707,7 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 			case KEY_ALTEND:
 			case KEY_ALT|KEY_NUMPAD1:
 				{
-					ListBox->ProcessKey((unsigned)key);
+					ListBox->ProcessKey((int)Param2);
 					return TRUE;
 				}
 				break;
@@ -1732,12 +1720,12 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 					return TRUE;
 				}
 
-				size_t ItemIndex = static_cast<size_t>(ListBox->GetUserData(nullptr,0));
+				size_t ItemIndex = reinterpret_cast<size_t>(ListBox->GetUserData(nullptr,0));
 
 				FINDLIST FindItem;
 				itd.GetFindListItem(ItemIndex, FindItem);
 
-				if (ShellSetFileAttributes(nullptr,FindItem.FindData.strFileName))
+				if (ShellSetFileAttributes(NULL,FindItem.FindData.strFileName))
 				{
 					itd.SetFindListItem(ItemIndex, FindItem);
 					SendDlgMessage(hDlg,DM_REDRAW,0,0);
@@ -1759,7 +1747,7 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 					size_t ItemIndex = reinterpret_cast<size_t>(ListBox->GetUserData(nullptr,0));
 					bool RemoveTemp=false;
 					// Плагины надо закрывать, если открыли.
-					bool ClosePanel=false;
+					bool ClosePlugin=false;
 					string strSearchFileName;
 					string strTempDir;
 
@@ -1799,7 +1787,7 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 									return TRUE;
 								}
 
-								ClosePanel = true;
+								ClosePlugin = true;
 							}
 							FarMkTempEx(strTempDir);
 							apiCreateDirectory(strTempDir, nullptr);
@@ -1810,9 +1798,9 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 							{
 								apiRemoveDirectory(strTempDir);
 
-								if (ClosePanel)
+								if (ClosePlugin)
 								{
-									CtrlObject->Plugins.ClosePanel(ArcItem.hPlugin);
+									CtrlObject->Plugins.ClosePlugin(ArcItem.hPlugin);
 									ArcItem.hPlugin = INVALID_HANDLE_VALUE;
 									itd.SetArcListItem(FindItem.ArcIndex, ArcItem);
 								}
@@ -1820,9 +1808,9 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 							}
 							else
 							{
-								if (ClosePanel)
+								if (ClosePlugin)
 								{
-									CtrlObject->Plugins.ClosePanel(ArcItem.hPlugin);
+									CtrlObject->Plugins.ClosePlugin(ArcItem.hPlugin);
 									ArcItem.hPlugin = INVALID_HANDLE_VALUE;
 									itd.SetArcListItem(FindItem.ArcIndex, ArcItem);
 								}
@@ -1844,7 +1832,7 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 						string strOldTitle;
 						Console.GetTitle(strOldTitle);
 
-						if (key==KEY_F3 || key==KEY_NUMPAD5 || key==KEY_SHIFTNUMPAD5)
+						if (Param2==KEY_F3 || Param2==KEY_NUMPAD5 || Param2==KEY_SHIFTNUMPAD5)
 						{
 							int ListSize=ListBox->GetItemCount();
 							NamesList ViewList;
@@ -1996,8 +1984,6 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 					return TRUE;
 				}
 				break;
-			default:
-				break;
 			}
 		}
 		break;
@@ -2030,9 +2016,7 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 
 			case FD_BUTTON_VIEW:
 				{
-					INPUT_RECORD key;
-					KeyToInputRecord(KEY_F3,&key);
-					FindDlgProc(hDlg,DN_CONTROLINPUT,FD_LISTBOX,&key);
+					FindDlgProc(hDlg,DN_KEY,FD_LISTBOX,KEY_F3);
 					return TRUE;
 				}
 				break;
@@ -2055,8 +2039,6 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 					}
 					return FALSE;
 				}
-				break;
-			default:
 				break;
 			}
 		}
@@ -2086,9 +2068,9 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 
 	case DN_RESIZECONSOLE:
 		{
-			PCOORD pCoord = static_cast<PCOORD>(Param2);
+			PCOORD pCoord = reinterpret_cast<PCOORD>(Param2);
 			SMALL_RECT DlgRect;
-			SendDlgMessage(hDlg, DM_GETDLGRECT, 0, &DlgRect);
+			SendDlgMessage(hDlg, DM_GETDLGRECT, 0, reinterpret_cast<LONG_PTR>(&DlgRect));
 			int DlgWidth=DlgRect.Right-DlgRect.Left+1;
 			int DlgHeight=DlgRect.Bottom-DlgRect.Top+1;
 			int IncX = pCoord->X - DlgWidth - 2;
@@ -2104,7 +2086,7 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 			{
 				pCoord->X = DlgWidth + (IncX > 0 ? IncX : 0);
 				pCoord->Y = DlgHeight + (IncY > 0 ? IncY : 0);
-				SendDlgMessage(hDlg, DM_RESIZEDIALOG, 0, pCoord);
+				SendDlgMessage(hDlg, DM_RESIZEDIALOG, 0, reinterpret_cast<LONG_PTR>(pCoord));
 			}
 
 			DlgWidth += IncX;
@@ -2113,16 +2095,16 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 			for (int i = 0; i < FD_SEPARATOR1; i++)
 			{
 				SMALL_RECT rect;
-				SendDlgMessage(hDlg, DM_GETITEMPOSITION, i, &rect);
+				SendDlgMessage(hDlg, DM_GETITEMPOSITION, i, reinterpret_cast<LONG_PTR>(&rect));
 				rect.Right += IncX;
 				rect.Bottom += IncY;
-				SendDlgMessage(hDlg, DM_SETITEMPOSITION, i, &rect);
+				SendDlgMessage(hDlg, DM_SETITEMPOSITION, i, reinterpret_cast<LONG_PTR>(&rect));
 			}
 
 			for (int i = FD_SEPARATOR1; i <= FD_BUTTON_STOP; i++)
 			{
 				SMALL_RECT rect;
-				SendDlgMessage(hDlg, DM_GETITEMPOSITION, i, &rect);
+				SendDlgMessage(hDlg, DM_GETITEMPOSITION, i, reinterpret_cast<LONG_PTR>(&rect));
 
 				if (i == FD_TEXT_STATUS)
 				{
@@ -2135,27 +2117,26 @@ INT_PTR WINAPI FindDlgProc(HANDLE hDlg, int Msg, int Param1, void* Param2)
 				}
 
 				rect.Top += IncY;
-				SendDlgMessage(hDlg, DM_SETITEMPOSITION, i, &rect);
+				SendDlgMessage(hDlg, DM_SETITEMPOSITION, i, reinterpret_cast<LONG_PTR>(&rect));
 			}
 
 			if ((IncX <= 0) || (IncY <= 0))
 			{
 				pCoord->X = DlgWidth;
 				pCoord->Y = DlgHeight;
-				SendDlgMessage(hDlg, DM_RESIZEDIALOG, 0, pCoord);
+				SendDlgMessage(hDlg, DM_RESIZEDIALOG, 0, reinterpret_cast<LONG_PTR>(pCoord));
 			}
 
 			for (int i = 0; i <= FD_BUTTON_STOP; i++)
 			{
-				SendDlgMessage(hDlg, DM_SHOWITEM, i, ToPtr(TRUE));
+				SendDlgMessage(hDlg, DM_SHOWITEM, i, TRUE);
 			}
 
 			SendDlgMessage(hDlg, DM_ENABLEREDRAW, TRUE, 0);
 			return TRUE;
 		}
 		break;
-	default:
-		break;
+
 	}
 
 	return DefDlgProc(hDlg,Msg,Param1,Param2);
@@ -2166,17 +2147,17 @@ void AddMenuRecord(HANDLE hDlg,const wchar_t *FullName, const FAR_FIND_DATA_EX& 
 	if (!hDlg)
 		return;
 
-	VMenu *ListBox=static_cast<Dialog*>(hDlg)->GetAllItem()[FD_LISTBOX]->ListPtr;
+	VMenu *ListBox=reinterpret_cast<Dialog*>(hDlg)->GetAllItem()[FD_LISTBOX]->ListPtr;
 
 	if(!ListBox->GetItemCount())
 	{
-		SendDlgMessage(hDlg, DM_ENABLE, FD_BUTTON_GOTO, ToPtr(TRUE));
-		SendDlgMessage(hDlg, DM_ENABLE, FD_BUTTON_VIEW, ToPtr(TRUE));
+		SendDlgMessage(hDlg, DM_ENABLE, FD_BUTTON_GOTO, TRUE);
+		SendDlgMessage(hDlg, DM_ENABLE, FD_BUTTON_VIEW, TRUE);
 		if(AnySetFindList)
 		{
-			SendDlgMessage(hDlg, DM_ENABLE, FD_BUTTON_PANEL, ToPtr(TRUE));
+			SendDlgMessage(hDlg, DM_ENABLE, FD_BUTTON_PANEL, TRUE);
 		}
-		SendDlgMessage(hDlg, DM_ENABLE, FD_LISTBOX, ToPtr(TRUE));
+		SendDlgMessage(hDlg, DM_ENABLE, FD_LISTBOX, TRUE);
 	}
 
 	MenuItemEx ListItem = {};
@@ -2353,7 +2334,7 @@ void AddMenuRecord(HANDLE hDlg,const wchar_t *FullName, const FAR_FIND_DATA_EX& 
 				FindItem.ArcIndex = ArcIndex;
 			}
 			itd.SetFindListItem(ItemIndex, FindItem);
-			ListBox->SetUserData(&ItemIndex,sizeof(ItemIndex),ListBox->AddItem(&ListItem));
+			ListBox->SetUserData((void*)(DWORD_PTR)ItemIndex,sizeof(ItemIndex),ListBox->AddItem(&ListItem));
 		}
 	}
 
@@ -2371,9 +2352,9 @@ void AddMenuRecord(HANDLE hDlg,const wchar_t *FullName, const FAR_FIND_DATA_EX& 
 		itd.SetFindListItem(ItemIndex, FindItem);
 	}
 
-	ListItem.strName = MenuText;
+	ListItem.strName = MenuText.strValue();
 	int ListPos = ListBox->AddItem(&ListItem);
-	ListBox->SetUserData(&ItemIndex,sizeof(ItemIndex), ListPos);
+	ListBox->SetUserData((void*)(DWORD_PTR)ItemIndex,sizeof(ItemIndex), ListPos);
 
 	// Выделим как положено - в списке.
 	int FC=itd.GetFileCount(), DC=itd.GetDirCount(), LF=itd.GetLastFoundNumber();
@@ -2398,10 +2379,10 @@ void AddMenuRecord(HANDLE hDlg,const wchar_t *FullName, const FAR_FIND_DATA_EX& 
 	itd.SetLastFoundNumber(LF);
 }
 
-void AddMenuRecord(HANDLE hDlg,const wchar_t *FullName, const PluginPanelItem& FindData)
+void AddMenuRecord(HANDLE hDlg,const wchar_t *FullName, const FAR_FIND_DATA& FindData)
 {
 	FAR_FIND_DATA_EX fdata;
-	PluginPanelItemToFindDataEx(&FindData, &fdata);
+	apiFindDataToDataEx(&FindData, &fdata);
 	AddMenuRecord(hDlg,FullName, fdata);
 }
 
@@ -2438,8 +2419,8 @@ void ArchiveSearch(HANDLE hDlg, const wchar_t *ArcName)
 		DisablePluginsOutput=TRUE;
 
 		SearchMode=FINDAREA_FROM_CURRENT;
-		OpenPanelInfo Info;
-		CtrlObject->Plugins.GetOpenPanelInfo(hArc,&Info);
+		OpenPluginInfo Info;
+		CtrlObject->Plugins.GetOpenPluginInfo(hArc,&Info);
 		itd.SetFindFileArcIndex(itd.AddArcListItem(ArcName, hArc, Info.Flags, Info.CurDir));
 		// Запомним каталог перед поиском в архиве. И если ничего не нашли - не рисуем его снова.
 		{
@@ -2455,7 +2436,7 @@ void ArchiveSearch(HANDLE hDlg, const wchar_t *ArcName)
 			itd.GetArcListItem(itd.GetFindFileArcIndex(), ArcItem);
 			{
 				CriticalSectionLock Lock(PluginCS);
-				CtrlObject->Plugins.ClosePanel(ArcItem.hPlugin);
+				CtrlObject->Plugins.ClosePlugin(ArcItem.hPlugin);
 			}
 			ArcItem.hPlugin = INVALID_HANDLE_VALUE;
 			itd.SetArcListItem(itd.GetFindFileArcIndex(), ArcItem);
@@ -2630,7 +2611,7 @@ void DoScanTree(HANDLE hDlg, string& strRoot)
 	}
 }
 
-void ScanPluginTree(HANDLE hDlg, HANDLE hPlugin, UINT64 Flags, int& RecurseLevel)
+void ScanPluginTree(HANDLE hDlg, HANDLE hPlugin, DWORD Flags, int& RecurseLevel)
 {
 	PluginPanelItem *PanelData=nullptr;
 	int ItemCount=0;
@@ -2659,7 +2640,7 @@ void ScanPluginTree(HANDLE hDlg, HANDLE hPlugin, UINT64 Flags, int& RecurseLevel
 			PauseEvent.Wait();
 
 			PluginPanelItem *CurPanelItem=PanelData+I;
-			string strCurName=CurPanelItem->FileName;
+			string strCurName=CurPanelItem->FindData.lpwszFileName;
 			string strFullName;
 
 			if (!StrCmp(strCurName,L".") || TestParentFolderName(strCurName))
@@ -2668,16 +2649,16 @@ void ScanPluginTree(HANDLE hDlg, HANDLE hPlugin, UINT64 Flags, int& RecurseLevel
 			strFullName = strPluginSearchPath;
 			strFullName += strCurName;
 
-			if (!UseFilter || Filter->FileInFilter(*CurPanelItem))
+			if (!UseFilter || Filter->FileInFilter(CurPanelItem->FindData))
 			{
-				if (((CurPanelItem->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) && strFindStr.IsEmpty()) ||
-				        (!(CurPanelItem->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) && !strFindStr.IsEmpty()))
+				if (((CurPanelItem->FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && strFindStr.IsEmpty()) ||
+				        (!(CurPanelItem->FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && !strFindStr.IsEmpty()))
 				{
 					itd.SetFindMessage(strFullName);
 				}
 
-				if (IsFileIncluded(CurPanelItem,strCurName,CurPanelItem->FileAttributes))
-					AddMenuRecord(hDlg,strFullName, *CurPanelItem);
+				if (IsFileIncluded(CurPanelItem,strCurName,CurPanelItem->FindData.dwFileAttributes))
+					AddMenuRecord(hDlg,strFullName, CurPanelItem->FindData);
 
 				if (SearchInArchives && (hPlugin != INVALID_HANDLE_VALUE) && (Flags & OPIF_REALNAMES))
 					ArchiveSearch(hDlg,strFullName);
@@ -2690,11 +2671,11 @@ void ScanPluginTree(HANDLE hDlg, HANDLE hPlugin, UINT64 Flags, int& RecurseLevel
 		for (int I=0; I<ItemCount && !StopEvent.Signaled(); I++)
 		{
 			PluginPanelItem *CurPanelItem=PanelData+I;
-			string strCurName=CurPanelItem->FileName;
+			string strCurName=CurPanelItem->FindData.lpwszFileName;
 
-			if ((CurPanelItem->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+			if ((CurPanelItem->FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
 			        StrCmp(strCurName,L".") && !TestParentFolderName(strCurName) &&
-			        (!UseFilter || Filter->FileInFilter(*CurPanelItem)) &&
+			        (!UseFilter || Filter->FileInFilter(CurPanelItem->FindData)) &&
 			        (SearchMode!=FINDAREA_SELECTED || RecurseLevel!=1 ||
 			         CtrlObject->Cp()->ActivePanel->IsSelected(strCurName)))
 			{
@@ -2718,7 +2699,7 @@ void ScanPluginTree(HANDLE hDlg, HANDLE hPlugin, UINT64 Flags, int& RecurseLevel
 					else
 						strPluginSearchPath.Clear();
 
-					SetDirectoryResult=false;
+					bool SetDirectoryResult=false;
 					{
 						CriticalSectionLock Lock(PluginCS);
 						SetDirectoryResult=CtrlObject->Plugins.SetDirectory(hPlugin,L"..",OPM_FIND)!=FALSE;
@@ -2793,7 +2774,7 @@ void DoPrepareFileList(HANDLE hDlg)
 			bool Mounted = false;
 			for(string* i = Volumes.First(); i; i = Volumes.Next(i))
 			{
-				if(i->IsSubStrAt(0,VolumeName))
+				if(i->Equal(0,VolumeName))
 				{
 					Mounted = true;
 					break;
@@ -2828,16 +2809,16 @@ void DoPreparePluginList(HANDLE hDlg, bool Internal)
 {
 	ARCLIST ArcItem;
 	itd.GetArcListItem(itd.GetFindFileArcIndex(), ArcItem);
-	OpenPanelInfo Info;
+	OpenPluginInfo Info;
 	string strSaveDir;
 	{
 		CriticalSectionLock Lock(PluginCS);
-		CtrlObject->Plugins.GetOpenPanelInfo(ArcItem.hPlugin,&Info);
+		CtrlObject->Plugins.GetOpenPluginInfo(ArcItem.hPlugin,&Info);
 		strSaveDir = Info.CurDir;
 		if (SearchMode==FINDAREA_ROOT || SearchMode==FINDAREA_ALL || SearchMode==FINDAREA_ALL_BUTNETWORK || SearchMode==FINDAREA_INPATH)
 		{
 			CtrlObject->Plugins.SetDirectory(ArcItem.hPlugin,L"\\",OPM_FIND);
-			CtrlObject->Plugins.GetOpenPanelInfo(ArcItem.hPlugin,&Info);
+			CtrlObject->Plugins.GetOpenPluginInfo(ArcItem.hPlugin,&Info);
 		}
 	}
 
@@ -2873,7 +2854,7 @@ DWORD WINAPI ThreadRoutine(LPVOID Param)
 	__try
 	{
 		InitInFileSearch();
-		THREADPARAM* tParam=static_cast<THREADPARAM*>(Param);
+		THREADPARAM* tParam=reinterpret_cast<THREADPARAM*>(Param);
 		tParam->PluginMode?DoPreparePluginList(tParam->hDlg, false):DoPrepareFileList(tParam->hDlg);
 		ReleaseInFileSearch();
 	}
@@ -2931,19 +2912,19 @@ bool FindFilesProcess(Vars& v)
 
 	int DlgWidth = ScrX + 1 - 2;
 	int DlgHeight = ScrY + 1 - 2;
-	FarDialogItem FindDlgData[]=
+	DialogDataEx FindDlgData[]=
 	{
-		{DI_DOUBLEBOX,3,1,DlgWidth-4,DlgHeight-2,0,nullptr,nullptr,DIF_SHOWAMPERSAND,strTitle},
-		{DI_LISTBOX,4,2,DlgWidth-5,DlgHeight-7,0,nullptr,nullptr,DIF_LISTNOBOX|DIF_DISABLE,0},
-		{DI_TEXT,0,DlgHeight-6,0,DlgHeight-6,0,nullptr,nullptr,DIF_SEPARATOR2,L""},
-		{DI_TEXT,5,DlgHeight-5,DlgWidth-(strFindStr.IsEmpty()?6:12),DlgHeight-5,0,nullptr,nullptr,DIF_SHOWAMPERSAND,strSearchStr},
-		{DI_TEXT,DlgWidth-9,DlgHeight-5,DlgWidth-6,DlgHeight-5,0,nullptr,nullptr,(strFindStr.IsEmpty()?DIF_HIDDEN:0),L""},
-		{DI_TEXT,0,DlgHeight-4,0,DlgHeight-4,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-		{DI_BUTTON,0,DlgHeight-3,0,DlgHeight-3,0,nullptr,nullptr,DIF_FOCUS|DIF_DEFAULTBUTTON|DIF_CENTERGROUP,MSG(MFindNewSearch)},
-		{DI_BUTTON,0,DlgHeight-3,0,DlgHeight-3,0,nullptr,nullptr,DIF_CENTERGROUP|DIF_DISABLE,MSG(MFindGoTo)},
-		{DI_BUTTON,0,DlgHeight-3,0,DlgHeight-3,0,nullptr,nullptr,DIF_CENTERGROUP|DIF_DISABLE,MSG(MFindView)},
-		{DI_BUTTON,0,DlgHeight-3,0,DlgHeight-3,0,nullptr,nullptr,DIF_CENTERGROUP|DIF_DISABLE,MSG(MFindPanel)},
-		{DI_BUTTON,0,DlgHeight-3,0,DlgHeight-3,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MFindStop)},
+		DI_DOUBLEBOX,3,1,DlgWidth-4,DlgHeight-2,0,DIF_SHOWAMPERSAND,strTitle,
+		DI_LISTBOX,4,2,DlgWidth-5,DlgHeight-7,0,DIF_LISTNOBOX|DIF_DISABLE,0,
+		DI_TEXT,0,DlgHeight-6,0,DlgHeight-6,0,DIF_SEPARATOR2,L"",
+		DI_TEXT,5,DlgHeight-5,DlgWidth-(strFindStr.IsEmpty()?6:12),DlgHeight-5,0,DIF_SHOWAMPERSAND,strSearchStr,
+		DI_TEXT,DlgWidth-9,DlgHeight-5,DlgWidth-6,DlgHeight-5,0,(strFindStr.IsEmpty()?DIF_HIDDEN:0),L"",
+		DI_TEXT,0,DlgHeight-4,0,DlgHeight-4,0,DIF_SEPARATOR,L"",
+		DI_BUTTON,0,DlgHeight-3,0,DlgHeight-3,0,DIF_FOCUS|DIF_DEFAULT|DIF_CENTERGROUP,MSG(MFindNewSearch),
+		DI_BUTTON,0,DlgHeight-3,0,DlgHeight-3,0,DIF_CENTERGROUP|DIF_DISABLE,MSG(MFindGoTo),
+		DI_BUTTON,0,DlgHeight-3,0,DlgHeight-3,0,DIF_CENTERGROUP|DIF_DISABLE,MSG(MFindView),
+		DI_BUTTON,0,DlgHeight-3,0,DlgHeight-3,0,DIF_CENTERGROUP|DIF_DISABLE,MSG(MFindPanel),
+		DI_BUTTON,0,DlgHeight-3,0,DlgHeight-3,0,DIF_CENTERGROUP,MSG(MFindStop),
 	};
 	MakeDialogItemsEx(FindDlgData,FindDlg);
 	ChangePriority ChPriority(THREAD_PRIORITY_NORMAL);
@@ -2952,8 +2933,8 @@ bool FindFilesProcess(Vars& v)
 	{
 		Panel *ActivePanel=CtrlObject->Cp()->ActivePanel;
 		HANDLE hPlugin=ActivePanel->GetPluginHandle();
-		OpenPanelInfo Info;
-		CtrlObject->Plugins.GetOpenPanelInfo(hPlugin,&Info);
+		OpenPluginInfo Info;
+		CtrlObject->Plugins.GetOpenPluginInfo(hPlugin,&Info);
 		itd.SetFindFileArcIndex(itd.AddArcListItem(Info.HostFile, hPlugin, Info.Flags, Info.CurDir));
 
 		if (itd.GetFindFileArcIndex() == LIST_INDEX_NONE)
@@ -2981,7 +2962,7 @@ bool FindFilesProcess(Vars& v)
 		FindDlg[FD_BUTTON_PANEL].Flags|=DIF_DISABLE;
 	}
 
-	Dialog Dlg=Dialog(FindDlg,ARRAYSIZE(FindDlg),FindDlgProc, &v);
+	Dialog Dlg=Dialog(FindDlg,ARRAYSIZE(FindDlg),FindDlgProc, reinterpret_cast<LONG_PTR>(&v));
 //  pDlg->SetDynamicallyBorn();
 	Dlg.SetHelp(L"FindFileResult");
 	Dlg.SetPosition(-1, -1, DlgWidth, DlgHeight);
@@ -2992,7 +2973,7 @@ bool FindFilesProcess(Vars& v)
 
 	strLastDirName.Clear();
 
-	THREADPARAM Param={v.PluginMode,static_cast<HANDLE>(&Dlg)};
+	THREADPARAM Param={v.PluginMode,reinterpret_cast<HANDLE>(&Dlg)};
 	HANDLE Thread = CreateThread(nullptr, 0, ThreadRoutine, &Param, 0, nullptr);
 	if (Thread)
 	{
@@ -3055,14 +3036,14 @@ bool FindFilesProcess(Vars& v)
 							}
 							PluginPanelItem *pi=&PanelItems[ItemsNumber++];
 							memset(pi,0,sizeof(*pi));
-							FindDataExToPluginPanelItem(&FindItem.FindData, pi);
+							apiFindDataExToData(&FindItem.FindData, &pi->FindData);
 
 							if (IsArchive)
-								pi->FileAttributes = 0;
+								pi->FindData.dwFileAttributes = 0;
 
-							if (pi->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+							if (pi->FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 							{
-								DeleteEndSlash(pi->FileName);
+								DeleteEndSlash(pi->FindData.lpwszFileName);
 							}
 						}
 					}
@@ -3083,7 +3064,7 @@ bool FindFilesProcess(Vars& v)
 				}
 
 				for (int i = 0; i < ItemsNumber; i++)
-					FreePluginPanelItem(&PanelItems[i]);
+					apiFreeFindData(&PanelItems[i].FindData);
 
 				delete[] PanelItems;
 				break;
@@ -3121,8 +3102,8 @@ bool FindFilesProcess(Vars& v)
 
 					if (ArcItem.hPlugin != INVALID_HANDLE_VALUE)
 					{
-						OpenPanelInfo Info;
-						CtrlObject->Plugins.GetOpenPanelInfo(ArcItem.hPlugin,&Info);
+						OpenPluginInfo Info;
+						CtrlObject->Plugins.GetOpenPluginInfo(ArcItem.hPlugin,&Info);
 
 						if (SearchMode==FINDAREA_ROOT ||
 							    SearchMode==FINDAREA_ALL ||
@@ -3235,35 +3216,35 @@ FindFiles::FindFiles()
 		const wchar_t *MasksHistoryName=L"Masks",*TextHistoryName=L"SearchText";
 		const wchar_t *HexMask=L"HH HH HH HH HH HH HH HH HH HH HH HH HH HH HH HH HH HH HH HH HH HH HH";
 		const wchar_t VSeparator[]={BoxSymbols[BS_T_H1V1],BoxSymbols[BS_V1],BoxSymbols[BS_V1],BoxSymbols[BS_V1],BoxSymbols[BS_B_H1V1],0};
-		FarDialogItem FindAskDlgData[]=
+		struct DialogDataEx FindAskDlgData[]=
 		{
-			{DI_DOUBLEBOX,3,1,74,18,0,nullptr,nullptr,0,MSG(MFindFileTitle)},
-			{DI_TEXT,5,2,0,2,0,nullptr,nullptr,0,MSG(MFindFileMasks)},
-			{DI_EDIT,5,3,72,3,0,MasksHistoryName,nullptr,DIF_FOCUS|DIF_HISTORY|DIF_USELASTHISTORY,L""},
-			{DI_TEXT,3,4,0,4,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-			{DI_TEXT,5,5,0,5,0,nullptr,nullptr,0,L""},
-			{DI_EDIT,5,6,72,6,0,TextHistoryName,nullptr,DIF_HISTORY,L""},
-			{DI_FIXEDIT,5,6,72,6,0,nullptr,HexMask,DIF_MASKEDIT,L""},
-			{DI_TEXT,5,7,0,7,0,nullptr,nullptr,0,L""},
-			{DI_COMBOBOX,5,8,72,8,0,nullptr,nullptr,DIF_DROPDOWNLIST|DIF_LISTNOAMPERSAND,L""},
-			{DI_TEXT,3,9,0,9,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-			{DI_CHECKBOX,5,10,0,10,0,nullptr,nullptr,0,MSG(MFindFileCase)},
-			{DI_CHECKBOX,5,11,0,11,0,nullptr,nullptr,0,MSG(MFindFileWholeWords)},
-			{DI_CHECKBOX,5,12,0,12,0,nullptr,nullptr,0,MSG(MSearchForHex)},
-			{DI_CHECKBOX,40,10,0,10,0,nullptr,nullptr,0,MSG(MFindArchives)},
-			{DI_CHECKBOX,40,11,0,11,0,nullptr,nullptr,0,MSG(MFindFolders)},
-			{DI_CHECKBOX,40,12,0,12,0,nullptr,nullptr,0,MSG(MFindSymLinks)},
-			{DI_TEXT,3,13,0,13,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-			{DI_VTEXT,38,9,0,9,0,nullptr,nullptr,DIF_BOXCOLOR,VSeparator},
-			{DI_TEXT,5,14,0,14,0,nullptr,nullptr,0,MSG(MSearchWhere)},
-			{DI_COMBOBOX,5,15,36,15,0,nullptr,nullptr,DIF_DROPDOWNLIST|DIF_LISTNOAMPERSAND,L""},
-			{DI_CHECKBOX,40,15,0,15,UseFilter?BSTATE_CHECKED:BSTATE_UNCHECKED,nullptr,nullptr,DIF_AUTOMATION,MSG(MFindUseFilter)},
-			{DI_TEXT,3,16,0,16,0,nullptr,nullptr,DIF_SEPARATOR,L""},
-			{DI_BUTTON,0,17,0,17,0,nullptr,nullptr,DIF_DEFAULTBUTTON|DIF_CENTERGROUP,MSG(MFindFileFind)},
-			{DI_BUTTON,0,17,0,17,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MFindFileDrive)},
-			{DI_BUTTON,0,17,0,17,0,nullptr,nullptr,DIF_CENTERGROUP|DIF_AUTOMATION|(UseFilter?0:DIF_DISABLE),MSG(MFindFileSetFilter)},
-			{DI_BUTTON,0,17,0,17,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MFindFileAdvanced)},
-			{DI_BUTTON,0,17,0,17,0,nullptr,nullptr,DIF_CENTERGROUP,MSG(MCancel)},
+			DI_DOUBLEBOX,3,1,74,18,0,0,MSG(MFindFileTitle),
+			DI_TEXT,5,2,0,2,0,0,MSG(MFindFileMasks),
+			DI_EDIT,5,3,72,3,(DWORD_PTR)MasksHistoryName,DIF_FOCUS|DIF_HISTORY|DIF_USELASTHISTORY,L"",
+			DI_TEXT,3,4,0,4,0,DIF_SEPARATOR,L"",
+			DI_TEXT,5,5,0,5,0,0,L"",
+			DI_EDIT,5,6,72,6,(DWORD_PTR)TextHistoryName,DIF_HISTORY,L"",
+			DI_FIXEDIT,5,6,72,6,(DWORD_PTR)HexMask,DIF_MASKEDIT,L"",
+			DI_TEXT,5,7,0,7,0,0,L"",
+			DI_COMBOBOX,5,8,72,8,0,DIF_DROPDOWNLIST|DIF_LISTNOAMPERSAND,L"",
+			DI_TEXT,3,9,0,9,0,DIF_SEPARATOR,L"",
+			DI_CHECKBOX,5,10,0,10,0,0,MSG(MFindFileCase),
+			DI_CHECKBOX,5,11,0,11,0,0,MSG(MFindFileWholeWords),
+			DI_CHECKBOX,5,12,0,12,0,0,MSG(MSearchForHex),
+			DI_CHECKBOX,40,10,0,10,0,0,MSG(MFindArchives),
+			DI_CHECKBOX,40,11,0,11,0,0,MSG(MFindFolders),
+			DI_CHECKBOX,40,12,0,12,0,0,MSG(MFindSymLinks),
+			DI_TEXT,3,13,0,13,0,DIF_SEPARATOR,L"",
+			DI_VTEXT,38,9,0,9,0,DIF_BOXCOLOR,VSeparator,
+			DI_TEXT,5,14,0,14,0,0,MSG(MSearchWhere),
+			DI_COMBOBOX,5,15,36,15,0,DIF_DROPDOWNLIST|DIF_LISTNOAMPERSAND,L"",
+			DI_CHECKBOX,40,15,0,15,UseFilter?BSTATE_CHECKED:BSTATE_UNCHECKED,DIF_AUTOMATION,MSG(MFindUseFilter),
+			DI_TEXT,3,16,0,16,0,DIF_SEPARATOR,L"",
+			DI_BUTTON,0,17,0,17,0,DIF_DEFAULT|DIF_CENTERGROUP,MSG(MFindFileFind),
+			DI_BUTTON,0,17,0,17,0,DIF_CENTERGROUP,MSG(MFindFileDrive),
+			DI_BUTTON,0,17,0,17,0,DIF_CENTERGROUP|DIF_AUTOMATION|(UseFilter?0:DIF_DISABLE),MSG(MFindFileSetFilter),
+			DI_BUTTON,0,17,0,17,0,DIF_CENTERGROUP,MSG(MFindFileAdvanced),
+			DI_BUTTON,0,17,0,17,0,DIF_CENTERGROUP,MSG(MCancel),
 		};
 		MakeDialogItemsEx(FindAskDlgData,FindAskDlg);
 
@@ -3286,8 +3267,8 @@ FindFiles::FindFiles()
 
 		if (v.PluginMode)
 		{
-			OpenPanelInfo Info;
-			CtrlObject->Plugins.GetOpenPanelInfo(ActivePanel->GetPluginHandle(),&Info);
+			OpenPluginInfo Info;
+			CtrlObject->Plugins.GetOpenPluginInfo(ActivePanel->GetPluginHandle(),&Info);
 
 			if (!(Info.Flags & OPIF_REALNAMES))
 				FindAskDlg[FAD_CHECKBOX_ARC].Flags |= DIF_DISABLE;
@@ -3321,7 +3302,7 @@ FindFiles::FindFiles()
 		FindAskDlg[FAD_CHECKBOX_WHOLEWORDS].Selected=WholeWords;
 		FindAskDlg[FAD_CHECKBOX_HEX].Selected=SearchHex;
 		int ExitCode;
-		Dialog Dlg(FindAskDlg,ARRAYSIZE(FindAskDlg),MainDlgProc, &v);
+		Dialog Dlg(FindAskDlg,ARRAYSIZE(FindAskDlg),MainDlgProc, reinterpret_cast<LONG_PTR>(&v));
 		Dlg.SetAutomation(FAD_CHECKBOX_FILTER,FAD_BUTTON_FILTER,DIF_DISABLE,DIF_NONE,DIF_NONE,DIF_DISABLE);
 		Dlg.SetHelp(L"FindFile");
 		Dlg.SetId(FindFileId);

@@ -19,7 +19,7 @@ public:
 	bool Create();
 	void Close();
 
-	bool GetFindData(WIN32_FIND_DATA& fData);
+	unsigned __int64 GetSize();
 	const TCHAR *GetName();
 
 	virtual HRESULT __stdcall QueryInterface(REFIID iid, void ** ppvObject);

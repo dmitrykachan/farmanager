@@ -1,6 +1,6 @@
 /*
-  Copyright © 2000 Konstantin Stupnik
-  Copyright © 2008 Far Group
+  Copyright (c) 2000 Konstantin Stupnik
+  Copyright (c) 2008 Far Group
   All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
@@ -686,7 +686,7 @@ void *RegExp::CreateArray(const unsigned int size, const unsigned int total,
 				for (unsigned int f=0; f<total; ++f)
 					Create(array+size*f);
 
-			return array;
+			return reinterpret_cast<void*>(array);
 		}
 	}
 

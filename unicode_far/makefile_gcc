@@ -5,7 +5,7 @@
 
 ifndef DEBUG
 DIRNAME=Release
-DEBUGFLAGS=-O3 -DNDEBUG
+DEBUGFLAGS=-Os -DNDEBUG
 DEBUGLINKFLAGS=-s
 else
 DIRNAME=Debug
@@ -23,6 +23,7 @@ DEF = far.def
 DEPFILE = bootstrap/far.gcc.dep
 
 SRCS = \
+	elevation.cpp \
 	cache.cpp \
 	cddrv.cpp \
 	CFileMask.cpp \
@@ -31,9 +32,7 @@ SRCS = \
 	clipboard.cpp \
 	cmdline.cpp \
 	codepage.cpp \
-	colormix.cpp \
 	config.cpp \
-	configdb.cpp \
 	console.cpp \
 	constitle.cpp \
 	copy.cpp \
@@ -53,14 +52,12 @@ SRCS = \
 	edit.cpp \
 	editor.cpp \
 	eject.cpp \
-	elevation.cpp \
 	execute.cpp \
 	farexcpt.cpp \
-	FarGuid.cpp \
 	farqueue.cpp \
 	farrtl.cpp \
-	farversion.cpp \
 	farwinapi.cpp \
+	ffolders.cpp \
 	fileattr.cpp \
 	fileedit.cpp \
 	filefilter.cpp \
@@ -116,13 +113,11 @@ SRCS = \
 	panelmix.cpp \
 	pathmix.cpp \
 	plist.cpp \
-	plclass.cpp \
 	plognmn.cpp \
 	plugapi.cpp \
 	PluginA.cpp \
 	plugins.cpp \
 	PluginW.cpp \
-	plugsettings.cpp \
 	poscache.cpp \
 	print.cpp \
 	privilege.cpp \
@@ -132,6 +127,7 @@ SRCS = \
 	RefreshFrameManager.cpp \
 	RegExp.cpp \
 	registry.cpp \
+	savefpos.cpp \
 	savescr.cpp \
 	scantree.cpp \
 	scrbuf.cpp \
@@ -139,11 +135,10 @@ SRCS = \
 	scrsaver.cpp \
 	setattr.cpp \
 	setcolor.cpp \
-	shortcuts.cpp \
 	stddlg.cpp \
 	strmix.cpp \
 	synchro.cpp \
-	macrocompiler.cpp \
+	syntax.cpp \
 	syslog.cpp \
 	TaskBar.cpp \
 	TPreRedrawFunc.cpp \
@@ -184,13 +179,10 @@ UCD_SRCS= \
 	nsSBCSGroupProber.cpp \
 	nsSJISProber.cpp \
 	nsUniversalDetector.cpp \
-	nsUTF8Prober.cpp
-
-SQLITE_SRCS = sqlite.c
+	nsUTF8Prober.cpp \
 
 OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(filter %.cpp,$(SRCS))) $(patsubst %.c,$(OBJDIR)/%.o,$(filter %.c,$(SRCS))) $(OBJDIR)/far.rc.o
 UCD_OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(filter %.cpp,$(UCD_SRCS))) $(patsubst %.c,$(OBJDIR)/%.o,$(filter %.c,$(UCD_SRCS)))
-SQLITE_OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(filter %.cpp,$(SQLITE_SRCS))) $(patsubst %.c,$(OBJDIR)/%.o,$(filter %.c,$(SQLITE_SRCS)))
 MAP = $(patsubst %.exe,%.map,$(EXEFULLNAME))
 
 CXX = g++
@@ -201,11 +193,11 @@ M4 = tools/m4 -P -DFARBIT=$(DIRBIT)
 GAWK = tools/gawk
 MV = mv -f
 MKDIR = mkdir -p
-WINDRES = windres
+WINDRES = windres -D__FARBIT__=$(DIRBIT)
 DEFINES = -D FAR_ALPHA_VERSION -D UNICODE -D _UNICODE
-CFLAGS = $(DEBUGFLAGS) -mno-cygwin -pipe $(DEFINES) -funsigned-char -fomit-frame-pointer -fno-exceptions -Wall -Wno-missing-braces -Wno-unknown-pragmas
-CCFLAGS = $(CFLAGS) -fno-rtti
-LNKFLAGS = -mno-cygwin -static-libgcc -static-libstdc++ $(DEBUGLINKFLAGS) -lmpr -lwinspool -lole32 -lsecur32 -lsetupapi -lpsapi -lrpcrt4
+CCFLAGS = $(DEBUGFLAGS) -mno-cygwin -pipe $(DEFINES) -funsigned-char -fomit-frame-pointer -fno-exceptions -fno-rtti -Wall -Wno-missing-braces -Wno-unknown-pragmas -Wno-switch -Wno-strict-aliasing
+CFLAGS = $(DEBUGFLAGS) -mno-cygwin -pipe $(DEFINES) -funsigned-char -fomit-frame-pointer -fno-exceptions -Wall -Wno-missing-braces -Wno-unknown-pragmas -Wno-switch 
+LNKFLAGS = -mno-cygwin -static-libgcc -static-libstdc++ $(DEBUGLINKFLAGS) -lmpr -lwinspool -lole32 -lsecur32 -lsetupapi -lpsapi
 
 .PHONY: all
 all: dirs lng depfile
@@ -228,11 +220,11 @@ dirs:
 	@$(MKDIR) bootstrap
 
 .PHONY: build
-build: $(EXEFULLNAME) $(EXEDIR)/FarEng.hlf $(EXEDIR)/FarRus.hlf $(EXEDIR)/FarHun.hlf $(EXEDIR)/File_id.diz $(EXEDIR)/Far.exe.ini $(FARINCLUDE)/farcolor.hpp $(FARINCLUDE)/farkeys.hpp $(FARINCLUDE)/plugin.hpp $(FARINCLUDE)/PluginW.pas $(FARINCLUDE)/FarColorW.pas $(FARINCLUDE)/FarKeysW.pas
+build: $(EXEFULLNAME) $(EXEDIR)/FarEng.hlf $(EXEDIR)/FarRus.hlf $(EXEDIR)/FarHun.hlf $(EXEDIR)/File_id.diz $(FARINCLUDE)/farcolor.hpp $(FARINCLUDE)/farkeys.hpp $(FARINCLUDE)/plugin.hpp $(FARINCLUDE)/PluginW.pas $(FARINCLUDE)/FarColorW.pas $(FARINCLUDE)/FarKeysW.pas
 
-$(EXEFULLNAME): bootstrap/Far.exe.manifest bootstrap/far.rc bootstrap/copyright.inc bootstrap/farversion.inc $(OBJS) $(UCD_OBJS) $(SQLITE_OBJS) $(DEF)
+$(EXEFULLNAME): bootstrap/Far.exe.manifest bootstrap/far.rc bootstrap/copyright.inc bootstrap/farversion.inc $(OBJS) $(UCD_OBJS) $(DEF)
 	@echo linking $@
-	@$(CXX) -o $@ $(OBJS) $(UCD_OBJS) $(SQLITE_OBJS) $(LNKFLAGS) -Xlinker -Map -Xlinker $(MAP) -Xlinker --large-address-aware
+	@$(CXX) -o $@ $(OBJS) $(UCD_OBJS) $(LNKFLAGS) -Xlinker -Map -Xlinker $(MAP) -Xlinker --large-address-aware
 
 $(OBJDIR)/hook_wow64.o: hook_wow64.c
 	@echo compiling $<
@@ -256,10 +248,6 @@ $(OBJDIR)/%.o: ./UCD/%.cpp
 	@echo compiling $<
 	@$(CXX) $(CCFLAGS) -c -o $@ $<
 	
-$(OBJDIR)/%.o: ./sqlite/%.c
-	@echo compiling $<
-	@$(CC) $(CFLAGS) -c -o $@ $<
-
 $(OBJDIR)/far.rc.o: bootstrap/far.rc res.hpp Far.ico
 	@echo compiling resource file
 	@$(WINDRES) -i $< -o $@
@@ -274,7 +262,7 @@ bootstrap/far.rc: far.rc.m4 farversion.m4 tools.m4 vbuild.m4 res.hpp bootstrap/F
 
 bootstrap/copyright.inc: copyright.inc.m4 farversion.m4 tools.m4 vbuild.m4
 	@echo generating $@
-	@$(M4) copyright.inc.m4 > $@
+	@$(M4) copyright.inc.m4 | $(GAWK) -f ./scripts/enc.awk > $@
 
 bootstrap/farversion.inc: farversion.inc.m4 farversion.m4 tools.m4 vbuild.m4
 	@echo generating $@
@@ -299,10 +287,6 @@ $(EXEDIR)/FarHun.hlf: FarHun.hlf.m4 farversion.m4 tools.m4 vbuild.m4
 $(EXEDIR)/File_id.diz: File_id.diz.m4 farversion.m4 tools.m4 vbuild.m4
 	@echo generating $@
 	@$(M4) File_id.diz.m4 > $@
-
-$(EXEDIR)/Far.exe.ini: Far.exe.ini
-	@echo generating $@
-	@$(CP) Far.exe.ini $@
 
 $(FARINCLUDE)/farcolor.hpp: colors.hpp farversion.m4 tools.m4 vbuild.m4
 	@echo generating $@
@@ -337,11 +321,9 @@ clean:
 	@echo cleaning
 	@$(RM) $(OBJS)
 	@$(RM) $(UCD_OBJS)
-	@$(RM) $(SQLITE_OBJS)
 	@$(RM) $(OBJDIR)/headers.gch
 	@$(RM) $(EXEFULLNAME) $(MAP)
 	@$(RM) bootstrap/*.*
 	@$(RM) $(EXEDIR)/*.lng
 	@$(RM) $(EXEDIR)/*.hlf
 	@$(RM) $(EXEDIR)/File_id.diz
-	@$(RM) $(EXEDIR)/Far.exe.ini

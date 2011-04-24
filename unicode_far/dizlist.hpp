@@ -6,8 +6,8 @@ dizlist.hpp
 Описания файлов
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -47,9 +47,9 @@ class DizList
 	private:
 		string strDizFileName;
 		DizRecord *DizData;
-		size_t DizCount;
-		size_t *IndexData;
-		size_t IndexCount;
+		int DizCount;
+		int *IndexData;
+		int IndexCount;
 		bool Modified;
 		bool NeedRebuild;
 		UINT OrigCodePage;

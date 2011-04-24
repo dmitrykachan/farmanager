@@ -19,8 +19,7 @@ const unsigned char XzSig[]       = {0xFD, '7' , 'z', 'X', 'Z', '\0'};
 const unsigned char VhdSig[]      = { 'c', 'o', 'n', 'e', 'c', 't', 'i', 'x', 0, 0 };
 const unsigned char MbrSig[]      = { 1, 1, 0 };
 const unsigned char FatSig[]      = { 0x55, 0xAA };
-//const unsigned char NtfsSig[]     = { 'N', 'T', 'F', 'S', ' ', ' ', ' ', ' ', 0 };
-const unsigned char NtfsSig[]     = { 0xEB, 0x52, 0x90, 'N', 'T', 'F', 'S', ' ', ' ', ' ', ' ', 0 };
+const unsigned char NtfsSig[]     = { 'N', 'T', 'F', 'S', ' ', ' ', ' ', ' ', 0 };
 const unsigned char MsLzSig[]     = { 0x53, 0x5A, 0x44, 0x44, 0x88, 0xF0, 0x27, 0x33, 0x41 };
 const unsigned char FlvSig[]      = { 'F', 'L', 'V' };
 const unsigned char SwfSig[]      = { 'F', 'W', 'S' };
@@ -73,7 +72,7 @@ const FormatInfo signs[] = {
 };
 
 
-bool ConvertToFormatInfo(
+bool ConvertToFormatInfo (
 		CPropVariant& vGUID,
 		CPropVariant& vUpdate,
 		CPropVariant& vExtension,
@@ -134,7 +133,7 @@ bool ConvertToFormatInfo(
 
 	strName += _T(" archive [7z]");
 
-	memcpy(&pInfo->uid, vGUID.bstrVal, sizeof (GUID));
+	memcpy (&pInfo->uid, vGUID.bstrVal, sizeof (GUID));
 
 	pInfo->lpName = StrDuplicate(strName);
 	pInfo->lpDefaultExtention = StrDuplicate(strDefaultExtention);
@@ -146,21 +145,6 @@ bool ConvertToFormatInfo(
 		pInfo->dwFlags |= (AFF_SUPPORT_INTERNAL_DELETE|AFF_SUPPORT_INTERNAL_ADD|AFF_SUPPORT_INTERNAL_CREATE);
 
 	pInfo->dwFlags |= AFF_SUPPORT_INTERNAL_CONFIG;
-
-	if ( (pInfo->uid == CLSID_CFormat7z) || 
-		 (pInfo->uid == CLSID_CRarHandler) ||
-		 (pInfo->uid == CLSID_CZipHandler) ||
-		 (pInfo->uid == CLSID_CArjHandler) ||
-		 (pInfo->uid == CLSID_CTarHandler) ||
-		 (pInfo->uid == CLSID_CGZipHandler) ||
-		 (pInfo->uid == CLSID_CBZip2Handler) ||
-		 (pInfo->uid == CLSID_CZHandler) ||
-		 (pInfo->uid == CLSID_CCabHandler) ||
-		 (pInfo->uid == CLSID_CLzhHandler) ||
-		 (pInfo->uid == CLSID_CCpioHandler) ||
-		 (pInfo->uid == CLSID_CRpmHandler) ||
-		 (pInfo->uid == CLSID_CDebHandler) )
-		 pInfo->dwFlags |= AFF_SUPPORT_DEFAULT_COMMANDS;
 
 	return true;
 }
@@ -255,12 +239,12 @@ bool SevenZipPlugin::Load()
 				ArchiveFormatInfo format;
 				memset(&format, 0, sizeof(format));
 
-				if ( (m_pfnGetHandlerProperty(NArchive::kClassID, &vGUID) == S_OK) &&
-					 (m_pfnGetHandlerProperty(NArchive::kUpdate, &vUpdate) == S_OK) &&
-					 (m_pfnGetHandlerProperty(NArchive::kExtension, &vExtension) == S_OK) &&
-					 (m_pfnGetHandlerProperty(NArchive::kStartSignature, &vSignature) == S_OK) &&
-					 (m_pfnGetHandlerProperty(NArchive::kName, &vName) == S_OK) &&
-					 ConvertToFormatInfo(vGUID, vUpdate, vExtension, vSignature, vName, &format) )
+				if ( (m_pfnGetHandlerProperty (NArchive::kClassID, &vGUID) == S_OK) &&
+					 (m_pfnGetHandlerProperty (NArchive::kUpdate, &vUpdate) == S_OK) &&
+					 (m_pfnGetHandlerProperty (NArchive::kExtension, &vExtension) == S_OK) &&
+					 (m_pfnGetHandlerProperty (NArchive::kStartSignature, &vSignature) == S_OK) &&
+					 (m_pfnGetHandlerProperty (NArchive::kName, &vName) == S_OK) &&
+					 ConvertToFormatInfo (vGUID, vUpdate, vExtension, vSignature, vName, &format) )
 					m_pFormatInfo.add(format);
 			}
 			

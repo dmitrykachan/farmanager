@@ -6,8 +6,8 @@ macroopcode.hpp
 OpCode для макросов
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -172,7 +172,6 @@ enum MACRO_OP_CODE
 	MCODE_F_MENU_CHECKHOTKEY,         // N=checkhotkey(S[,N])
 	MCODE_F_MENU_GETHOTKEY,           // S=gethotkey([N])
 	MCODE_F_MENU_SELECT,              // N=Menu.Select(S[,N[,Dir]])
-	MCODE_F_MENU_SHOW,                // S=Menu.Show(Items[,Title[,Flags[,FindOrFilter[,X[,Y]]]]])
 	MCODE_F_MIN,                      // N=min(N1,N2)
 	MCODE_F_MOD,                      // N=mod(a,b) == a %  b
 	MCODE_F_MLOAD,                    // B=mload(var)
@@ -219,9 +218,6 @@ enum MACRO_OP_CODE
 	MCODE_F_BEEP,                     // N=beep([N])
 	MCODE_F_KBDLAYOUT,                // N=kbdLayout([N])
 	MCODE_F_WINDOW_SCROLL,            // N=Window.Scroll(Lines[,Axis])
-	MCODE_F_KEYBAR_SHOW,              // N=KeyBar.Show([N])
-	MCODE_F_HISTIORY_ENABLE,          // N=History.Enable([State])
-	MCODE_F_FMATCH,                   // N=FMatch(S,Mask)
 
 	/* ************************************************************************* */
 	// булевые переменные - различные состояния

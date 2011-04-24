@@ -4,7 +4,7 @@ TaskBar.cpp
 Windows 7 taskbar support
 */
 /*
-Copyright © 2009 Far Group
+Copyright (c) 2009 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -131,4 +131,49 @@ TaskBar::~TaskBar()
 	{
 		TBC.Flash();
 	}
+}
+
+
+
+TaskBarPause::TaskBarPause():
+	PrevState(TBC.GetProgressState())
+{
+	if (PrevState!=TBPF_ERROR && PrevState!=TBPF_PAUSED)
+	{
+		if (PrevState==TBPF_INDETERMINATE||PrevState==TBPF_NOPROGRESS)
+		{
+			TBC.SetProgressValue(1,1);
+		}
+
+		TBC.SetProgressState(TBPF_PAUSED);
+		TBC.Flash();
+	}
+}
+
+TaskBarPause::~TaskBarPause()
+{
+	TBC.SetProgressState(PrevState);
+}
+
+
+
+TaskBarError::TaskBarError():
+	PrevState(TBC.GetProgressState())
+{
+
+	if (PrevState!=TBPF_ERROR && PrevState!=TBPF_PAUSED)
+	{
+		if (PrevState==TBPF_INDETERMINATE||PrevState==TBPF_NOPROGRESS)
+		{
+			TBC.SetProgressValue(1,1);
+		}
+
+		TBC.SetProgressState(TBPF_ERROR);
+		TBC.Flash();
+	}
+}
+
+TaskBarError::~TaskBarError()
+{
+	TBC.SetProgressState(PrevState);
 }

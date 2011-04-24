@@ -4,8 +4,8 @@ plugapi.cpp
 API, доступное плагинам (диалоги, меню, ...)
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -70,12 +70,10 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pathmix.hpp"
 #include "exitcode.hpp"
 #include "processname.hpp"
+#include "synchro.hpp"
 #include "RegExp.hpp"
 #include "TaskBar.hpp"
 #include "console.hpp"
-#include "plugsettings.hpp"
-#include "farversion.hpp"
-#include "mix.hpp"
 
 wchar_t *WINAPI FarItoa(int value, wchar_t *string, int radix)
 {
@@ -139,7 +137,6 @@ void ScanPluginDir();
    Сделано для того, чтобы не дублировать код GetString.
 */
 int WINAPI FarInputBox(
-    INT_PTR PluginNumber,
     const wchar_t *Title,
     const wchar_t *Prompt,
     const wchar_t *HistoryName,
@@ -147,14 +144,14 @@ int WINAPI FarInputBox(
     wchar_t *DestText,
     int DestLength,
     const wchar_t *HelpTopic,
-    unsigned __int64 Flags
+    DWORD Flags
 )
 {
 	if (FrameManager->ManagerIsDown())
 		return FALSE;
 
 	string strDest;
-	int nResult = GetString(Title,Prompt,HistoryName,SrcText,strDest,HelpTopic,Flags&~FIB_CHECKBOX,nullptr,nullptr,PluginNumber);
+	int nResult = GetString(Title,Prompt,HistoryName,SrcText,strDest,HelpTopic,Flags&~FIB_CHECKBOX,nullptr,nullptr);
 	xwcsncpy(DestText, strDest, DestLength+1);
 	return nResult;
 }
@@ -163,7 +160,7 @@ int WINAPI FarInputBox(
 BOOL WINAPI FarShowHelp(
     const wchar_t *ModuleName,
     const wchar_t *HelpTopic,
-    FARHELPFLAGS Flags
+    DWORD Flags
 )
 {
 	if (FrameManager->ManagerIsDown())
@@ -172,7 +169,7 @@ BOOL WINAPI FarShowHelp(
 	if (!HelpTopic)
 		HelpTopic=L"Contents";
 
-	UINT64 OFlags=Flags;
+	DWORD OFlags=Flags;
 	Flags&=~(FHELP_NOSHOWERROR|FHELP_USECONTENTS);
 	string strPath, strTopic;
 	string strMask;
@@ -227,8 +224,14 @@ BOOL WINAPI FarShowHelp(
 /* $ 05.07.2000 IS
   Функция, которая будет действовать и в редакторе, и в панелях, и...
 */
-INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Command, int Param1, void* Param2)
+INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, int Command, void *Param)
 {
+	if (ACTL_SYNCHRO==Command) //must be first
+	{
+		PluginSynchroManager.Synchro(true, ModuleNumber, Param);
+		return 0;
+	}
+
 	struct Opt2Flags
 	{
 		int *Opt;
@@ -237,7 +240,7 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 
 	switch (Command)
 	{
-		case ACTL_GETFARMANAGERVERSION:
+		case ACTL_GETFARVERSION:
 		case ACTL_GETSYSWORDDIV:
 		case ACTL_GETCOLOR:
 		case ACTL_GETARRAYCOLOR:
@@ -247,6 +250,7 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		case ACTL_GETINTERFACESETTINGS:
 		case ACTL_GETCONFIRMATIONS:
 		case ACTL_GETDESCSETTINGS:
+		case ACTL_GETPOLICIES:
 		case ACTL_GETPLUGINMAXREADDATA:
 		case ACTL_GETMEDIATYPE:
 		case ACTL_SETPROGRESSSTATE:
@@ -264,12 +268,12 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 
 	switch (Command)
 	{
-		case ACTL_GETFARMANAGERVERSION:
+		case ACTL_GETFARVERSION:
 		{
-			if (Param2)
-				*(VersionInfo*)Param2=FAR_VERSION;
+			if (Param)
+				*(DWORD*)Param=FAR_VERSION;
 
-			return TRUE;
+			return FAR_VERSION;
 		}
 		case ACTL_GETPLUGINMAXREADDATA:
 		{
@@ -277,10 +281,10 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		}
 		case ACTL_GETSYSWORDDIV:
 		{
-			if (Param2)
-				wcscpy((wchar_t *)Param2,Opt.strWordDiv);
+			if (Param)
+				wcscpy((wchar_t *)Param,Opt.strWordDiv);
 
-			return Opt.strWordDiv.GetLength()+1;
+			return (int)Opt.strWordDiv.GetLength()+1;
 		}
 		/* $ 24.08.2000 SVS
 		   ожидать определенную (или любую) клавишу
@@ -290,18 +294,18 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		*/
 		case ACTL_WAITKEY:
 		{
-			return WaitKey(Param1?Param1:-1,0,false);
+			return WaitKey(Param?(DWORD)(DWORD_PTR)Param:(DWORD)-1,0,false);
 		}
 		/* $ 04.12.2000 SVS
 		  ACTL_GETCOLOR - получить определенный цвет по индекс, определенному
 		   в farcolor.hpp
-		  Param1 - индекс.
+		  (int)Param - индекс.
 		  Return - значение цвета или -1 если индекс неверен.
 		*/
 		case ACTL_GETCOLOR:
 		{
-			if (Param1 < SizeArrayPalette && Param1 >= 0)
-				return Palette[Param1];
+			if ((int)(INT_PTR)Param < SizeArrayPalette && (int)(INT_PTR)Param >= 0)
+				return (int)((unsigned int)Palette[(int)(INT_PTR)Param]);
 
 			return -1;
 		}
@@ -312,8 +316,8 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		*/
 		case ACTL_GETARRAYCOLOR:
 		{
-			if (Param2)
-				memcpy(Param2,Palette,SizeArrayPalette);
+			if (Param)
+				memcpy(Param,Palette,SizeArrayPalette);
 
 			return SizeArrayPalette;
 		}
@@ -327,9 +331,9 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		*/
 		case ACTL_SETARRAYCOLOR:
 		{
-			if (Param2)
+			if (Param)
 			{
-				FarSetColors *Pal=(FarSetColors*)Param2;
+				FarSetColors *Pal=(FarSetColors*)Param;
 
 				if (Pal->Colors &&
 				        Pal->StartIndex >= 0 &&
@@ -337,7 +341,7 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 				{
 					memmove(Palette+Pal->StartIndex,Pal->Colors,Pal->ColorCount);
 
-					if (Pal->Flags&FSETCLR_REDRAW)
+					if (Pal->Flags&FCLR_REDRAW)
 					{
 						ScrBuf.Lock(); // отменяем всякую прорисовку
 						FrameManager->ResizeAllFrame();
@@ -358,8 +362,8 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		*/
 		case ACTL_EJECTMEDIA:
 		{
-			return Param2?EjectVolume((wchar_t)((ActlEjectMedia*)Param2)->Letter,
-			                         ((ActlEjectMedia*)Param2)->Flags):FALSE;
+			return Param?EjectVolume((wchar_t)((ActlEjectMedia*)Param)->Letter,
+			                         ((ActlEjectMedia*)Param)->Flags):FALSE;
 			/*
 			      if(Param)
 			      {
@@ -388,14 +392,147 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		      return FAR_GetDriveType(DiskLetter,nullptr,(amt && !(amt->Flags&MEDIATYPE_NODETECTCDROM)?TRUE:FALSE));
 		    }
 		*/
+		/* $ 21.12.2000 SVS
+		   Macro API
+		*/
+		case ACTL_KEYMACRO:
+		{
+			if (CtrlObject && Param) // все зависит от этой бадяги.
+			{
+				KeyMacro& Macro=CtrlObject->Macro; //??
+				ActlKeyMacro *KeyMacro=(ActlKeyMacro*)Param;
+
+				switch (KeyMacro->Command)
+				{
+					case MCMD_LOADALL: // из реестра в память ФАР с затиранием предыдущего
+					{
+						if (Macro.IsRecording())
+							return FALSE;
+
+						return Macro.LoadMacros(!Macro.IsExecuting());
+					}
+					case MCMD_SAVEALL: // из памяти ФАРа в реестра
+					{
+						if (Macro.IsRecording()) // || Macro.IsExecuting())
+							return FALSE;
+
+						Macro.SaveMacros();
+						return TRUE;
+					}
+					case MCMD_POSTMACROSTRING:
+					{
+						if (KeyMacro->Param.PlainText.SequenceText && *KeyMacro->Param.PlainText.SequenceText)
+							return Macro.PostNewMacro(KeyMacro->Param.PlainText.SequenceText,KeyMacro->Param.PlainText.Flags<<8,KeyMacro->Param.PlainText.AKey);
+
+						return FALSE;
+					}
+					case MCMD_RUNMACROSTRING:
+					{
+						return FALSE;
+					}
+					case MCMD_CHECKMACRO:  // проверка макроса
+					{
+						MacroRecord CurMacro={0};
+						int Ret=Macro.ParseMacroString(&CurMacro,KeyMacro->Param.PlainText.SequenceText,(KeyMacro->Param.PlainText.Flags&KSFLAGS_SILENTCHECK)?TRUE:FALSE);
+
+						if (Ret)
+						{
+							if (CurMacro.BufferSize > 1)
+								xf_free(CurMacro.Buffer);
+							memset(&KeyMacro->Param.MacroResult,0,sizeof(struct MacroParseResult));
+						}
+						else
+						{
+							static string ErrSrc;
+							Macro.GetMacroParseError(&KeyMacro->Param.MacroResult.ErrCode,&KeyMacro->Param.MacroResult.ErrPos,&ErrSrc);
+							KeyMacro->Param.MacroResult.ErrSrc=ErrSrc;
+						}
+
+						return Ret;
+					}
+					case MCMD_GETSTATE:
+					{
+						return Macro.GetCurRecord(nullptr,nullptr);
+					}
+
+					case MCMD_GETAREA:
+					{
+						return Macro.GetMode();
+					}
+#if 0
+					case MCMD_COMPILEMACRO:
+					{
+						MacroRecord CurMacro={0};
+						int Ret=Macro.ParseMacroString(&CurMacro,KeyMacro->Param.PlainText.SequenceText);
+
+						if (Ret)
+						{
+							//KeyMacro->Params.Compile.Flags=CurMacro.Flags;
+							KeyMacro->Param.Compile.Sequence=CurMacro.Buffer;
+							KeyMacro->Param.Compile.Count=CurMacro.BufferSize;
+						}
+
+						return Ret;
+					}
+#endif
+				}
+			}
+
+			return FALSE;
+		}
+		case ACTL_POSTKEYSEQUENCE:
+		{
+			if (CtrlObject && Param && ((KeySequence*)Param)->Count > 0)
+			{
+				MacroRecord MRec={0};
+				MRec.Flags=(((KeySequence*)Param)->Flags)<<8;
+				MRec.BufferSize=((KeySequence*)Param)->Count;
+
+				if (MRec.BufferSize == 1)
+					MRec.Buffer=(DWORD *)(DWORD_PTR)((KeySequence*)Param)->Sequence[0];
+				else
+					MRec.Buffer=const_cast<DWORD*>(((KeySequence*)Param)->Sequence);
+
+				return CtrlObject->Macro.PostNewMacro(&MRec,TRUE,TRUE);
+#if 0
+				// Этот кусок - для дальнейших экспериментов
+				{
+					//CtrlObject->Macro.PostNewMacro(&MRec);
+					for (int I=0; I < MRec.BufferSize; ++I)
+					{
+						int Key=MRec.Buffer[I];
+
+						if (CtrlObject->Macro.ProcessKey(Key))
+						{
+							while ((Key=CtrlObject->Macro.GetKey()) )
+							{
+								FrameManager->ProcessKey(Key);
+							}
+						}
+						else
+							FrameManager->ProcessKey(Key);
+
+						FrameManager->PluginCommit();
+					}
+
+					return TRUE;
+				}
+#endif
+			}
+
+			return FALSE;
+		}
 		/* $ 05.06.2001 tran
 		   новые ACTL_ для работы с фреймами */
 		case ACTL_GETWINDOWINFO:
+			/* $ 12.04.2005 AY
+			     thread safe window info */
+		case ACTL_GETSHORTWINDOWINFO:
 		{
-			if (FrameManager && Param2)
+			if (FrameManager && Param)
 			{
 				string strType, strName;
-				WindowInfo *wi=(WindowInfo*)Param2;
+				WindowInfo *wi=(WindowInfo*)Param;
 				Frame *f;
 
 				/* $ 22.12.2001 VVM
@@ -403,51 +540,45 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 				if (wi->Pos == -1)
 					f=FrameManager->GetCurrentFrame();
 				else
-					f=(*FrameManager)[wi->Pos];
+					f=FrameManager->operator[](wi->Pos);
 
 				if (!f)
 					return FALSE;
 
-				f->GetTypeAndName(strType, strName);
-
-				if (wi->TypeNameSize && wi->TypeName)
+				if (Command==ACTL_GETWINDOWINFO)
 				{
-					xwcsncpy(wi->TypeName,strType,wi->TypeNameSize);
+					f->GetTypeAndName(strType, strName);
+
+					if (wi->TypeNameSize && wi->TypeName)
+					{
+						xwcsncpy(wi->TypeName,strType,wi->TypeNameSize);
+					}
+					else
+					{
+						wi->TypeNameSize=static_cast<int>(strType.GetLength()+1);
+					}
+
+					if (wi->NameSize && wi->Name)
+					{
+						xwcsncpy(wi->Name,strName,wi->NameSize);
+					}
+					else
+					{
+						wi->NameSize=static_cast<int>(strName.GetLength()+1);
+					}
 				}
 				else
 				{
-					wi->TypeNameSize=static_cast<int>(strType.GetLength()+1);
-				}
-
-				if (wi->NameSize && wi->Name)
-				{
-					xwcsncpy(wi->Name,strName,wi->NameSize);
-				}
-				else
-				{
-					wi->NameSize=static_cast<int>(strName.GetLength()+1);
+					wi->TypeName=nullptr;
+					wi->Name=nullptr;
+					wi->NameSize=0;
+					wi->TypeName=0;
 				}
 
 				wi->Pos=FrameManager->IndexOf(f);
-				wi->Type=static_cast<WINDOWINFO_TYPE>(f->GetType());
-				wi->Flags=0;
-				if (f->IsFileModified()) wi->Flags|=WIF_MODIFIED;
-				if (f==FrameManager->GetCurrentFrame()) wi->Flags|=WIF_CURRENT;
-				switch (wi->Type)
-				{
-					case WTYPE_VIEWER:
-						wi->Id=static_cast<FileViewer*>(f)->GetId();
-						break;
-					case WTYPE_EDITOR:
-						wi->Id=static_cast<FileEditor*>(f)->GetId();
-						break;
-					case WTYPE_DIALOG:
-						wi->Id=(INT_PTR)f;
-						break;
-					default:
-						wi->Id=0;
-						break;
-				}
+				wi->Type=f->GetType();
+				wi->Modified=f->IsFileModified();
+				wi->Current=f==FrameManager->GetCurrentFrame();
 				return TRUE;
 			}
 
@@ -460,7 +591,7 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		case ACTL_SETCURRENTWINDOW:
 		{
 			// Запретим переключение фрэймов, если находимся в модальном редакторе/вьюере.
-			if (FrameManager && !FrameManager->InModalEV() && (*FrameManager)[Param1])
+			if (FrameManager && !FrameManager->InModalEV() && FrameManager->operator[]((int)(INT_PTR)Param))
 			{
 				int TypeFrame=FrameManager->GetCurrentFrame()->GetType();
 
@@ -468,7 +599,7 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 				if (TypeFrame != MODALTYPE_HELP && TypeFrame != MODALTYPE_DIALOG)
 				{
 					Frame* PrevFrame = FrameManager->GetCurrentFrame();
-					FrameManager->ActivateFrame(Param1);
+					FrameManager->ActivateFrame((int)(INT_PTR)Param);
 					FrameManager->DeactivateFrame(PrevFrame, 0);
 					return TRUE;
 				}
@@ -625,6 +756,10 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 
 			return Options;
 		}
+		case ACTL_GETPOLICIES:
+		{
+			return Opt.Policies.DisabledOptions|(Opt.Policies.ShowHiddenDrives?FFPOL_SHOWHIDDENDRIVES:0);
+		}
 		case ACTL_REDRAWALL:
 		{
 			int Ret=FrameManager->ProcessKey(KEY_CONSOLE_BUFFER_RESIZE);
@@ -634,16 +769,16 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 
 		case ACTL_SETPROGRESSSTATE:
 		{
-			TBC.SetProgressState(static_cast<TBPFLAG>(Param1));
+			TBC.SetProgressState(static_cast<TBPFLAG>(reinterpret_cast<INT_PTR>(Param)));
 			return TRUE;
 		}
 
 		case ACTL_SETPROGRESSVALUE:
 		{
 			BOOL Result=FALSE;
-			if(Param2)
+			if(Param)
 			{
-				ProgressValue* PV=static_cast<ProgressValue*>(Param2);
+				PROGRESSVALUE* PV=reinterpret_cast<PROGRESSVALUE*>(Param);
 				TBC.SetProgressValue(PV->Completed,PV->Total);
 				Result=TRUE;
 			}
@@ -660,9 +795,9 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		case ACTL_GETFARRECT:
 			{
 				BOOL Result=FALSE;
-				if(Param2)
+				if(Param)
 				{
-					SMALL_RECT& Rect=*static_cast<PSMALL_RECT>(Param2);
+					SMALL_RECT& Rect=*reinterpret_cast<PSMALL_RECT>(Param);
 					if(Opt.WindowMode)
 					{
 						Result=Console.GetWorkingRect(Rect);
@@ -687,9 +822,9 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		case ACTL_GETCURSORPOS:
 			{
 				BOOL Result=FALSE;
-				if(Param2)
+				if(Param)
 				{
-					COORD& Pos=*static_cast<PCOORD>(Param2);
+					COORD& Pos=*reinterpret_cast<PCOORD>(Param);
 					Result=Console.GetCursorPosition(Pos);
 				}
 				return Result;
@@ -699,9 +834,9 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 		case ACTL_SETCURSORPOS:
 			{
 				BOOL Result=FALSE;
-				if(Param2)
+				if(Param)
 				{
-					COORD& Pos=*static_cast<PCOORD>(Param2);
+					COORD& Pos=*reinterpret_cast<PCOORD>(Param);
 					Result=Console.SetCursorPosition(Pos);
 				}
 				return Result;
@@ -713,20 +848,10 @@ INT_PTR WINAPI FarAdvControl(INT_PTR ModuleNumber, ADVANCED_CONTROL_COMMANDS Com
 			TBC.Flash();
 			return TRUE;
 		}
-		default:
-			break;
 
 	}
 
 	return FALSE;
-}
-
-static DWORD NormalizeControlKeys(DWORD Value)
-{
-	DWORD result=Value&(LEFT_CTRL_PRESSED|LEFT_ALT_PRESSED|SHIFT_PRESSED);
-	if(Value&RIGHT_CTRL_PRESSED) result|=LEFT_CTRL_PRESSED;
-	if(Value&RIGHT_ALT_PRESSED) result|=LEFT_ALT_PRESSED;
-	return result;
 }
 
 int WINAPI FarMenuFn(
@@ -734,14 +859,14 @@ int WINAPI FarMenuFn(
     int X,
     int Y,
     int MaxHeight,
-    unsigned __int64 Flags,
+    DWORD Flags,
     const wchar_t *Title,
     const wchar_t *Bottom,
     const wchar_t *HelpTopic,
-    const FarKey *BreakKeys,
+    const int *BreakKeys,
     int *BreakCode,
     const FarMenuItem *Item,
-    size_t ItemsNumber
+    int ItemsNumber
 )
 {
 	if (FrameManager->ManagerIsDown())
@@ -786,23 +911,53 @@ int WINAPI FarMenuFn(
 		CurItem.Clear();
 		int Selected=0;
 
-		for (size_t i=0; i < ItemsNumber; i++)
+		if (Flags&FMENU_USEEXT)
 		{
-			CurItem.Flags=Item[i].Flags;
-			CurItem.strName.Clear();
-			// исключаем MultiSelected, т.к. у нас сейчас движок к этому не приспособлен, оставляем только первый
-			DWORD SelCurItem=CurItem.Flags&LIF_SELECTED;
-			CurItem.Flags&=~LIF_SELECTED;
+			FarMenuItemEx *ItemEx=(FarMenuItemEx*)Item;
 
-			if (!Selected && !(CurItem.Flags&LIF_SEPARATOR) && SelCurItem)
+			for (int i=0; i < ItemsNumber; i++)
 			{
-				CurItem.Flags|=SelCurItem;
-				Selected++;
-			}
+				CurItem.Flags=ItemEx[i].Flags;
+				CurItem.strName.Clear();
+				// исключаем MultiSelected, т.к. у нас сейчас движок к этому не приспособлен, оставляем только первый
+				DWORD SelCurItem=CurItem.Flags&LIF_SELECTED;
+				CurItem.Flags&=~LIF_SELECTED;
 
-			CurItem.strName=Item[i].Text;
-			CurItem.AccelKey=(CurItem.Flags&LIF_SEPARATOR)?0:Item[i].AccelKey;
-			FarMenu.AddItem(&CurItem);
+				if (!Selected && !(CurItem.Flags&LIF_SEPARATOR) && SelCurItem)
+				{
+					CurItem.Flags|=SelCurItem;
+					Selected++;
+				}
+
+				CurItem.strName=ItemEx[i].Text;
+				CurItem.AccelKey=(CurItem.Flags&LIF_SEPARATOR)?0:ItemEx[i].AccelKey;
+				FarMenu.AddItem(&CurItem);
+			}
+		}
+		else
+		{
+			for (int i=0; i<ItemsNumber; i++)
+			{
+				CurItem.Flags=Item[i].Checked?(LIF_CHECKED|(Item[i].Checked&0xFFFF)):0;
+				CurItem.Flags|=Item[i].Selected?LIF_SELECTED:0;
+				CurItem.Flags|=Item[i].Separator?LIF_SEPARATOR:0;
+
+				if (Item[i].Separator)
+					CurItem.strName.Clear();
+				else
+					CurItem.strName = Item[i].Text;
+
+				DWORD SelCurItem=CurItem.Flags&LIF_SELECTED;
+				CurItem.Flags&=~LIF_SELECTED;
+
+				if (!Selected && !(CurItem.Flags&LIF_SEPARATOR) && SelCurItem)
+				{
+					CurItem.Flags|=SelCurItem;
+					Selected++;
+				}
+
+				FarMenu.AddItem(&CurItem);
+			}
 		}
 
 		if (!Selected)
@@ -837,7 +992,7 @@ int WINAPI FarMenuFn(
 			{
 				if (BreakKeys)
 				{
-					for (int I=0; BreakKeys[I].VirtualKeyCode; I++)
+					for (int I=0; BreakKeys[I]; I++)
 					{
 						if (CtrlObject->Macro.IsExecuting())
 						{
@@ -845,18 +1000,30 @@ int WINAPI FarMenuFn(
 							TranslateKeyToVK(ReadKey,VirtKey,ControlState,&ReadRec);
 						}
 
-						if (ReadRec.Event.KeyEvent.wVirtualKeyCode==BreakKeys[I].VirtualKeyCode)
+						if (ReadRec.Event.KeyEvent.wVirtualKeyCode==(BreakKeys[I] & 0xffff))
 						{
-							DWORD Flags=NormalizeControlKeys(BreakKeys[I].ControlKeyState);
-							DWORD RealFlags=NormalizeControlKeys(ReadRec.Event.KeyEvent.dwControlKeyState);
+							DWORD Flags=BreakKeys[I]>>16;
+							DWORD RealFlags=ReadRec.Event.KeyEvent.dwControlKeyState &
+							                (LEFT_CTRL_PRESSED|RIGHT_CTRL_PRESSED|
+							                 LEFT_ALT_PRESSED|RIGHT_ALT_PRESSED|SHIFT_PRESSED);
+							DWORD f = 0;
 
-							if (RealFlags == Flags)
+							if (RealFlags & (LEFT_CTRL_PRESSED|RIGHT_CTRL_PRESSED))
+								f |= PKF_CONTROL;
+
+							if (RealFlags & (LEFT_ALT_PRESSED|RIGHT_ALT_PRESSED))
+								f |= PKF_ALT;
+
+							if (RealFlags & SHIFT_PRESSED)
+								f |= PKF_SHIFT;
+
+							if (f == Flags)
 							{
 								if (BreakCode)
 									*BreakCode=I;
 
 								FarMenu.Hide();
-//								CheckScreenLock();
+//                  CheckScreenLock();
 								return FarMenu.GetSelectPos();
 							}
 						}
@@ -874,7 +1041,7 @@ int WINAPI FarMenuFn(
 }
 
 // Функция FarDefDlgProc обработки диалога по умолчанию
-INT_PTR WINAPI FarDefDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
+LONG_PTR WINAPI FarDefDlgProc(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2)
 {
 	if (hDlg) // исключаем лишний вызов для hDlg=0
 		return DefDlgProc(hDlg,Msg,Param1,Param2);
@@ -883,7 +1050,7 @@ INT_PTR WINAPI FarDefDlgProc(HANDLE hDlg,int Msg,int Param1,void* Param2)
 }
 
 // Посылка сообщения диалогу
-INT_PTR WINAPI FarSendDlgMessage(HANDLE hDlg,int Msg,int Param1,void* Param2)
+LONG_PTR WINAPI FarSendDlgMessage(HANDLE hDlg,int Msg,int Param1,LONG_PTR Param2)
 {
 	if (hDlg) // исключаем лишний вызов для hDlg=0
 		return SendDlgMessage(hDlg,Msg,Param1,Param2);
@@ -927,10 +1094,10 @@ static int FarDialogExSehed(Dialog *FarDialog)
 	}
 }
 
-HANDLE WINAPI FarDialogInit(INT_PTR PluginNumber, const GUID* Id, int X1, int Y1, int X2, int Y2,
+HANDLE WINAPI FarDialogInit(INT_PTR PluginNumber, int X1, int Y1, int X2, int Y2,
                             const wchar_t *HelpTopic, FarDialogItem *Item,
-                            unsigned int ItemsNumber, DWORD Reserved, unsigned __int64 Flags,
-                            FARWINDOWPROC DlgProc, void* Param)
+                            unsigned int ItemsNumber, DWORD Reserved, DWORD Flags,
+                            FARWINDOWPROC DlgProc, LONG_PTR Param)
 {
 	HANDLE hDlg=INVALID_HANDLE_VALUE;
 
@@ -978,8 +1145,6 @@ HANDLE WINAPI FarDialogInit(INT_PTR PluginNumber, const GUID* Id, int X1, int Y1
 			FarDialog->SetCanLoseFocus(TRUE);
 
 		FarDialog->SetHelp(HelpTopic);
-
-		FarDialog->SetId(*Id);
 		/* $ 29.08.2000 SVS
 		   Запомним номер плагина - сейчас в основном для формирования HelpTopic
 		*/
@@ -1036,23 +1201,19 @@ void WINAPI FarDialogFree(HANDLE hDlg)
 
 const wchar_t* WINAPI FarGetMsgFn(INT_PTR PluginHandle,int MsgId)
 {
-	if (PluginHandle!=-1)
-	{
-		PluginW *pPlugin = (PluginW*)PluginHandle;
-		if (pPlugin)
-		{
-			string strPath = pPlugin->GetModuleName();
-			CutToSlash(strPath);
+	//BUGBUG, надо проверять, что PluginHandle - плагин
+	PluginW *pPlugin = (PluginW*)PluginHandle;
+	string strPath = pPlugin->GetModuleName();
+	CutToSlash(strPath);
 
-			if (pPlugin->InitLang(strPath))
-				return pPlugin->GetMsg(MsgId);
-		}
-	}
+	if (pPlugin->InitLang(strPath))
+		return pPlugin->GetMsg(MsgId);
+
 	return L"";
 }
 
-int WINAPI FarMessageFn(INT_PTR PluginNumber,unsigned __int64 Flags,const wchar_t *HelpTopic,
-                        const wchar_t * const *Items,size_t ItemsNumber,
+int WINAPI FarMessageFn(INT_PTR PluginNumber,DWORD Flags,const wchar_t *HelpTopic,
+                        const wchar_t * const *Items,int ItemsNumber,
                         int ButtonsNumber)
 {
 	if (FrameManager->ManagerIsDown())
@@ -1125,12 +1286,12 @@ int WINAPI FarMessageFn(INT_PTR PluginNumber,unsigned __int64 Flags,const wchar_
 	}
 	else
 	{
-		for (size_t i=0; i < ItemsNumber; i++)
+		for (int i=0; i < ItemsNumber; i++)
 			MsgItems[i]=Items[i];
 	}
 
 	// ограничение на строки
-	if (ItemsNumber > static_cast<SIZE_T>(ScrY-2))
+	if (ItemsNumber > ScrY-2)
 	{
 		ItemsNumber=ScrY-2-(Flags&0x000F0000?1:0);
 	}
@@ -1188,7 +1349,7 @@ int WINAPI FarMessageFn(INT_PTR PluginNumber,unsigned __int64 Flags,const wchar_
 	if ((frame=FrameManager->GetBottomFrame()) )
 		frame->Lock(); // отменим прорисовку фрейма
 
-	int MsgCode=Message(Flags&(FMSG_WARNING|FMSG_ERRORTYPE|FMSG_KEEPBACKGROUND|FMSG_LEFTALIGN),ButtonsNumber,MsgItems[0],MsgItems+1,ItemsNumber-1,PluginNumber);
+	int MsgCode=Message(Flags,ButtonsNumber,MsgItems[0],MsgItems+1,ItemsNumber-1,PluginNumber);
 
 	/* $ 15.05.2002 SKV
 	  Однако разлочивать надо ровно то, что залочили.
@@ -1205,11 +1366,11 @@ int WINAPI FarMessageFn(INT_PTR PluginNumber,unsigned __int64 Flags,const wchar_
 	return(MsgCode);
 }
 
-INT_PTR WINAPI FarPanelControl(HANDLE hPlugin,FILE_CONTROL_COMMANDS Command,int Param1,void* Param2)
+int WINAPI FarControl(HANDLE hPlugin,int Command,int Param1,LONG_PTR Param2)
 {
 	_FCTLLOG(CleverSysLog CSL(L"Control"));
 	_FCTLLOG(SysLog(L"(hPlugin=0x%08X, Command=%s, Param1=[%d/0x%08X], Param2=[%d/0x%08X])",hPlugin,_FCTL_ToName(Command),(int)Param1,Param1,(int)Param2,Param2));
-	_ALGO(CleverSysLog clv(L"FarPanelControl"));
+	_ALGO(CleverSysLog clv(L"FarControl"));
 	_ALGO(SysLog(L"(hPlugin=0x%08X, Command=%s, Param1=[%d/0x%08X], Param2=[%d/0x%08X])",hPlugin,_FCTL_ToName(Command),(int)Param1,Param1,(int)Param2,Param2));
 
 	if (Command == FCTL_CHECKPANELSEXIST)
@@ -1223,7 +1384,7 @@ INT_PTR WINAPI FarPanelControl(HANDLE hPlugin,FILE_CONTROL_COMMANDS Command,int 
 
 	switch (Command)
 	{
-		case FCTL_CLOSEPANEL:
+		case FCTL_CLOSEPLUGIN:
 			g_strDirToSet = (wchar_t *)Param2;
 		case FCTL_GETPANELINFO:
 		case FCTL_GETPANELITEM:
@@ -1334,10 +1495,14 @@ INT_PTR WINAPI FarPanelControl(HANDLE hPlugin,FILE_CONTROL_COMMANDS Command,int 
 			return TRUE;
 		}
 		case FCTL_GETCMDLINE:
+		case FCTL_GETCMDLINESELECTEDTEXT:
 		{
 			string strParam;
 
-			CmdLine->GetString(strParam);
+			if (Command==FCTL_GETCMDLINE)
+				CmdLine->GetString(strParam);
+			else
+				CmdLine->GetSelString(strParam);
 
 			if (Param1&&Param2)
 				xwcsncpy((wchar_t*)Param2,strParam,Param1);
@@ -1416,8 +1581,6 @@ INT_PTR WINAPI FarPanelControl(HANDLE hPlugin,FILE_CONTROL_COMMANDS Command,int 
 
 			return FALSE;
 		}
-		default:
-			break;
 	}
 
 	return FALSE;
@@ -1457,7 +1620,7 @@ static void PR_FarGetDirListMsg()
 	Message(0,0,L"",MSG(MPreparingList));
 }
 
-int WINAPI FarGetDirList(const wchar_t *Dir,PluginPanelItem **pPanelItem,int *pItemsNumber)
+int WINAPI FarGetDirList(const wchar_t *Dir,FAR_FIND_DATA **pPanelItem,int *pItemsNumber)
 {
 	if (FrameManager->ManagerIsDown() || !Dir || !*Dir || !pItemsNumber || !pPanelItem)
 		return FALSE;
@@ -1475,7 +1638,7 @@ int WINAPI FarGetDirList(const wchar_t *Dir,PluginPanelItem **pPanelItem,int *pI
 		ScTree.SetFindPath(strDirName,L"*");
 		*pItemsNumber=0;
 		*pPanelItem=nullptr;
-		PluginPanelItem *ItemsList=nullptr;
+		FAR_FIND_DATA *ItemsList=nullptr;
 		int ItemsNumber=0;
 
 		while (ScTree.GetNextName(&FindData,strFullName))
@@ -1497,7 +1660,7 @@ int WINAPI FarGetDirList(const wchar_t *Dir,PluginPanelItem **pPanelItem,int *pI
 					MsgOut=1;
 				}
 
-				ItemsList=(PluginPanelItem*)xf_realloc(ItemsList,sizeof(*ItemsList)*(ItemsNumber+32+1));
+				ItemsList=(FAR_FIND_DATA*)xf_realloc(ItemsList,sizeof(*ItemsList)*(ItemsNumber+32+1));
 
 				if (!ItemsList)
 				{
@@ -1505,14 +1668,14 @@ int WINAPI FarGetDirList(const wchar_t *Dir,PluginPanelItem **pPanelItem,int *pI
 				}
 			}
 
-			ItemsList[ItemsNumber].FileAttributes = FindData.dwFileAttributes;
-			ItemsList[ItemsNumber].FileSize = FindData.nFileSize;
-			ItemsList[ItemsNumber].PackSize = FindData.nPackSize;
-			ItemsList[ItemsNumber].CreationTime = FindData.ftCreationTime;
-			ItemsList[ItemsNumber].LastAccessTime = FindData.ftLastAccessTime;
-			ItemsList[ItemsNumber].LastWriteTime = FindData.ftLastWriteTime;
-			ItemsList[ItemsNumber].FileName = xf_wcsdup(strFullName.CPtr());
-			ItemsList[ItemsNumber].AlternateFileName = xf_wcsdup(FindData.strAlternateFileName);
+			ItemsList[ItemsNumber].dwFileAttributes = FindData.dwFileAttributes;
+			ItemsList[ItemsNumber].nFileSize = FindData.nFileSize;
+			ItemsList[ItemsNumber].nPackSize = FindData.nPackSize;
+			ItemsList[ItemsNumber].ftCreationTime = FindData.ftCreationTime;
+			ItemsList[ItemsNumber].ftLastAccessTime = FindData.ftLastAccessTime;
+			ItemsList[ItemsNumber].ftLastWriteTime = FindData.ftLastWriteTime;
+			ItemsList[ItemsNumber].lpwszFileName = xf_wcsdup(strFullName.CPtr());
+			ItemsList[ItemsNumber].lpwszAlternateFileName = xf_wcsdup(FindData.strAlternateFileName);
 			ItemsNumber++;
 		}
 
@@ -1594,8 +1757,8 @@ int WINAPI FarGetPluginDirList(INT_PTR PluginNumber,
 				StopSearch=FALSE;
 				*pItemsNumber=DirListItemsNumber=0;
 				*pPanelItem=PluginDirList=nullptr;
-				OpenPanelInfo Info;
-				CtrlObject->Plugins.GetOpenPanelInfo(hDirListPlugin,&Info);
+				OpenPluginInfo Info;
+				CtrlObject->Plugins.GetOpenPluginInfo(hDirListPlugin,&Info);
 				string strPrevDir = Info.CurDir;
 
 				if (CtrlObject->Plugins.SetDirectory(hDirListPlugin,Dir,OPM_SILENT))
@@ -1606,8 +1769,8 @@ int WINAPI FarGetPluginDirList(INT_PTR PluginNumber,
 					*pPanelItem=PluginDirList;
 					*pItemsNumber=DirListItemsNumber;
 					CtrlObject->Plugins.SetDirectory(hDirListPlugin,L"..",OPM_SILENT);
-					OpenPanelInfo NewInfo;
-					CtrlObject->Plugins.GetOpenPanelInfo(hDirListPlugin,&NewInfo);
+					OpenPluginInfo NewInfo;
+					CtrlObject->Plugins.GetOpenPluginInfo(hDirListPlugin,&NewInfo);
 
 					if (StrCmpI(strPrevDir, NewInfo.CurDir) )
 					{
@@ -1636,7 +1799,7 @@ static void CopyPluginDirItem(PluginPanelItem *CurPanelItem)
 {
 	string strFullName;
 	strFullName = strPluginSearchPath;
-	strFullName += CurPanelItem->FileName;
+	strFullName += CurPanelItem->FindData.lpwszFileName;
 	wchar_t *lpwszFullName = strFullName.GetBuffer();
 
 	for (int I=0; lpwszFullName[I]; I++)
@@ -1654,8 +1817,8 @@ static void CopyPluginDirItem(PluginPanelItem *CurPanelItem)
 		memcpy((void *)DestItem->UserData,(void *)CurPanelItem->UserData,Size);
 	}
 
-	DestItem->FileName = xf_wcsdup(strFullName);
-	DestItem->AlternateFileName=nullptr;
+	DestItem->FindData.lpwszFileName = xf_wcsdup(strFullName);
+	DestItem->FindData.lpwszAlternateFileName=nullptr;
 	DirListItemsNumber++;
 }
 
@@ -1704,7 +1867,7 @@ void ScanPluginDir()
 	{
 		PluginPanelItem *CurPanelItem=PanelData+i;
 
-		if (!(CurPanelItem->FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+		if (!(CurPanelItem->FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
 			CopyPluginDirItem(CurPanelItem);
 	}
 
@@ -1712,9 +1875,9 @@ void ScanPluginDir()
 	{
 		PluginPanelItem *CurPanelItem=PanelData+i;
 
-		if ((CurPanelItem->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
-		        StrCmp(CurPanelItem->FileName,L".") &&
-		        !TestParentFolderName(CurPanelItem->FileName))
+		if ((CurPanelItem->FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+		        StrCmp(CurPanelItem->FindData.lpwszFileName,L".") &&
+		        !TestParentFolderName(CurPanelItem->FindData.lpwszFileName))
 		{
 			PluginPanelItem *NewList=(PluginPanelItem *)xf_realloc(PluginDirList,sizeof(*PluginDirList)*(DirListItemsNumber+1));
 
@@ -1730,11 +1893,11 @@ void ScanPluginDir()
 					обработать PPIF_USERDATA)
 			*/
 			CopyPluginDirItem(CurPanelItem);
-			string strFileName = CurPanelItem->FileName;
+			string strFileName = CurPanelItem->FindData.lpwszFileName;
 
 			if (CtrlObject->Plugins.SetDirectory(hDirListPlugin,strFileName,OPM_FIND))
 			{
-				strPluginSearchPath += CurPanelItem->FileName;
+				strPluginSearchPath += CurPanelItem->FindData.lpwszFileName;
 				strPluginSearchPath += L"\x1";
 				ScanPluginDir();
 				size_t pos = (size_t)-1;
@@ -1759,12 +1922,12 @@ void ScanPluginDir()
 }
 
 
-void WINAPI FarFreeDirList(PluginPanelItem *PanelItem, int nItemsNumber)
+void WINAPI FarFreeDirList(FAR_FIND_DATA *PanelItem, int nItemsNumber)
 {
 	for (int I=0; I<nItemsNumber; I++)
 	{
-		PluginPanelItem *CurPanelItem=PanelItem+I;
-		FreePluginPanelItem(CurPanelItem);
+		FAR_FIND_DATA *CurPanelItem=PanelItem+I;
+		apiFreeFindData(CurPanelItem);
 	}
 
 	xf_free(PanelItem);
@@ -1785,14 +1948,14 @@ void WINAPI FarFreePluginDirList(PluginPanelItem *PanelItem, int ItemsNumber)
 			xf_free((void *)CurPanelItem->UserData);
 		}
 
-		FreePluginPanelItem(CurPanelItem);
+		apiFreeFindData(&CurPanelItem->FindData);
 	}
 
 	xf_free(PanelItem);
 }
 
 int WINAPI FarViewer(const wchar_t *FileName,const wchar_t *Title,
-                     int X1,int Y1,int X2, int Y2,unsigned __int64 Flags, UINT CodePage)
+                     int X1,int Y1,int X2, int Y2,DWORD Flags, UINT CodePage)
 {
 	if (FrameManager->ManagerIsDown())
 		return FALSE;
@@ -1874,7 +2037,7 @@ int WINAPI FarEditor(
     int Y1,
     int X2,
     int Y2,
-    unsigned __int64 Flags,
+    DWORD Flags,
     int StartLine,
     int StartChar,
     UINT CodePage
@@ -1999,6 +2162,12 @@ int WINAPI FarEditor(
 	return ExitCode;
 }
 
+int WINAPI FarCmpName(const wchar_t *pattern,const wchar_t *string,int skippath)
+{
+	return(CmpName(pattern,string,skippath!=0));
+}
+
+
 void WINAPI FarText(int X,int Y,int Color,const wchar_t *Str)
 {
 	if (DisablePluginsOutput || FrameManager->ManagerIsDown())
@@ -2018,66 +2187,20 @@ void WINAPI FarText(int X,int Y,int Color,const wchar_t *Str)
 }
 
 
-INT_PTR WINAPI FarEditorControl(int EditorID, EDITOR_CONTROL_COMMANDS Command, int Param1, void* Param2)
+int WINAPI FarEditorControl(int Command,void *Param)
 {
-	if (FrameManager->ManagerIsDown())
+	if (FrameManager->ManagerIsDown() || !CtrlObject->Plugins.CurEditor)
 		return 0;
 
-	if (EditorID == -1)
-	{
-		if (CtrlObject->Plugins.CurEditor)
-			return CtrlObject->Plugins.CurEditor->EditorControl(Command,(void *)Param2);
-
-		return 0;
-	}
-	else
-	{
-		int idx=0;
-		Frame *frame;
-		while((frame=FrameManager->Manager::operator[](idx++)) != nullptr)
-		{
-			if (frame->GetType() == MODALTYPE_EDITOR)
-			{
-				if (((FileEditor*)frame)->GetId() == EditorID)
-				{
-					return ((FileEditor*)frame)->EditorControl(Command,(void *)Param2);
-				}
-			}
-		}
-	}
-
-	return 0;
+	return(CtrlObject->Plugins.CurEditor->EditorControl(Command,Param));
 }
 
-INT_PTR WINAPI FarViewerControl(int ViewerID, VIEWER_CONTROL_COMMANDS Command, int Param1, void* Param2)
+int WINAPI FarViewerControl(int Command,void *Param)
 {
-	if (FrameManager->ManagerIsDown())
+	if (FrameManager->ManagerIsDown() || !CtrlObject->Plugins.CurViewer)
 		return 0;
 
-	if (ViewerID == -1)
-	{
-		if (CtrlObject->Plugins.CurViewer)
-			return CtrlObject->Plugins.CurViewer->ViewerControl(Command,(void *)Param2);
-
-		return 0;
-	}
-	else
-	{
-		int idx=0;
-		Frame *frame;
-		while((frame=FrameManager->Manager::operator[](idx++)) != nullptr)
-		{
-			if (frame->GetType() == MODALTYPE_VIEWER)
-			{
-				if (((FileViewer*)frame)->GetId() == ViewerID)
-				{
-					return ((FileViewer*)frame)->ViewerControl(Command,(void *)Param2);
-				}
-			}
-		}
-	}
-
-	return 0;
+	return(CtrlObject->Plugins.CurViewer->ViewerControl(Command,Param));
 }
 
 
@@ -2141,7 +2264,7 @@ int __stdcall farIsAlphaNum(wchar_t Ch)
 	return IsAlphaNum(Ch);
 }
 
-size_t WINAPI farGetFileOwner(const wchar_t *Computer,const wchar_t *Name, wchar_t *Owner,size_t Size)
+int WINAPI farGetFileOwner(const wchar_t *Computer,const wchar_t *Name, wchar_t *Owner,int Size)
 {
 	string strOwner;
 	/*int Ret=*/GetFileOwner(Computer,Name,strOwner);
@@ -2149,10 +2272,10 @@ size_t WINAPI farGetFileOwner(const wchar_t *Computer,const wchar_t *Name, wchar
 	if (Owner && Size)
 		xwcsncpy(Owner,strOwner,Size);
 
-	return strOwner.GetLength()+1;
+	return static_cast<int>(strOwner.GetLength()+1);
 }
 
-size_t WINAPI farConvertPath(CONVERTPATHMODES Mode,const wchar_t *Src, wchar_t *Dest, size_t DestSize)
+int WINAPI farConvertPath(CONVERTPATHMODES Mode,const wchar_t *Src, wchar_t *Dest, int DestSize)
 {
 	if (Src && *Src)
 	{
@@ -2161,7 +2284,7 @@ size_t WINAPI farConvertPath(CONVERTPATHMODES Mode,const wchar_t *Src, wchar_t *
 		switch (Mode)
 		{
 			case CPM_NATIVE:
-				strDest=NTPath(Src);
+				strDest=NTPath(Src).Get();
 				break;
 			case CPM_REAL:
 				ConvertNameToReal(Src, strDest);
@@ -2175,7 +2298,7 @@ size_t WINAPI farConvertPath(CONVERTPATHMODES Mode,const wchar_t *Src, wchar_t *
 		if (Dest && DestSize)
 			xwcsncpy(Dest, strDest.CPtr(), DestSize);
 
-		return strDest.GetLength() + 1;
+		return static_cast<int>(strDest.GetLength()) + 1;
 	}
 	else
 	{
@@ -2186,29 +2309,29 @@ size_t WINAPI farConvertPath(CONVERTPATHMODES Mode,const wchar_t *Src, wchar_t *
 	}
 }
 
-size_t WINAPI farGetReparsePointInfo(const wchar_t *Src, wchar_t *Dest, size_t DestSize)
+int WINAPI farGetReparsePointInfo(const wchar_t *Src,wchar_t *Dest,int DestSize)
 {
+	_LOGCOPYR(CleverSysLog Clev(L"farGetReparsePointInfo()"));
+	_LOGCOPYR(SysLog(L"Params: Src='%s'",Src));
+
 	if (Src && *Src)
 	{
 		string strSrc(Src);
 		string strDest;
 		AddEndSlash(strDest);
-		GetReparsePointInfo(strSrc,strDest,nullptr);
+		DWORD Size=GetReparsePointInfo(strSrc,strDest,nullptr);
+		_LOGCOPYR(SysLog(L"return -> %d strSrc='%s', strDest='%s'",__LINE__,strSrc.CPtr(),strDest.CPtr()));
 
 		if (DestSize && Dest)
 			xwcsncpy(Dest,strDest,DestSize);
 
-		return strDest.GetLength()+1;
+		return Size;
 	}
-	else
-	{
-		if (DestSize && Dest)
-			*Dest = 0;
-		return 1;
-	}
+
+	return 0;
 }
 
-size_t WINAPI farGetPathRoot(const wchar_t *Path, wchar_t *Root, size_t DestSize)
+int WINAPI farGetPathRoot(const wchar_t *Path, wchar_t *Root, int DestSize)
 {
 	if (Path && *Path)
 	{
@@ -2218,7 +2341,7 @@ size_t WINAPI farGetPathRoot(const wchar_t *Path, wchar_t *Root, size_t DestSize
 		if (DestSize && Root)
 			xwcsncpy(Root,strRoot,DestSize);
 
-		return strRoot.GetLength()+1;
+		return (int)strRoot.GetLength()+1;
 	}
 	else
 	{
@@ -2229,108 +2352,7 @@ size_t WINAPI farGetPathRoot(const wchar_t *Path, wchar_t *Root, size_t DestSize
 	}
 }
 
-INT_PTR WINAPI farMacroControl(HANDLE hHandle, FAR_MACRO_CONTROL_COMMANDS Command, int Param1, void* Param2)
-{
-	if (CtrlObject) // все зависит от этой бадяги.
-	{
-		KeyMacro& Macro=CtrlObject->Macro; //??
-
-		switch (Command)
-		{
-			// Param1=0, Param2 - 0
-			case MCTL_LOADALL: // из реестра в память ФАР с затиранием предыдущего
-			{
-				if (Macro.IsRecording())
-					return FALSE;
-				return Macro.LoadMacros(!Macro.IsExecuting());
-			}
-
-			// Param1=0, Param2 - 0
-			case MCTL_SAVEALL: // из памяти ФАРа в реестра
-			{
-				if (Macro.IsRecording()) // || Macro.IsExecuting())
-					return FALSE;
-
-				Macro.SaveMacros();
-				return TRUE;
-			}
-
-			// Param1=FARMACROSENDSTRINGCOMMAND, Param2...
-			case MCTL_SENDSTRING:
-			{
-				if (!Param2)
-					break;
-
-				switch (Param1)
-				{
-					// Param1=FARMACROSENDSTRINGCOMMAND, Param2 - MacroSendMacroText*
-					case MSSC_POST:
-					{
-						MacroSendMacroText *PlainText=(MacroSendMacroText*)Param2;
-						if (PlainText->SequenceText && *PlainText->SequenceText)
-							return Macro.PostNewMacro(PlainText->SequenceText,(PlainText->Flags|MFLAGS_POSTFROMPLUGIN)<<8,PlainText->AKey);
-
-						break;
-					}
-
-					// Param1=FARMACROSENDSTRINGCOMMAND, Param2 - MacroSendMacroText*
-					case MSSC_EXEC:
-					{
-						break;
-					}
-
-					// Param1=FARMACROSENDSTRINGCOMMAND, Param2 - MacroCheckMacroText*
-					case MSSC_CHECK:
-					{
-						MacroCheckMacroText *CheckText=(MacroCheckMacroText*)Param2;
-						if (CheckText->Text.SequenceText && *CheckText->Text.SequenceText)
-						{
-							MacroRecord CurMacro={0};
-							int Ret=Macro.ParseMacroString(&CurMacro,CheckText->Text.SequenceText,(CheckText->Text.Flags&KMFLAGS_SILENTCHECK)?TRUE:FALSE);
-
-							if (Ret)
-							{
-								if (CurMacro.BufferSize > 1)
-									xf_free(CurMacro.Buffer);
-
-								memset(&CheckText->Result,0,sizeof(struct MacroParseResult));
-								CheckText->Result.StructSize=sizeof(MacroParseResult);
-							}
-							else
-							{
-								static string ErrSrc;
-								Macro.GetMacroParseError(&CheckText->Result.ErrCode,&CheckText->Result.ErrPos,&ErrSrc);
-								CheckText->Result.ErrSrc=ErrSrc;
-							}
-							return Ret;
-						}
-
-						break;
-					}
-				}
-
-				break;
-			}
-
-			// Param1=0, Param2 - 0
-			case MCTL_GETSTATE:
-			{
-				return Macro.GetCurRecord(nullptr,nullptr);
-			}
-
-			// Param1=0, Param2 - 0
-			case MCTL_GETAREA:
-			{
-				return Macro.GetMode();
-			}
-		}
-	}
-
-
-	return 0;
-}
-
-INT_PTR WINAPI farPluginsControl(HANDLE hHandle, FAR_PLUGINS_CONTROL_COMMANDS Command, int Param1, void* Param2)
+int WINAPI farPluginsControl(HANDLE hHandle, int Command, int Param1, LONG_PTR Param2)
 {
 	switch (Command)
 	{
@@ -2361,7 +2383,7 @@ INT_PTR WINAPI farPluginsControl(HANDLE hHandle, FAR_PLUGINS_CONTROL_COMMANDS Co
 	return 0;
 }
 
-INT_PTR WINAPI farFileFilterControl(HANDLE hHandle, FAR_FILE_FILTER_CONTROL_COMMANDS Command, int Param1, void* Param2)
+int WINAPI farFileFilterControl(HANDLE hHandle, int Command, int Param1, LONG_PTR Param2)
 {
 	FileFilter *Filter=nullptr;
 
@@ -2426,14 +2448,14 @@ INT_PTR WINAPI farFileFilterControl(HANDLE hHandle, FAR_FILE_FILTER_CONTROL_COMM
 			if (!Param2)
 				break;
 
-			return Filter->FileInFilter(*(const PluginPanelItem *)Param2) ? TRUE : FALSE;
+			return Filter->FileInFilter(*(const FAR_FIND_DATA *)Param2) ? TRUE : FALSE;
 		}
 	}
 
 	return FALSE;
 }
 
-INT_PTR WINAPI farRegExpControl(HANDLE hHandle, FAR_REGEXP_CONTROL_COMMANDS Command, int Param1, void* Param2)
+int WINAPI farRegExpControl(HANDLE hHandle, int Command, LONG_PTR Param)
 {
 	RegExp* re=nullptr;
 
@@ -2449,15 +2471,15 @@ INT_PTR WINAPI farRegExpControl(HANDLE hHandle, FAR_REGEXP_CONTROL_COMMANDS Comm
 	{
 		case RECTL_CREATE:
 
-			if (!Param2)
+			if (!Param)
 				break;
 
-			*((HANDLE*)Param2) = INVALID_HANDLE_VALUE;
+			*((HANDLE*)Param) = INVALID_HANDLE_VALUE;
 			re = new RegExp;
 
 			if (re)
 			{
-				*((HANDLE*)Param2) = (HANDLE)re;
+				*((HANDLE*)Param) = (HANDLE)re;
 				return TRUE;
 			}
 
@@ -2466,12 +2488,12 @@ INT_PTR WINAPI farRegExpControl(HANDLE hHandle, FAR_REGEXP_CONTROL_COMMANDS Comm
 			delete re;
 			return TRUE;
 		case RECTL_COMPILE:
-			return re->Compile((const wchar_t*)Param2,OP_PERLSTYLE);
+			return re->Compile((const wchar_t*)Param,OP_PERLSTYLE);
 		case RECTL_OPTIMIZE:
 			return re->Optimize();
 		case RECTL_MATCHEX:
 		{
-			RegExpSearch* data=(RegExpSearch*)Param2;
+			RegExpSearch* data=(RegExpSearch*)Param;
 			return re->MatchEx(data->Text,data->Text+data->Position,data->Text+data->Length,data->Match,data->Count
 #ifdef NAMEDBRACKETS
 			                   ,data->Reserved
@@ -2480,7 +2502,7 @@ INT_PTR WINAPI farRegExpControl(HANDLE hHandle, FAR_REGEXP_CONTROL_COMMANDS Comm
 		}
 		case RECTL_SEARCHEX:
 		{
-			RegExpSearch* data=(RegExpSearch*)Param2;
+			RegExpSearch* data=(RegExpSearch*)Param;
 			return re->SearchEx(data->Text,data->Text+data->Position,data->Text+data->Length,data->Match,data->Count
 #ifdef NAMEDBRACKETS
 			                    ,data->Reserved
@@ -2494,58 +2516,7 @@ INT_PTR WINAPI farRegExpControl(HANDLE hHandle, FAR_REGEXP_CONTROL_COMMANDS Comm
 	return FALSE;
 }
 
-INT_PTR WINAPI farSettingsControl(HANDLE hHandle, FAR_SETTINGS_CONTROL_COMMANDS Command, int Param1, void* Param2)
-{
-	PluginSettings* settings=nullptr;
-
-	if (Command != SCTL_CREATE)
-	{
-		if (hHandle == INVALID_HANDLE_VALUE)
-			return FALSE;
-
-		settings = (PluginSettings*)hHandle;
-	}
-
-	switch (Command)
-	{
-		case SCTL_CREATE:
-
-			if (!Param2)
-				break;
-
-			{
-			    FarSettingsCreate* data = (FarSettingsCreate*)Param2;
-				if (data->StructSize>=sizeof(FarSettingsCreate))
-				{
-					settings=new PluginSettings(data->Guid);
-					if (settings->IsValid())
-					{
-						data->Handle=settings;
-						return TRUE;
-					}
-					delete settings;
-				}
-			}
-			break;
-		case SCTL_FREE:
-			delete settings;
-			return TRUE;
-		case SCTL_SET:
-			return settings->Set(*(const FarSettingsItem*)Param2);
-		case SCTL_GET:
-			return settings->Get(*(FarSettingsItem*)Param2);
-		case SCTL_ENUM:
-			return settings->Enum(*(FarSettingsEnum*)Param2);
-		case SCTL_DELETE:
-			return settings->Delete(*(const FarSettingsValue*)Param2);
-		case SCTL_SUBKEY:
-			return settings->SubKey(*(const FarSettingsValue*)Param2);
-	}
-
-	return FALSE;
-}
-
-size_t WINAPI farGetCurrentDirectory(size_t Size,wchar_t* Buffer)
+DWORD WINAPI farGetCurrentDirectory(DWORD Size,wchar_t* Buffer)
 {
 	string strCurDir;
 	apiGetCurrentDirectory(strCurDir);
@@ -2555,5 +2526,5 @@ size_t WINAPI farGetCurrentDirectory(size_t Size,wchar_t* Buffer)
 		xwcsncpy(Buffer,strCurDir,Size);
 	}
 
-	return strCurDir.GetLength()+1;
+	return static_cast<DWORD>(strCurDir.GetLength()+1);
 }

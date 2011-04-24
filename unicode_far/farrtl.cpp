@@ -7,6 +7,7 @@ farrtl.cpp
 #include "headers.hpp"
 #pragma hdrstop
 
+#include "savefpos.hpp"
 #include "console.hpp"
 
 #ifdef _MSC_VER
@@ -39,18 +40,14 @@ bool InsufficientMemoryHandler()
 #ifdef MEMORY_CHECK
 enum ALLOCATION_TYPE
 {
-	AT_RAW,
-	AT_SCALAR,
-	AT_VECTOR,
+	AT_C,
+	AT_CPP,
+	AT_CPPARRAY,
 };
 
 struct MEMINFO
 {
-	union
-	{
-		ALLOCATION_TYPE AllocationType;
-		LPVOID Dummy; // alignment
-	};
+	ALLOCATION_TYPE AllocationType;
 };
 #endif
 
@@ -68,9 +65,9 @@ void *__cdecl xf_malloc(size_t size)
 	while (!Ptr && InsufficientMemoryHandler());
 
 #ifdef MEMORY_CHECK
-	MEMINFO* Info = static_cast<MEMINFO*>(Ptr);
-	Info->AllocationType = AT_RAW;
-	Ptr=static_cast<LPBYTE>(Ptr)+sizeof(MEMINFO);
+	MEMINFO* Info = reinterpret_cast<MEMINFO*>(Ptr);
+	Info->AllocationType = AT_C;
+	Ptr=reinterpret_cast<LPBYTE>(Ptr)+sizeof(MEMINFO);
 #endif
 
 #if defined(SYSLOG)
@@ -83,9 +80,9 @@ void *__cdecl xf_malloc(size_t size)
 void *__cdecl xf_expand(void * block, size_t size)
 {
 #ifdef MEMORY_CHECK
-	block=static_cast<LPBYTE>(block)-sizeof(MEMINFO);
-	MEMINFO* Info = static_cast<MEMINFO*>(block);
-	assert(Info->AllocationType == AT_RAW);
+	block=reinterpret_cast<LPBYTE>(block)-sizeof(MEMINFO);
+	MEMINFO* Info = reinterpret_cast<MEMINFO*>(block);
+	assert(Info->AllocationType == AT_C);
 	size+=sizeof(MEMINFO);
 #endif
 
@@ -120,9 +117,9 @@ void *__cdecl xf_realloc(void * block, size_t size)
 #ifdef MEMORY_CHECK
 	if(block)
 	{
-		block=static_cast<LPBYTE>(block)-sizeof(MEMINFO);
-		MEMINFO* Info = static_cast<MEMINFO*>(block);
-		assert(Info->AllocationType == AT_RAW);
+		block=reinterpret_cast<LPBYTE>(block)-sizeof(MEMINFO);
+		MEMINFO* Info = reinterpret_cast<MEMINFO*>(block);
+		assert(Info->AllocationType == AT_C);
 	}
 	size+=sizeof(MEMINFO);
 #endif
@@ -137,10 +134,10 @@ void *__cdecl xf_realloc(void * block, size_t size)
 #ifdef MEMORY_CHECK
 	if (!block)
 	{
-		MEMINFO* Info = static_cast<MEMINFO*>(Ptr);
-		Info->AllocationType = AT_RAW;
+		MEMINFO* Info = reinterpret_cast<MEMINFO*>(Ptr);
+		Info->AllocationType = AT_C;
 	}
-	Ptr=static_cast<LPBYTE>(Ptr)+sizeof(MEMINFO);
+	Ptr=reinterpret_cast<LPBYTE>(Ptr)+sizeof(MEMINFO);
 #endif
 
 #if defined(SYSLOG)
@@ -158,10 +155,10 @@ void __cdecl xf_free(void * block)
 #ifdef MEMORY_CHECK
 	if(block)
 	{
-		block=static_cast<LPBYTE>(block)-sizeof(MEMINFO);
-		MEMINFO* Info = static_cast<MEMINFO*>(block);
+		block=reinterpret_cast<LPBYTE>(block)-sizeof(MEMINFO);
+		MEMINFO* Info = reinterpret_cast<MEMINFO*>(block);
 
-		assert(Info->AllocationType == AT_RAW);
+		assert(Info->AllocationType == AT_C);
 	}
 #endif
 
@@ -177,8 +174,8 @@ void * __cdecl operator new(size_t size)
 	void * res = xf_malloc(size);
 
 #ifdef MEMORY_CHECK
-	MEMINFO* Info = static_cast<MEMINFO*>(res)-1;
-	Info->AllocationType = AT_SCALAR;
+	MEMINFO* Info = reinterpret_cast<MEMINFO*>(reinterpret_cast<LPBYTE>(res)-sizeof(MEMINFO));
+	Info->AllocationType = AT_CPP;
 #endif
 
 #if defined(SYSLOG)
@@ -188,13 +185,13 @@ void * __cdecl operator new(size_t size)
 	return res;
 }
 
-void * __cdecl operator new[] (size_t size) throw()
+void * __cdecl operator new[] (size_t size)
 {
 	void * res = operator new(size);
 
 #ifdef MEMORY_CHECK
-	MEMINFO* Info = static_cast<MEMINFO*>(res)-1;
-	Info->AllocationType = AT_VECTOR;
+	MEMINFO* Info = reinterpret_cast<MEMINFO*>(reinterpret_cast<LPBYTE>(res)-sizeof(MEMINFO));
+	Info->AllocationType = AT_CPPARRAY;
 #endif
 
 	return res;
@@ -204,12 +201,9 @@ void operator delete(void *ptr)
 {
 
 #ifdef MEMORY_CHECK
-	if(ptr)
-	{
-		MEMINFO* Info = static_cast<MEMINFO*>(ptr)-1;
-		assert(Info->AllocationType == AT_SCALAR);
-		Info->AllocationType = AT_RAW;
-	}
+	MEMINFO* Info = reinterpret_cast<MEMINFO*>(reinterpret_cast<LPBYTE>(ptr)-sizeof(MEMINFO));
+	assert(Info->AllocationType == AT_CPP);
+	Info->AllocationType = AT_C;
 #endif
 
 	xf_free(ptr);
@@ -219,18 +213,55 @@ void operator delete(void *ptr)
 #endif
 }
 
-void __cdecl operator delete[] (void *ptr) throw()
+void __cdecl operator delete[] (void *ptr)
 {
 #ifdef MEMORY_CHECK
-	if(ptr)
-	{
-		MEMINFO* Info = static_cast<MEMINFO*>(ptr)-1;
-		assert(Info->AllocationType == AT_VECTOR);
-		Info->AllocationType = AT_SCALAR;
-	}
+	MEMINFO* Info = reinterpret_cast<MEMINFO*>(reinterpret_cast<LPBYTE>(ptr)-sizeof(MEMINFO));
+	assert(Info->AllocationType == AT_CPPARRAY);
+	Info->AllocationType = AT_CPP;
 #endif
 
 	operator delete(ptr);
+}
+
+#ifdef _MSC_VER
+extern "C"
+{
+	_CRTIMP __int64 __cdecl _ftelli64(FILE *str);
+	_CRTIMP int __cdecl _fseeki64(FILE *stream, __int64 offset, int whence);
+};
+#endif
+
+__int64 ftell64(FILE *fp)
+{
+#ifdef __GNUC__
+	return ftello64(fp);
+#else
+	return _ftelli64(fp);
+#endif
+}
+
+int fseek64(FILE *fp, __int64 offset, int whence)
+{
+#ifdef __GNUC__
+	return fseeko64(fp,offset,whence);
+#else
+	return _fseeki64(fp,offset,whence);
+#endif
+}
+
+long filelen(FILE *FPtr)
+{
+	SaveFilePos SavePos(FPtr);
+	fseek(FPtr,0,SEEK_END);
+	return(ftell(FPtr));
+}
+
+__int64 filelen64(FILE *FPtr)
+{
+	SaveFilePos SavePos(FPtr);
+	fseek64(FPtr,0,SEEK_END);
+	return(ftell64(FPtr));
 }
 
 char * __cdecl xf_strdup(const char * string)
@@ -259,6 +290,332 @@ wchar_t * __cdecl xf_wcsdup(const wchar_t * string)
 	return nullptr;
 }
 
+#if defined(_DEBUG) && defined(_MSC_VER)
+
+#define _UI64_MAX     0xffffffffffffffffui64
+#define _I64_MIN      (-9223372036854775807i64 - 1)
+#define _I64_MAX      9223372036854775807i64
+#define ERANGE        34
+
+#define FL_UNSIGNED   1       /* strtouq called */
+#define FL_NEG        2       /* negative sign found */
+#define FL_OVERFLOW   4       /* overflow occured */
+#define FL_READDIGIT  8       /* we've read at least one correct digit */
+
+#if 0
+static unsigned __int64 strtoxq(
+    const char *nptr,
+    const char **endptr,
+    int ibase,
+    int flags
+)
+{
+	const char *p;
+	char c;
+	unsigned __int64 number;
+	unsigned digval;
+	unsigned __int64 maxval;
+	p = nptr;            /* p is our scanning pointer */
+	number = 0;            /* start with zero */
+	c = *p++;            /* read char */
+
+	while (isspace((int)(unsigned char)c))
+		c = *p++;        /* skip whitespace */
+
+	if (c == '-')
+	{
+		flags |= FL_NEG;    /* remember minus sign */
+		c = *p++;
+	}
+	else if (c == '+')
+		c = *p++;        /* skip sign */
+
+	if (ibase < 0 || ibase == 1 || ibase > 36)
+	{
+		/* bad base! */
+		if (endptr)
+			/* store beginning of string in endptr */
+			*endptr = nptr;
+
+		return 0L;        /* return 0 */
+	}
+	else if (!ibase)
+	{
+		/* determine base free-lance, based on first two chars of
+		   string */
+		if (c != '0')
+			ibase = 10;
+		else if (*p == 'x' || *p == 'X')
+			ibase = 16;
+		else
+			ibase = 8;
+	}
+
+	if (ibase == 16)
+	{
+		/* we might have 0x in front of number; remove if there */
+		if (c == '0' && (*p == 'x' || *p == 'X'))
+		{
+			++p;
+			c = *p++;    /* advance past prefix */
+		}
+	}
+
+	/* if our number exceeds this, we will overflow on multiply */
+	maxval = _UI64_MAX / ibase;
+
+	for (;;)      /* exit in middle of loop */
+	{
+		/* convert c to value */
+		if (isdigit((int)(unsigned char)c))
+			digval = c - '0';
+		else if (isalpha((int)(unsigned char)c))
+			digval = toupper(c) - 'A' + 10;
+		else
+			break;
+
+		if (digval >= (unsigned)ibase)
+			break;        /* exit loop if bad digit found */
+
+		/* record the fact we have read one digit */
+		flags |= FL_READDIGIT;
+		/* we now need to compute number = number * base + digval,
+		   but we need to know if overflow occured.  This requires
+		   a tricky pre-check. */
+
+		if (number < maxval || (number == maxval &&
+		                        (unsigned __int64)digval <= _UI64_MAX % ibase))
+		{
+			/* we won't overflow, go ahead and multiply */
+			number = number * ibase + digval;
+		}
+		else
+		{
+			/* we would have overflowed -- set the overflow flag */
+			flags |= FL_OVERFLOW;
+		}
+
+		c = *p++;        /* read next digit */
+	}
+
+	--p;                /* point to place that stopped scan */
+
+	if (!(flags & FL_READDIGIT))
+	{
+		/* no number there; return 0 and point to beginning of
+		   string */
+		if (endptr)
+			/* store beginning of string in endptr later on */
+			p = nptr;
+
+		number = 0L;        /* return 0 */
+	}
+	else if ((flags & FL_OVERFLOW) ||
+	         (!(flags & FL_UNSIGNED) &&
+	          (((flags & FL_NEG) && (number > -_I64_MIN)) ||
+	           (!(flags & FL_NEG) && (number > _I64_MAX)))))
+	{
+		/* overflow or signed overflow occurred */
+		errno = ERANGE;
+
+		if (flags & FL_UNSIGNED)
+			number = _UI64_MAX;
+		else if (flags & FL_NEG)
+			number = _I64_MIN;
+		else
+			number = _I64_MAX;
+	}
+
+	if (endptr )
+		/* store pointer to char that stopped the scan */
+		*endptr = p;
+
+	if (flags & FL_NEG)
+		/* negate result if there was a neg sign */
+		number = (unsigned __int64)(-(__int64)number);
+
+	return number;            /* done. */
+}
+
+#ifndef _MSC_VER  // overload in v8
+__int64 _cdecl _strtoi64(const char *nptr,char **endptr,int ibase)
+{
+	return (__int64) strtoxq(nptr, (const char **)endptr, ibase, 0);
+}
+#endif
+#endif
+
+#endif
+
+//<SVS>
+#if defined(_DEBUG) && defined(_MSC_VER) && !defined(_WIN64)
+//</SVS>
+// && _MSC_VER < 1300)
+
+#define _UI64_MAX     0xffffffffffffffffui64
+#define _I64_MIN      (-9223372036854775807i64 - 1)
+#define _I64_MAX      9223372036854775807i64
+#define ERANGE        34
+
+#define FL_UNSIGNED   1       /* strtouq called */
+#define FL_NEG        2       /* negative sign found */
+#define FL_OVERFLOW   4       /* overflow occured */
+#define FL_READDIGIT  8       /* we've read at least one correct digit */
+
+#define _wchartodigit(c)    ((c) >= L'0' && (c) <= L'9' ? (c) - L'0' : -1)
+#define __ascii_iswalpha(c)     ( (L'A' <= (c) && (c) <= L'Z') || ( L'a' <= (c) && (c) <= L'z'))
+
+
+#if 0
+static unsigned __int64 __cdecl wcstoxq(
+    const wchar_t *nptr,
+    const wchar_t **endptr,
+    int ibase,
+    int flags
+)
+{
+	const wchar_t *p;
+	wchar_t c;
+	unsigned __int64 number;
+	unsigned digval;
+	unsigned __int64 maxval;
+	p = nptr;                       /* p is our scanning pointer */
+	number = 0;                     /* start with zero */
+	c = *p++;                       /* read wchar_t */
+
+	while (iswspace(c))
+		c = *p++;               /* skip whitespace */
+
+	if (c == L'-')
+	{
+		flags |= FL_NEG;        /* remember minus sign */
+		c = *p++;
+	}
+	else if (c == L'+')
+		c = *p++;               /* skip sign */
+
+	if (ibase < 0 || ibase == 1 || ibase > 36)
+	{
+		/* bad base! */
+		if (endptr)
+			/* store beginning of string in endptr */
+			*endptr = nptr;
+
+		return 0L;              /* return 0 */
+	}
+	else if (!ibase)
+	{
+		/* determine base free-lance, based on first two chars of
+		   string */
+		if (_wchartodigit(c) )
+			ibase = 10;
+		else if (*p == L'x' || *p == L'X')
+			ibase = 16;
+		else
+			ibase = 8;
+	}
+
+	if (ibase == 16)
+	{
+		/* we might have 0x in front of number; remove if there */
+		if (!_wchartodigit(c) && (*p == L'x' || *p == L'X'))
+		{
+			++p;
+			c = *p++;       /* advance past prefix */
+		}
+	}
+
+	/* if our number exceeds this, we will overflow on multiply */
+	maxval = _UI64_MAX / ibase;
+
+	for (;;)        /* exit in middle of loop */
+	{
+		/* convert c to value */
+		if ((digval = _wchartodigit(c)) != -1)
+			;
+		else if (__ascii_iswalpha(c))
+			digval = toupper(c) - L'A' + 10;
+		else
+			break;
+
+		if (digval >= (unsigned)ibase)
+			break;          /* exit loop if bad digit found */
+
+		/* record the fact we have read one digit */
+		flags |= FL_READDIGIT;
+		/* we now need to compute number = number * base + digval,
+		   but we need to know if overflow occured.  This requires
+		   a tricky pre-check. */
+
+		if (number < maxval || (number == maxval &&
+		                        (unsigned __int64)digval <= _UI64_MAX % ibase))
+		{
+			/* we won't overflow, go ahead and multiply */
+			number = number * ibase + digval;
+		}
+		else
+		{
+			/* we would have overflowed -- set the overflow flag */
+			flags |= FL_OVERFLOW;
+		}
+
+		c = *p++;               /* read next digit */
+	}
+
+	--p;                            /* point to place that stopped scan */
+
+	if (!(flags & FL_READDIGIT))
+	{
+		/* no number there; return 0 and point to beginning of
+		   string */
+		if (endptr)
+			/* store beginning of string in endptr later on */
+			p = nptr;
+
+		number = 0L;            /* return 0 */
+	}
+	else if ((flags & FL_OVERFLOW) ||
+	         (!(flags & FL_UNSIGNED) &&
+	          (((flags & FL_NEG) && (number > -_I64_MIN)) ||
+	           (!(flags & FL_NEG) && (number > _I64_MAX)))))
+	{
+		/* overflow or signed overflow occurred */
+		errno = ERANGE;
+
+		if (flags & FL_UNSIGNED)
+			number = _UI64_MAX;
+		else if (flags & FL_NEG)
+			number = (_I64_MIN);
+		else
+			number = _I64_MAX;
+	}
+
+	if (endptr )
+		/* store pointer to wchar_t that stopped the scan */
+		*endptr = p;
+
+	if (flags & FL_NEG)
+		/* negate result if there was a neg sign */
+		number = (unsigned __int64)(-(__int64)number);
+
+	return number;                  /* done. */
+}
+
+#ifndef _MSC_VER  // overload in v8
+__int64 __cdecl _wcstoi64(const wchar_t *nptr,wchar_t **endptr,int ibase)
+{
+	return (__int64) wcstoxq(nptr, (const wchar_t **)endptr, ibase, 0);
+}
+
+unsigned __int64 __cdecl _wcstoui64(const wchar_t *nptr,wchar_t **endptr,int ibase)
+{
+	return wcstoxq(nptr, (const wchar_t **)endptr, ibase, FL_UNSIGNED);
+}
+#endif
+
+#endif
+
+#endif
 
 // dest и src НЕ ДОЛЖНЫ пересекаться
 char * __cdecl xstrncpy(char * dest,const char * src,size_t DestSize)
@@ -1207,3 +1564,14 @@ static void  swap_m(
 }
 
 /* end qsort */
+
+
+#if defined(_DEBUG) && defined(_MSC_VER) && (_MSC_VER >= 1300) && !defined(_WIN64)
+// && (WINVER < 0x0500)
+// Борьба с месагом дебажной линковки:
+// strmix.obj : error LNK2019: unresolved external symbol __ftol2 referenced in function "char * __stdcall FileSizeToStr (char *,unsigned long,unsigned long,int,int)" (?FileSizeToStr@@YGPADPADKKHH@Z)
+// Источник: http://q12.org/pipermail/ode/2004-January/010811.html
+//VC7 or later, building with pre-VC7 runtime libraries
+extern "C" long _ftol(double);   //defined by VC6 C libs
+extern "C" long _ftol2(double dblSource) { return _ftol(dblSource); }
+#endif

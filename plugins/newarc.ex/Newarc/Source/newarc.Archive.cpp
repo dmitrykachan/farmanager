@@ -52,8 +52,6 @@ Archive::Archive(
 	m_dwArchiveFileSizeLow = 0;
 
 	m_uid = pFormat->GetUID();
-
-	_tree = nullptr;
 }
 
 void Archive::SetPassword(const TCHAR* lpPassword)
@@ -61,24 +59,10 @@ void Archive::SetPassword(const TCHAR* lpPassword)
 	m_strPassword = lpPassword;
 }
 
-bool Archive::SetCurrentDirectory(const TCHAR* lpPathInArchive)
+void Archive::SetCurrentDirectory(const TCHAR* lpPathInArchive)
 {
-	ArchiveTree* pResult = _current->GetNode(lpPathInArchive);
-
-	if ( pResult )
-	{
-		_current = pResult;
-		pResult->GetPath(m_strPathInArchive);
-
-		return TRUE;
-	}
-
-	return FALSE;
-}
-
-const TCHAR* Archive::GetCurrentDirectory()
-{
-	return m_strPathInArchive.GetString();
+	m_strPathInArchive = lpPathInArchive;
+	AddEndSlash(m_strPathInArchive);
 }
 
 const GUID& Archive::GetUID() const
@@ -101,69 +85,26 @@ bool Archive::QueryCapability(DWORD dwFlags) const
 
 extern bool CheckForEsc();
 
-
-bool Archive::ReadArchiveItems(bool bForce)
+bool Archive::ReadArchive(ArchiveItemArray& items)
 {
-	if ( bForce || WasUpdated() )
+	if ( StartOperation(OPERATION_LIST, true) )
 	{
-		FreeArchiveItems();
+		int nResult = E_SUCCESS;
 
-		_tree = new ArchiveTree();
-		_current = _tree;
-
-		if ( StartOperation(OPERATION_LIST, true) )
+		while ( (nResult == E_SUCCESS) && !CheckForEsc() )
 		{
-			int nResult = E_SUCCESS;
+			ArchiveItem* item = items.add();
 
-			while ( (nResult == E_SUCCESS) && !CheckForEsc() )
-			{
-				ArchiveItem* item = new ArchiveItem;
-				memset(item, 0, sizeof(ArchiveItem));
+			nResult = GetArchiveItem(item);
 
-				nResult = GetArchiveItem(item);
-
-				if ( nResult == E_SUCCESS )
-					_tree->AddItem(item->lpFileName, item);
-			}
-
-			EndOperation(OPERATION_LIST, true);
+			if ( nResult != E_SUCCESS )
+				items.remove();
 		}
+
+		EndOperation(OPERATION_LIST, true);
 	}
 
 	return true;
-}
-
-
-void Archive::FreeArchiveItemsHelper(ArchiveTree* tree)
-{
-	if ( tree )
-	{
-		for (ArchiveTreeNodesIterator itr = tree->children.begin(); itr != tree->children.end(); ++itr)
-			FreeArchiveItemsHelper(itr->second);
-
-		if ( tree->item != nullptr )
-		{
-			FreeArchiveItem(tree->item);
-			delete tree->item;
-		}
-	}
-}
-
-void Archive::FreeArchiveItems()
-{
-	FreeArchiveItemsHelper(_tree);
-
-	delete _tree;
-
-	_tree = nullptr;
-	_current = nullptr;
-}
-
-
-void Archive::GetArchiveTreeItems(Array<ArchiveTreeNode*>& items, bool bRecursive)
-{
-	for (ArchiveTreeNodesIterator itr = _current->children.begin(); itr != _current->children.end(); ++itr)
-		items.add(itr->second);
 }
 
 
@@ -191,12 +132,6 @@ bool Archive::WasUpdated()
 
 Archive::~Archive ()
 {
-	//MessageBox(0, _T("delete archive"), _T("asdf"), MB_OK);
-
-	FreeArchiveItems();
-
-	//MessageBox(0, _T("delete archive 2"), _T("asdf"), MB_OK);
-
 }
 
 int Archive::Extract(
@@ -229,12 +164,18 @@ int Archive::Extract(
 	}
 
 	if ( bInternalFailed )
-		nResult = ExecuteCommand(
-				OPERATION_EXTRACT,
-				items, 
-				bWithoutPath?COMMAND_EXTRACT_WITHOUT_PATH:COMMAND_EXTRACT,
-				strDestDiskPath
-				)?RESULT_SUCCESS:RESULT_ERROR; //BADBAD
+	{
+		if ( StartOperation(OPERATION_EXTRACT, false) )
+		{
+			nResult = ExecuteCommand(
+					items, 
+					bWithoutPath?COMMAND_EXTRACT_WITHOUT_PATH:COMMAND_EXTRACT,
+					strDestDiskPath
+					)?RESULT_SUCCESS:RESULT_ERROR; //BADBAD
+
+			EndOperation(OPERATION_EXTRACT, false);
+		}
+	}
 
 	return nResult;
 }
@@ -257,7 +198,13 @@ int Archive::Test(const ArchiveItemArray& items)
 	}
 
 	if ( bInternalFailed )
-		nResult = ExecuteCommand(OPERATION_TEST, items, COMMAND_TEST)?RESULT_SUCCESS:RESULT_ERROR;
+	{
+		if ( StartOperation(OPERATION_TEST, false) )
+		{
+			nResult = ExecuteCommand(items, COMMAND_TEST)?RESULT_SUCCESS:RESULT_ERROR;
+			EndOperation(OPERATION_TEST, false);
+		}
+	}
 
 	return nResult;
 }
@@ -267,7 +214,7 @@ int Archive::AddFiles(
 		const TCHAR *lpSourceDiskPath
 		)
 {
-	int nResult = RESULT_ERROR;
+	int nResult = false;
 	bool bInternalFailed = true;
 
 	string strSourceDiskPath = lpSourceDiskPath;
@@ -291,12 +238,18 @@ int Archive::AddFiles(
 	}
 
 	if ( bInternalFailed )
-		nResult = ExecuteCommand(
-				OPERATION_ADD,
-				items, 
-				COMMAND_ADD, 
-				strSourceDiskPath
-				)?RESULT_SUCCESS:RESULT_ERROR;
+	{
+		if ( StartOperation(OPERATION_ADD, false) )
+		{
+			nResult = ExecuteCommand(
+					items, 
+					COMMAND_ADD, 
+					strSourceDiskPath
+					)?RESULT_SUCCESS:RESULT_ERROR;
+
+			EndOperation(OPERATION_ADD, false);
+		}
+	}
 
 	return nResult;
 }
@@ -354,7 +307,7 @@ bool Archive::MakeDirectory(const TCHAR* lpDirectory)
 
 			apiCreateDirectoryEx(strFullTempPath);
 
-			bResult = ExecuteCommandInternal(items, COMMAND_ADD, strTempPath);
+			bResult = ExecuteCommand(items, COMMAND_ADD, strTempPath);
 
 			RemoveDirectory(strTempPath);
 
@@ -389,7 +342,13 @@ int Archive::Delete(const ArchiveItemArray& items)
 	}
 
 	if ( bInternalFailed )
-		nResult = ExecuteCommand(OPERATION_DELETE, items, COMMAND_DELETE)?RESULT_SUCCESS:RESULT_ERROR;
+	{
+		if ( StartOperation(OPERATION_DELETE, false) )
+		{
+			nResult = ExecuteCommand(items, COMMAND_DELETE)?RESULT_SUCCESS:RESULT_ERROR;
+			EndOperation(OPERATION_DELETE, false);
+		}
+	}
 
 	return nResult;
 }
@@ -458,38 +417,13 @@ ArchivePlugin* Archive::GetPlugin()
 
 bool Archive::GetDefaultCommand(
 		int nCommand,
-		string& strCommand,
+		string &strCommand,
 		bool& bEnabledByDefault
 		)
 {
 	return m_pModule->GetDefaultCommand(GetPlugin()->GetUID(), m_uid, nCommand, strCommand, bEnabledByDefault);
 }
 
-
-bool Archive::GetCommand(
-		int nCommand,
-		string& strCommand
-		)
-{
-	bool bEnabledByDefault = false;
-
-	if ( GetDefaultCommand(nCommand, strCommand, bEnabledByDefault) /*&& bEnabledByDefault*/)
-		return true;
-
-	//что здесь делает cfg???
-
-	std::map<const ArchiveFormat*, ArchiveFormatCommands*>::iterator itr = cfg.pArchiveCommands.find(m_pFormat);
-
-	if ( itr != cfg.pArchiveCommands.end() )
-	{
-		ArchiveFormatCommands* pCommands = itr->second;
-		strCommand = pCommands->Commands[nCommand];
-
-		return true;
-	}
-
-	return false;
-}
 
 #include "processname.cpp"
 
@@ -502,19 +436,19 @@ void QuoteSpaceOnly(string& strSrc)
 	strSrc.ReleaseBuffer();
 }
 
-bool Archive::ExecuteCommandInternal(
+
+bool Archive::ExecuteCommand(
 		const ArchiveItemArray& items,
 		int nCommand,
-		const TCHAR* lpCurrentDiskPath,
-		const TCHAR* lpAdditionalCommandLine,
-		bool bHideOutput
+		const TCHAR* lpCurrentDiskPath 
 		)
 {
 	bool bResult = false;
 
 	string strCommand;
+	bool bEnabledByDefault;
 
-	if ( GetCommand(nCommand, strCommand) && !strCommand.IsEmpty() )
+	if ( GetDefaultCommand(nCommand, strCommand, bEnabledByDefault) && !strCommand.IsEmpty() && bEnabledByDefault )
 	{
 		ParamStruct psParam;
 		FarPanelInfo info;
@@ -550,14 +484,14 @@ bool Archive::ExecuteCommandInternal(
 		psParam.strShortArchiveName = strFileName;
 		psParam.strPassword = m_strPassword;
 		psParam.strPathInArchive = m_strPathInArchive;
-		psParam.strAdditionalCommandLine = lpAdditionalCommandLine;
+//		psParam.strAdditionalCommandLine = m_strAdditionalCommandLine;
 		
 		string strExecuteString;
 		int nStartItemNumber = 0;
 
 		while ( true )
 		{
-			int nResult = ParseString(
+			int nResult = ParseString (
 					items,
 					strCommand,
 					strExecuteString,
@@ -577,11 +511,6 @@ bool Archive::ExecuteCommandInternal(
 
 				HANDLE hScreen = Info.SaveScreen(0, 0, -1, -1);
 
-#ifdef UNICODE
-				Info.Control(INVALID_HANDLE_VALUE, FCTL_GETUSERSCREEN, 0, 0);
-#else
-				Info.Control(INVALID_HANDLE_VALUE, FCTL_GETUSERSCREEN, 0);
-#endif
 				if ( CreateProcess (
 						NULL,
 						strExecuteString.GetBuffer(),
@@ -612,12 +541,6 @@ bool Archive::ExecuteCommandInternal(
 					msgError(strError);
 				}
 
-#ifdef UNICODE
-				Info.Control(INVALID_HANDLE_VALUE, FCTL_SETUSERSCREEN, 0, 0);
-#else
-				Info.Control(INVALID_HANDLE_VALUE, FCTL_SETUSERSCREEN, 0);
-#endif
-
 				Info.RestoreScreen(NULL);
 				Info.RestoreScreen(hScreen);
 			}
@@ -625,36 +548,8 @@ bool Archive::ExecuteCommandInternal(
 			if ( nResult != PE_MORE_FILES )
 				break;
 		}
-		
+
 		DeleteFile (psParam.strListFileName); //WARNING!!!
-	}
-
-	return bResult;
-
-}
-
-bool Archive::ExecuteCommand(
-		int nOperation,
-		const ArchiveItemArray& items,
-		int nCommand,
-		const TCHAR* lpCurrentDiskPath,
-		const TCHAR* lpAdditionalCommandLine,
-		bool bHideOutput
-		)
-{
-	bool bResult = false;
-
-	if ( StartOperation(nOperation, false) )
-	{
-		bResult = ExecuteCommandInternal(
-			items,
-			nCommand,
-			lpCurrentDiskPath,
-			lpAdditionalCommandLine,
-			bHideOutput
-			);
-
-		EndOperation(nOperation, false);
 	}
 
 	return bResult;

@@ -4,8 +4,8 @@ delete.cpp
 Удаление файлов
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -934,10 +934,10 @@ int WipeFile(const wchar_t *Name)
 		while (FileSize>0)
 		{
 			DWORD WriteSize=(DWORD)Min((unsigned __int64)BufSize,FileSize);
-			WipeFile.Write(Buf,WriteSize,Written);
+			WipeFile.Write(Buf,WriteSize,&Written);
 			FileSize-=WriteSize;
 		}
-		WipeFile.Write(Buf,BufSize,Written);
+		WipeFile.Write(Buf,BufSize,&Written);
 		delete[] Buf;
 		WipeFile.SetPointer(0,nullptr,FILE_BEGIN);
 		WipeFile.SetEnd();

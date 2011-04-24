@@ -4,7 +4,7 @@ cache.cpp
 Кеширование записи в файл/чтения из файла
 */
 /*
-Copyright © 2009 Far Group
+Copyright (c) 2009 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,17 +35,13 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "cache.hpp"
 
-CachedRead::CachedRead(File& file, DWORD buffer_size, int alignment):
-	Buffer(nullptr),
+CachedRead::CachedRead(File& file):
+	Buffer(reinterpret_cast<LPBYTE>(xf_malloc(BufferSize))),
 	file(file),
 	ReadSize(0),
 	BytesLeft(0),
-	LastPtr(0),
-	BufferSize(buffer_size),
-	Alignment(alignment)
+	LastPtr(0)
 {
-	if (buffer_size)
-		Buffer = static_cast<LPBYTE>(xf_malloc(buffer_size));
 }
 
 CachedRead::~CachedRead()
@@ -54,36 +50,6 @@ CachedRead::~CachedRead()
 	{
 		xf_free(Buffer);
 	}
-}
-
-bool CachedRead::Init()
-{
-	if (!file.Opened())
-		return false;
-
-	DWORD ret, buff_size = DefaultBufferSize;
-	Alignment = 4 * 1024;
-	DISK_GEOMETRY g;
-
-	if (file.IoControl(IOCTL_DISK_GET_DRIVE_GEOMETRY, nullptr, 0, &g, (DWORD)sizeof(g), &ret, nullptr))
-	{
-		if (g.BytesPerSector > 4*1024 && g.BytesPerSector <= 256*1024)
-		{
-			Alignment = (int)g.BytesPerSector;
-			buff_size = 16 * g.BytesPerSector;
-		}
-		file.IoControl(FSCTL_ALLOW_EXTENDED_DASD_IO, nullptr, 0, nullptr, 0, &ret, nullptr);
-	}
-
-	if (buff_size != BufferSize)
-	{
-		if (Buffer)
-			xf_free(Buffer);
-		Buffer = reinterpret_cast<LPBYTE>(xf_malloc(BufferSize = buff_size));
-	}
-
-	Clear();
-	return Buffer != nullptr;
 }
 
 void CachedRead::Clear()
@@ -95,7 +61,8 @@ void CachedRead::Clear()
 
 bool CachedRead::Read(LPVOID Data, DWORD DataSize, LPDWORD BytesRead)
 {
-	INT64 Ptr = file.GetPointer();
+	INT64 Ptr=0;
+	file.GetPointer(Ptr);
 
 	if(Ptr!=LastPtr)
 	{
@@ -137,69 +104,48 @@ bool CachedRead::Read(LPVOID Data, DWORD DataSize, LPDWORD BytesRead)
 	}
 	else
 	{
-		Result = file.Read(Data, DataSize, *BytesRead);
+		Result = file.Read(Data, DataSize, BytesRead);
 	}
 	return Result;
-}
-
-bool CachedRead::Unread(DWORD BytesUnread)
-{
-	if (BytesUnread + BytesLeft <= ReadSize)
-	{
-		BytesLeft += BytesUnread;
-		__int64 off = BytesUnread;
-		file.SetPointer(-off, &LastPtr, FILE_CURRENT);
-		return true;
-	}
-	return false;
 }
 
 bool CachedRead::FillBuffer()
 {
 	bool Result=false;
-	if (!file.Eof())
+	if(!file.Eof())
 	{
-		INT64 Pointer = file.GetPointer();
-
-		int shift = (int)(Pointer % Alignment);
-		if (Pointer-shift > BufferSize/2)
-			shift += BufferSize/2;
-
-		if (shift)
-			file.SetPointer(-shift, nullptr, FILE_CURRENT);
-
-		DWORD read_size = BufferSize;
-		UINT64 FileSize = 0;
-		if (file.GetSize(FileSize) && Pointer-shift+BufferSize > (INT64)FileSize)
-			read_size = (DWORD)((INT64)FileSize-Pointer+shift);
-
-		Result = file.Read(Buffer, read_size, ReadSize);
-		if (Result)
+		INT64 Pointer=0;
+		file.GetPointer(Pointer);
+		bool Bidirection=false;
+		if(Pointer>BufferSize/2)
 		{
-			if (ReadSize > (DWORD)shift)
+			Bidirection=true;
+			file.SetPointer(-BufferSize/2, nullptr, FILE_CURRENT);
+		}
+		Result = file.Read(Buffer, BufferSize, &ReadSize);
+		if(Result)
+		{
+			BytesLeft = ReadSize;
+			if(Bidirection && BytesLeft>=BufferSize/2)
 			{
-				BytesLeft = ReadSize - shift;
-				file.SetPointer(Pointer, nullptr, FILE_BEGIN);
+				BytesLeft-=BufferSize/2;
 			}
-			else
-			{
-				BytesLeft = 0;
-			}
+			file.SetPointer(Pointer, nullptr, FILE_BEGIN);
 		}
 		else
 		{
-			if (shift)
+			if (Bidirection)
 				file.SetPointer(Pointer, nullptr, FILE_BEGIN);
 			ReadSize=0;
 			BytesLeft=0;
 		}
 	}
-
 	return Result;
 }
 
+
 CachedWrite::CachedWrite(File& file):
-	Buffer(static_cast<LPBYTE>(xf_malloc(BufferSize))),
+	Buffer(reinterpret_cast<LPBYTE>(xf_malloc(BufferSize))),
 	file(file),
 	FreeSize(BufferSize),
 	Flushed(false)
@@ -234,7 +180,7 @@ bool CachedWrite::Write(LPCVOID Data, DWORD DataSize)
 			{
 				DWORD WrittenSize=0;
 
-				if (file.Write(Data, DataSize,WrittenSize) && DataSize==WrittenSize)
+				if (file.Write(Data, DataSize,&WrittenSize) && DataSize==WrittenSize)
 				{
 					Result=true;
 				}
@@ -259,7 +205,7 @@ bool CachedWrite::Flush()
 		{
 			DWORD WrittenSize=0;
 
-			if (file.Write(Buffer, BufferSize-FreeSize, WrittenSize, nullptr) && BufferSize-FreeSize==WrittenSize)
+			if (file.Write(Buffer, BufferSize-FreeSize, &WrittenSize, nullptr) && BufferSize-FreeSize==WrittenSize)
 			{
 				Flushed=true;
 				FreeSize=BufferSize;

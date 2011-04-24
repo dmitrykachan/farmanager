@@ -4,8 +4,8 @@ execute.cpp
 "Запускатель" программ.
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -62,9 +62,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "constitle.hpp"
 #include "console.hpp"
 #include "constitle.hpp"
-#include "configdb.hpp"
 
-static const wchar_t strSystemExecutor[]=L"System.Executor";
+static const wchar_t strSystemExecutor[]=L"System\\Executor";
 
 // Выдранный кусок из будущего GetFileInfo, получаем достоверную информацию о ГУЯХ PE-модуля
 
@@ -96,7 +95,7 @@ static bool GetImageSubsystem(const wchar_t *FileName,DWORD& ImageSubsystem)
 		IMAGE_DOS_HEADER DOSHeader;
 		DWORD ReadSize;
 
-		if (ModuleFile.Read(&DOSHeader, sizeof(DOSHeader), ReadSize) && ReadSize==sizeof(DOSHeader))
+		if (ModuleFile.Read(&DOSHeader, sizeof(DOSHeader), &ReadSize) && ReadSize==sizeof(DOSHeader))
 		{
 			if (DOSHeader.e_magic==IMAGE_DOS_SIGNATURE)
 			{
@@ -107,7 +106,7 @@ static bool GetImageSubsystem(const wchar_t *FileName,DWORD& ImageSubsystem)
 				{
 					IMAGE_HEADERS PEHeader;
 
-					if (ModuleFile.Read(&PEHeader, sizeof(PEHeader), ReadSize) && ReadSize==sizeof(PEHeader))
+					if (ModuleFile.Read(&PEHeader, sizeof(PEHeader), &ReadSize) && ReadSize==sizeof(PEHeader))
 					{
 						if (PEHeader.Signature==IMAGE_NT_SIGNATURE)
 						{
@@ -516,7 +515,7 @@ bool WINAPI FindModule(const wchar_t *Module, string &strDest,DWORD &ImageSubsys
 		// Берем "исключения" из реестра, которые должны исполняться директом,
 		// например, некоторые внутренние команды ком. процессора.
 		string strExcludeCmds;
-		GeneralCfg->GetValue(strSystemExecutor,L"ExcludeCmds",strExcludeCmds,L"");
+		GetRegKey(strSystemExecutor,L"ExcludeCmds",strExcludeCmds,L"");
 		UserDefinedList ExcludeCmdsList;
 		ExcludeCmdsList.Set(strExcludeCmds);
 
@@ -533,7 +532,7 @@ bool WINAPI FindModule(const wchar_t *Module, string &strDest,DWORD &ImageSubsys
 		if (!Result)
 		{
 			string strFullName=Module;
-			LPCWSTR ModuleExt=wcsrchr(PointToName(Module),L'.');
+			LPCWSTR ModuleExt=wcsrchr(Module,L'.');
 			string strPathExt(L".COM;.EXE;.BAT;.CMD;.VBS;.JS;.WSH");
 			apiGetEnvironmentVariable(L"PATHEXT",strPathExt);
 			UserDefinedList PathExtList;
@@ -753,6 +752,7 @@ int PartCmdLine(const wchar_t *CmdStr, string &strNewCmdStr, string &strNewCmdPa
 			        *CmdPtr == L'<' ||
 			        *CmdPtr == L'|' ||
 			        *CmdPtr == L' ' ||
+			        *CmdPtr == L'/' || // вариант "far.exe/?"
 			        *CmdPtr == L'&'    // обработаем разделитель команд
 			   )
 			{
@@ -825,13 +825,6 @@ int Execute(const wchar_t *CmdStr, // Ком.строка для исполнения
 	string strNewCmdPar;
 	PartCmdLine(CmdStr, strNewCmdStr, strNewCmdPar);
 
-	/*
-	if(strNewCmdPar.IsEmpty())
-	{
-		DirectRun = true;
-	}
-	*/
-
 	DWORD dwAttr = apiGetFileAttributes(strNewCmdStr);
 
 	if(RunAs)
@@ -882,10 +875,11 @@ int Execute(const wchar_t *CmdStr, // Ком.строка для исполнения
 		if (/*!*NewCmdPar && */ dwSubSystem == IMAGE_SUBSYSTEM_UNKNOWN)
 		{
 			DWORD Error=0, dwSubSystem2=0;
+			size_t pos;
 
-			const wchar_t *ExtPtr=wcsrchr(PointToName(strNewCmdStr), L'.');
-			if (ExtPtr)
+			if (strNewCmdStr.RPos(pos,L'.'))
 			{
+				const wchar_t *ExtPtr=strNewCmdStr.CPtr()+pos;
 				if (!(!StrCmpI(ExtPtr,L".exe") || !StrCmpI(ExtPtr,L".com") || IsBatchExtType(ExtPtr)))
 				{
 					lpVerb=GetShellAction(strNewCmdStr,dwSubSystem2,Error);
@@ -898,7 +892,7 @@ int Execute(const wchar_t *CmdStr, // Ком.строка для исполнения
 
 				if (dwSubSystem == IMAGE_SUBSYSTEM_UNKNOWN && !StrCmpNI(strNewCmdStr,L"ECHO.",5)) // вариант "echo."
 				{
-					strNewCmdStr.Replace(4,1,L' ');
+					strNewCmdStr.Replace(pos,1,L' ');
 					PartCmdLine(strNewCmdStr,strNewCmdStr,strNewCmdPar);
 
 					if (strNewCmdPar.IsEmpty())
@@ -923,7 +917,7 @@ int Execute(const wchar_t *CmdStr, // Ком.строка для исполнения
 	bool Visible=false;
 	DWORD Size=0;
 	SMALL_RECT ConsoleWindowRect;
-	COORD ConsoleSize={};
+	COORD ConsoleSize;
 	int ConsoleCP = CP_OEMCP;
 	int ConsoleOutputCP = CP_OEMCP;
 
@@ -992,11 +986,8 @@ int Execute(const wchar_t *CmdStr, // Ком.строка для исполнения
 	if (DirectRun)
 	{
 		seInfo.lpFile = strNewCmdStr;
-		if(!strNewCmdPar.IsEmpty())
-		{
-			seInfo.lpParameters = strNewCmdPar;
-		}
-		seInfo.lpVerb = dwAttr != INVALID_FILE_ATTRIBUTES && (dwAttr&FILE_ATTRIBUTE_DIRECTORY)?nullptr:lpVerb?lpVerb:GetShellAction(strNewCmdStr, dwSubSystem, dwError);
+		seInfo.lpParameters = strNewCmdPar;
+		seInfo.lpVerb = (dwAttr&FILE_ATTRIBUTE_DIRECTORY)?nullptr:lpVerb?lpVerb:GetShellAction(strNewCmdStr, dwSubSystem, dwError);
 	}
 	else
 	{
@@ -1796,7 +1787,7 @@ bool CommandLine::CheckCmdLineForSet(const string& CmdLine)
 	return false;
 }
 
-BOOL CommandLine::IntChDir(const wchar_t *CmdLine,int ClosePanel,bool Selent)
+BOOL CommandLine::IntChDir(const wchar_t *CmdLine,int ClosePlugin,bool Selent)
 {
 	Panel *SetPanel;
 	SetPanel=CtrlObject->Cp()->ActivePanel;
@@ -1811,7 +1802,7 @@ BOOL CommandLine::IntChDir(const wchar_t *CmdLine,int ClosePanel,bool Selent)
 	if (SetPanel->GetMode()!=PLUGIN_PANEL && strExpandedDir.At(0) == L'~' && ((!strExpandedDir.At(1) && apiGetFileAttributes(strExpandedDir) == INVALID_FILE_ATTRIBUTES) || IsSlash(strExpandedDir.At(1))))
 	{
 		string strTemp;
-		GeneralCfg->GetValue(strSystemExecutor,L"~",strTemp,g_strFarPath);
+		GetRegKey(strSystemExecutor,L"~",strTemp,g_strFarPath);
 
 		if (strExpandedDir.At(1))
 		{
@@ -1874,7 +1865,7 @@ BOOL CommandLine::IntChDir(const wchar_t *CmdLine,int ClosePanel,bool Selent)
 
 	if (SetPanel->GetType()==FILE_PANEL && SetPanel->GetMode()==PLUGIN_PANEL)
 	{
-		SetPanel->SetCurDir(strExpandedDir,ClosePanel);
+		SetPanel->SetCurDir(strExpandedDir,ClosePlugin);
 		return TRUE;
 	}
 

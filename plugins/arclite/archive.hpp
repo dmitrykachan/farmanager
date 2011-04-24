@@ -121,26 +121,18 @@ struct ArcEntry {
   }
 };
 
-typedef list<ArcEntry> ArcEntries;
-
 class ArcChain: public list<ArcEntry> {
 public:
   wstring to_string() const;
 };
 
-class Archive;
-typedef vector<ComObject<Archive>> Archives;
-
-class Archive: public ComBase {
-public:
-  UNKNOWN_IMPL
-
+class Archive {
   // open
 private:
   ComObject<IInArchive> in_arc;
-  bool open(IInStream* in_stream, const ArcType& type);
-  static ArcEntries detect(IInStream* stream, const wstring& file_ext, const ArcTypes& arc_types);
-  static void open(const OpenOptions& options, Archives& archives);
+  bool open_sub_stream(IInStream** sub_stream, FindData& sub_arc_info);
+  bool open(IInStream* in_stream);
+  static void open(const OpenOptions& options, vector<Archive>& archives);
 public:
   static unsigned max_check_size;
   wstring arc_path;
@@ -154,7 +146,7 @@ public:
     wstring name = extract_file_name(arc_path);
     return name.empty() ? arc_path : name;
   }
-  static Archives open(const OpenOptions& options);
+  static vector<Archive> open(const OpenOptions& options);
   void close();
   void reopen();
   bool is_open() const {
@@ -175,10 +167,6 @@ public:
   void make_index();
   UInt32 find_dir(const wstring& dir);
   FileIndexRange get_dir_list(UInt32 dir_index);
-  bool get_stream(UInt32 index, IInStream** stream);
-  wstring get_path(UInt32 index);
-  FindData get_file_info(UInt32 index);
-  bool get_main_file(UInt32& index) const;
   DWORD get_attr(UInt32 index) const;
   unsigned __int64 get_size(UInt32 index) const;
   unsigned __int64 get_psize(UInt32 index) const;
@@ -193,7 +181,7 @@ private:
   void prepare_dst_dir(const wstring& path);
   void prepare_test(UInt32 file_index, list<UInt32>& indices);
 public:
-  void extract(UInt32 src_dir_index, const vector<UInt32>& src_indices, const ExtractOptions& options, shared_ptr<ErrorLog> error_log, vector<UInt32>* extracted_indices = nullptr);
+  void extract(UInt32 src_dir_index, const vector<UInt32>& src_indices, const ExtractOptions& options, ErrorLog& error_log);
   void test(UInt32 src_dir_index, const vector<UInt32>& src_indices);
   void delete_archive();
 
@@ -212,8 +200,8 @@ public:
   bool has_crc;
   void load_update_props();
 public:
-  void create(const wstring& src_dir, const vector<wstring>& file_names, const UpdateOptions& options, shared_ptr<ErrorLog> error_log);
-  void update(const wstring& src_dir, const vector<wstring>& file_names, const wstring& dst_dir, const UpdateOptions& options, shared_ptr<ErrorLog> error_log);
+  void create(const wstring& src_dir, const vector<wstring>& file_names, const UpdateOptions& options, ErrorLog& error_log);
+  void update(const wstring& src_dir, const vector<wstring>& file_names, const wstring& dst_dir, const UpdateOptions& options, ErrorLog& error_log);
   void create_dir(const wstring& dir_name, const wstring& dst_dir);
 
   // delete files in archive

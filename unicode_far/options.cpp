@@ -4,8 +4,8 @@ options.cpp
 Фаровское горизонтальное меню (вызов hmenu.cpp с конкретными параметрами)
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -57,7 +57,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "setcolor.hpp"
 #include "plist.hpp"
 #include "filetype.hpp"
-#include "shortcuts.hpp"
+#include "ffolders.hpp"
 #include "strmix.hpp"
 #include "interf.hpp"
 #include "codepage.hpp"
@@ -554,7 +554,7 @@ void ShellOptions(int LastCommand,MOUSE_EVENT_RECORD *MouseEvent)
 					EditFileTypes();
 					break;
 				case MENU_COMMANDS_FOLDERSHORTCUTS: // Folder shortcuts
-					CtrlObject->FolderShortcuts->Configure();
+					ShowFolderShortcut();
 					break;
 				case MENU_COMMANDS_FILTER: // File panel filter
 					CtrlObject->Cp()->ActivePanel->EditFilter();

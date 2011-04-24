@@ -4,8 +4,8 @@ interf.cpp
 Консольные функции ввода-вывода
 */
 /*
-Copyright © 1996 Eugene Roshal
-Copyright © 2000 Far Group
+Copyright (c) 1996 Eugene Roshal
+Copyright (c) 2000 Far Group
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -45,10 +45,10 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "manager.hpp"
 #include "scrbuf.hpp"
 #include "syslog.hpp"
+#include "registry.hpp"
 #include "palette.hpp"
 #include "strmix.hpp"
 #include "console.hpp"
-#include "configdb.hpp"
 
 BOOL __stdcall CtrlHandler(DWORD CtrlType);
 
@@ -73,8 +73,7 @@ COORD InitialSize;
 
 static HICON hOldLargeIcon=nullptr, hOldSmallIcon=nullptr;
 
-//stack buffer size + stack vars size must be less than 16384
-const size_t StackBufferSize=0x3FC0;
+const size_t StackBufferSize=0x2000;
 
 void InitConsole(int FirstInit)
 {
@@ -87,7 +86,7 @@ void InitConsole(int FirstInit)
 	CONSOLE_CURSOR_INFO InitCursorInfo;
 	Console.GetCursorInfo(InitCursorInfo);
 
-	GeneralCfg->GetValue(L"Interface",L"Mouse",&Opt.Mouse,1);
+	GetRegKey(L"Interface",L"Mouse",Opt.Mouse,1);
 
 	// размер клавиатурной очереди = 1024 кода клавиши
 	if (!KeyQueue)
@@ -101,7 +100,7 @@ void InitConsole(int FirstInit)
 	*/
 	if(!Opt.WindowMode)
 	{
-		GeneralCfg->GetValue(L"System",L"WindowMode",&Opt.WindowMode, 0);
+		GetRegKey(L"System",L"WindowMode",Opt.WindowMode, 0);
 	}
 	if (FirstInit)
 	{
@@ -277,7 +276,7 @@ void ChangeVideoMode(int NumLines,int NumColumns)
 	srWindowRect.Right = xSize-1;
 	srWindowRect.Bottom = ySize-1;
 	srWindowRect.Left = srWindowRect.Top = 0;
-
+	
 	COORD coordScreen={xSize,ySize};
 
 	if (xSize>Size.X || ySize > Size.Y)
@@ -316,7 +315,7 @@ void ChangeVideoMode(int NumLines,int NumColumns)
 
 void GenerateWINDOW_BUFFER_SIZE_EVENT(int Sx, int Sy)
 {
-	COORD Size={};
+	COORD Size;
 	if (Sx==-1 || Sy==-1)
 	{
 		Console.GetSize(Size);
@@ -377,7 +376,6 @@ BOOL __stdcall CtrlHandler(DWORD CtrlType)
 	}
 
 	CloseFAR=TRUE;
-	AllowCancelExit=FALSE;
 
 	/* $ 30.08.2001 IS
 	   При закрытии окна "по кресту" всегда возвращаем TRUE, в противном случае
@@ -385,17 +383,16 @@ BOOL __stdcall CtrlHandler(DWORD CtrlType)
 	   процедуры: оповещены плагины, вызваны деструкторы, сохранены настройки и
 	   т.п.
 	*/
-	if (Opt.CloseConsoleRule ||
-	    (!Opt.CloseConsoleRule &&
-	     ((FileEditor::CurrentEditor && FileEditor::CurrentEditor->IsFileModified()) ||
-	      (FrameManager && FrameManager->IsAnyFrameModified(FALSE)))))
+	if (!Opt.CloseConsoleRule)
 	{
-		// trick to let wmain() finish correctly
-		ExitThread(1);
-		//return TRUE;
+		if ((FileEditor::CurrentEditor && FileEditor::CurrentEditor->IsFileModified()) ||
+		        (FrameManager && FrameManager->IsAnyFrameModified(FALSE)))
+			return TRUE;
+
+		return FALSE;
 	}
 
-	return FALSE;
+	return TRUE;
 }
 
 
@@ -546,7 +543,7 @@ void InitRecodeOutTable()
 	}
 
 	{
-		static const WCHAR _BoxSymbols[48] =
+		static WCHAR _BoxSymbols[48] =
 		{
 			0x2591, 0x2592, 0x2593, 0x2502, 0x2524, 0x2561, 0x2562, 0x2556,
 			0x2555, 0x2563, 0x2551, 0x2557, 0x255D, 0x255C, 0x255B, 0x2510,
@@ -556,7 +553,7 @@ void InitRecodeOutTable()
 			0x256A, 0x2518, 0x250C, 0x2588, 0x2584, 0x258C, 0x2590, 0x2580,
 		};
 		// перед [пере]инициализацией восстановим буфер (либо из реестра, либо...)
-		GeneralCfg->GetValue(L"System",L"BoxSymbols",(char *)BoxSymbols,sizeof(_BoxSymbols),(const char *)_BoxSymbols);
+		GetRegKey(L"System",L"BoxSymbols",(BYTE *)BoxSymbols,(BYTE*)_BoxSymbols,sizeof(_BoxSymbols));
 
 		if (Opt.NoGraphics)
 		{
@@ -588,11 +585,11 @@ void Text(const WCHAR *Str)
 	if (Length<=0)
 		return;
 
-	CHAR_INFO StackBuffer[StackBufferSize/sizeof(CHAR_INFO)];
+	CHAR_INFO StackBuffer[StackBufferSize];
 	PCHAR_INFO HeapBuffer=nullptr;
 	PCHAR_INFO BufPtr=StackBuffer;
 
-	if (Length >= StackBufferSize/sizeof(CHAR_INFO))
+	if (Length >= StackBufferSize)
 	{
 		HeapBuffer=new CHAR_INFO[Length+1];
 		BufPtr=HeapBuffer;
@@ -756,6 +753,16 @@ void ChangeBlockColor(int X1,int Y1,int X2,int Y2,int Color)
 	ScrBuf.ApplyColor(X1,Y1,X2,Y2,FarColorToReal(Color));
 }
 
+void mprintf(const WCHAR *fmt,...)
+{
+	va_list argptr;
+	va_start(argptr,fmt);
+	WCHAR OutStr[2048];
+	_vsnwprintf(OutStr,ARRAYSIZE(OutStr)-1,fmt,argptr);
+	Text(OutStr);
+	va_end(argptr);
+}
+
 void vmprintf(const WCHAR *fmt,...)
 {
 	va_list argptr;
@@ -846,12 +853,12 @@ void Box(int x1,int y1,int x2,int y2,int Color,int Type)
 	SetColor(Color);
 	Type=(Type==DOUBLE_BOX || Type==SHORT_DOUBLE_BOX);
 
-	WCHAR StackBuffer[StackBufferSize/sizeof(WCHAR)];
+	WCHAR StackBuffer[StackBufferSize];
 	LPWSTR HeapBuffer=nullptr;
 	LPWSTR BufPtr=StackBuffer;
 
 	const size_t height=y2-y1;
-	if(height>StackBufferSize/sizeof(WCHAR))
+	if(height>StackBufferSize)
 	{
 		HeapBuffer=new WCHAR[height];
 		BufPtr=HeapBuffer;
@@ -863,7 +870,7 @@ void Box(int x1,int y1,int x2,int y2,int Color,int Type)
 	GotoXY(x2,y1+1);
 	VText(BufPtr);
 	const size_t width=x2-x1+2;
-	if(width>StackBufferSize/sizeof(WCHAR))
+	if(width>StackBufferSize)
 	{
 		if(width>height)
 		{
@@ -916,10 +923,10 @@ bool ScrollBarEx(UINT X1,UINT Y1,UINT Length,UINT64 TopItem,UINT64 ItemsCount)
 		}
 
 		CaretPos=Min(CaretPos,Length-CaretLength);
-		WCHAR StackBuffer[StackBufferSize/sizeof(WCHAR)];
+		WCHAR StackBuffer[StackBufferSize];
 		LPWSTR HeapBuffer=nullptr;
 		LPWSTR BufPtr=StackBuffer;
-		if(Length+3>=StackBufferSize/sizeof(WCHAR))
+		if(Length+3>=StackBufferSize)
 		{
 			HeapBuffer=new WCHAR[Length+3];
 			BufPtr=HeapBuffer;
@@ -961,10 +968,10 @@ void ScrollBar(int X1,int Y1,int Length,unsigned long Current,unsigned long Tota
 
 	GotoXY(X1,Y1);
 	{
-		WCHAR StackBuffer[StackBufferSize/sizeof(WCHAR)];
+		WCHAR StackBuffer[StackBufferSize];
 		LPWSTR HeapBuffer=nullptr;
 		LPWSTR BufPtr=StackBuffer;
-		if(static_cast<size_t>(Length+3)>=StackBufferSize/sizeof(WCHAR))
+		if(static_cast<size_t>(Length+3)>=StackBufferSize)
 		{
 			HeapBuffer=new WCHAR[Length+3];
 			BufPtr=HeapBuffer;
@@ -986,10 +993,10 @@ void DrawLine(int Length,int Type, const wchar_t* UserSep)
 {
 	if (Length>1)
 	{
-		WCHAR StackBuffer[StackBufferSize/sizeof(WCHAR)];
+		WCHAR StackBuffer[StackBufferSize];
 		LPWSTR HeapBuffer=nullptr;
 		LPWSTR BufPtr=StackBuffer;
-		if(static_cast<size_t>(Length)>=StackBufferSize/sizeof(WCHAR))
+		if(static_cast<size_t>(Length)>=StackBufferSize)
 		{
 			HeapBuffer=new WCHAR[Length+1];
 			BufPtr=HeapBuffer;
