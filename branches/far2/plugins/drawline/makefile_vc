@@ -1,0 +1,13 @@
+!if exists(../make_vc_defs)
+!include ../make_vc_defs
+!endif
+
+NAME = DrawLine
+LINK_OBJS = $(OBJDIR)\DrawLine.obj
+DOCS = DrawEng.hlf DrawRus.hlf DrawEng.lng DrawRus.lng
+
+!include ..\makefile_vc_def_inc
+
+!include ..\makefile_vc_target_inc
+
+$(OBJDIR)\DrawLine.obj: DrawLine.cpp drawlng.hpp drawline.hpp $(COMINC)\plugin.hpp

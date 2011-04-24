@@ -1,0 +1,25 @@
+!if exists(../make_vc_defs)
+!include ../make_vc_defs
+!endif
+
+USERCPP = /D WIN32 /D PCRE_STATIC /D _WIN32
+
+!include ..\makefile_vc_def_inc
+
+OUTPUTS = $(OBJDIR)\pcre.lib
+OBJS = $(OBJDIR)\get.obj $(OBJDIR)\pcre.obj $(OBJDIR)\study.obj
+
+all: $(OUTPUTS)
+
+!ifndef __MAKE__
+{libpcre}.c{$(OBJDIR)}.obj::
+	$(CC) @<<
+	$(CFLAGS) $<
+<<
+!else
+{libpcre}.c{$(OBJDIR)}.obj:
+	$(CC) $(CFLAGS) { $< }
+!endif
+	
+$(OUTPUTS): $(OBJS)
+	@$(LIBR) /nologo /OUT:$(OUTPUTS) $(OBJS)

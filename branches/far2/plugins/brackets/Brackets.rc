@@ -1,0 +1,8 @@
+#include "farversion.hpp"
+
+#define PLUGIN_BUILD 16
+#define PLUGIN_DESC "Brackets matching for FAR Manager"
+#define PLUGIN_NAME "Brackets"
+#define PLUGIN_FILENAME "Brackets.dll"
+
+genericpluginrc(PLUGIN_BUILD, PLUGIN_DESC, PLUGIN_NAME, PLUGIN_FILENAME)

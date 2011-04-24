@@ -1,0 +1,8 @@
+#include "farversion.hpp"
+
+#define PLUGIN_BUILD 29
+#define PLUGIN_DESC "Hlf-file Viewer for FAR Manager"
+#define PLUGIN_NAME "HlfViewer"
+#define PLUGIN_FILENAME "HlfViewer.dll"
+
+genericpluginrc(PLUGIN_BUILD, PLUGIN_DESC, PLUGIN_NAME, PLUGIN_FILENAME)

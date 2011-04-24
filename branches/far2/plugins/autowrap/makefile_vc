@@ -1,0 +1,13 @@
+!if exists(../make_vc_defs)
+!include ../make_vc_defs
+!endif
+
+NAME = AutoWrap
+LINK_OBJS = $(OBJDIR)\AutoWrap.obj
+DOCS = WrapEng.lng WrapRus.lng
+
+!include ..\makefile_vc_def_inc
+
+!include ..\makefile_vc_target_inc
+
+$(OBJDIR)\AutoWrap.obj: AutoWrap.cpp wrapreg.cpp wrapmix.cpp WrapLng.hpp AutoWrap.hpp $(COMINC)\plugin.hpp
