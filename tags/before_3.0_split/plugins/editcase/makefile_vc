@@ -1,0 +1,13 @@
+!if exists(../make_vc_defs)
+!include ../make_vc_defs
+!endif
+
+NAME = EditCase
+LINK_OBJS = $(OBJDIR)\EditCase.obj
+DOCS = ECaseEng.hlf ECaseRus.hlf ECaseEng.lng ECaseRus.lng
+
+!include ..\makefile_vc_def_inc
+
+!include ..\makefile_vc_target_inc
+
+$(OBJDIR)\EditCase.obj: EditCase.cpp WrapReg.cpp EditCase.hpp EditLng.hpp $(COMINC)\plugin.hpp

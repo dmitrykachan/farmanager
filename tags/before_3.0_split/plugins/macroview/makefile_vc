@@ -1,0 +1,18 @@
+!if exists(../make_vc_defs)
+!include ../make_vc_defs
+!endif
+
+NAME = MacroView
+LINK_OBJS = $(OBJDIR)\MacroView.obj
+DOCS = MacroEng.hlf MacroRus.hlf MacroEng.lng MacroRus.lng
+
+!include ..\makefile_vc_def_inc
+
+!include ..\makefile_vc_target_inc
+
+$(OBJDIR)\MacroView.obj : MacroView.cpp MacroMix.cpp MacroDiff.cpp \
+                          Config.cpp strclass.cpp regclass.cpp \
+                          MacroView.hpp strclass.hpp regclass.hpp \
+                          MacroLng.hpp $(COMINC)\plugin.hpp \
+                          $(COMINC)\farkeys.hpp $(COMINC)\farcolor.hpp \
+                          $(COMMON)\CRT\crt.hpp

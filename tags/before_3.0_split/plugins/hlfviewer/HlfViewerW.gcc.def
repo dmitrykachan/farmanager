@@ -1,0 +1,7 @@
+EXPORTS 
+   GetMinFarVersionW=GetMinFarVersionW@0
+   GetPluginInfoW=GetPluginInfoW@4
+   OpenPluginW=OpenPluginW@8
+   SetStartupInfoW=SetStartupInfoW@4
+   ProcessEditorInputW=ProcessEditorInputW@4
+   ConfigureW=ConfigureW@4
