@@ -184,7 +184,7 @@ public:
     if (show_dialog) {
       options.overwrite = g_options.extract_overwrite;
       options.separate_dir = g_options.extract_separate_dir;
-      options.open_dir = g_options.extract_open_dir;
+      options.open_dir = (op_mode & OPM_TOPLEVEL) == 0 ? triUndef : (g_options.extract_open_dir ? triTrue : triFalse);
     }
     else {
       options.overwrite = oaOverwrite;
@@ -233,7 +233,7 @@ public:
       Far::progress_notify();
     }
 
-    if (options.open_dir) {
+    if (options.open_dir == triTrue) {
       if (single_item)
         Far::panel_go_to_file(PANEL_ACTIVE, add_trailing_slash(options.dst_dir) + panel_items.get(0)->FindData.lpwszFileName);
       else
@@ -353,7 +353,7 @@ public:
       Far::progress_notify();
     }
 
-    if (options.open_dir) {
+    if (options.open_dir == triTrue) {
       if (arc_list.size() > 1)
         Far::panel_go_to_dir(PANEL_ACTIVE, dst_dir);
       else if (dst_file_name.empty())
@@ -373,7 +373,7 @@ public:
     options.ignore_errors = g_options.extract_ignore_errors;
     options.overwrite = g_options.extract_overwrite;
     options.separate_dir = g_options.extract_separate_dir;
-    options.open_dir = g_options.extract_open_dir;
+    options.open_dir = g_options.extract_open_dir ? triTrue : triFalse;
 
     if (!extract_dialog(options))
       FAIL(E_ABORT);
