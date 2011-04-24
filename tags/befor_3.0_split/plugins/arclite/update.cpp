@@ -147,6 +147,8 @@ public:
 
   STDMETHODIMP Write(const void *data, UInt32 size, UInt32 *processedSize) {
     COM_ERROR_HANDLER_BEGIN
+    if (processedSize)
+      *processedSize = 0;
     unsigned size_written;
     RETRY_OR_IGNORE_BEGIN
     size_written = write(data, size);
@@ -160,6 +162,8 @@ public:
 
   STDMETHODIMP Seek(Int64 offset, UInt32 seekOrigin, UInt64 *newPosition) {
     COM_ERROR_HANDLER_BEGIN
+    if (newPosition)
+      *newPosition = 0;
     unsigned __int64 new_position = set_pos(offset, translate_seek_method(seekOrigin));
     if (newPosition)
       *newPosition = new_position;
@@ -211,6 +215,8 @@ public:
 
   STDMETHODIMP Write(const void *data, UInt32 size, UInt32 *processedSize) {
     COM_ERROR_HANDLER_BEGIN
+    if (processedSize)
+      *processedSize = 0;
     DWORD size_written;
     RETRY_OR_IGNORE_BEGIN
     size_written = write(data, size);
@@ -224,6 +230,8 @@ public:
 
   STDMETHODIMP Seek(Int64 offset, UInt32 seekOrigin, UInt64 *newPosition) {
     COM_ERROR_HANDLER_BEGIN
+    if (newPosition)
+      *newPosition = 0;
     __int64 real_offset = offset;
     if (seekOrigin == STREAM_SEEK_SET)
       real_offset += start_offset;
@@ -297,6 +305,8 @@ public:
 
   STDMETHODIMP Write(const void *data, UInt32 size, UInt32 *processedSize) {
     COM_ERROR_HANDLER_BEGIN
+    if (processedSize)
+      *processedSize = 0;
     if (seek_stream_pos != stream_pos) {
       unsigned __int64 volume_idx = seek_stream_pos / volume_size;
       unsigned __int64 last_volume_idx = get_last_volume_idx();
@@ -371,6 +381,8 @@ public:
 
   STDMETHODIMP Seek(Int64 offset, UInt32 seekOrigin, UInt64 *newPosition) {
     COM_ERROR_HANDLER_BEGIN
+    if (newPosition)
+      *newPosition = 0;
     switch (seekOrigin) {
     case STREAM_SEEK_SET:
       seek_stream_pos = offset;
@@ -456,6 +468,8 @@ public:
 
   STDMETHODIMP Read(void *data, UInt32 size, UInt32 *processedSize) {
     COM_ERROR_HANDLER_BEGIN
+    if (processedSize)
+      *processedSize = 0;
     unsigned size_read = read(data, size);
     progress.on_read_file(size_read);
     if (processedSize)
@@ -466,6 +480,8 @@ public:
 
   STDMETHODIMP Seek(Int64 offset, UInt32 seekOrigin, UInt64 *newPosition) {
     COM_ERROR_HANDLER_BEGIN
+    if (newPosition)
+      *newPosition = 0;
     unsigned __int64 new_position = set_pos(offset, translate_seek_method(seekOrigin));
     if (newPosition)
       *newPosition = new_position;
