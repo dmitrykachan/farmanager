@@ -644,7 +644,7 @@ public:
     g_options.save();
 
     ErrorLog error_log;
-    Archive().create(src_path, file_list, options, error_log);
+    ComObject<Archive>(new Archive())->create(src_path, file_list, options, error_log);
 
     if (!error_log.empty()) {
       show_error_log(error_log);
@@ -707,7 +707,7 @@ public:
 
     ErrorLog error_log;
     if (cmd.new_arc) {
-      Archive().create(src_path, files, options, error_log);
+      ComObject<Archive>(new Archive())->create(src_path, files, options, error_log);
 
       if (upcase(Far::get_panel_dir(PANEL_ACTIVE)) == upcase(extract_file_path(options.arc_path)))
         Far::panel_go_to_file(PANEL_ACTIVE, options.arc_path);
