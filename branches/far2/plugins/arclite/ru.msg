@@ -1,4 +1,4 @@
-﻿.Language=English,English
+﻿.Language=Russian,Russian (Русский)
 
 plugin.name = <(NAME)>
 
